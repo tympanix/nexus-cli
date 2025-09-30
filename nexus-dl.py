@@ -2,6 +2,7 @@ import os
 import requests
 from typing import Optional
 from tqdm import tqdm
+import concurrent.futures
 
 # Configuration - update these as needed
 NEXUS_URL = os.environ.get("NEXUS_URL", "http://localhost:8081")
@@ -74,8 +75,14 @@ def download_folder(folder: str, dest_dir: str):
     if not assets:
         print(f"No assets found in folder '{folder}'")
         return
-    for asset in assets:
-        download_asset(asset, dest_dir)
+    max_workers = min(8, len(assets))  # Limit number of threads
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(download_asset, asset, dest_dir) for asset in assets]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Error downloading asset: {e}")
     print(f"Downloaded {len(assets)} files from '{folder}' to '{dest_dir}'")
 
 def main():
