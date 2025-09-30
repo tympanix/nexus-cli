@@ -44,20 +44,18 @@ def list_assets(folder: str) -> list:
 
 def download_asset(asset: dict, dest_dir: str):
     """
-    Download a single asset to the destination directory, preserving folder structure.
+    Download a single asset to the destination directory, placing all files directly in dest_dir (no folder structure).
     """
     download_url = asset['downloadUrl']
     path = asset['path']
-    # Prevent absolute paths from escaping dest_dir
-    if os.path.isabs(path):
-        path = path.lstrip(os.sep)
-    local_path = os.path.join(dest_dir, path)
-    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    filename = os.path.basename(path)
+    local_path = os.path.join(dest_dir, filename)
+    os.makedirs(dest_dir, exist_ok=True)
     with requests.get(download_url, auth=(USERNAME, PASSWORD), stream=True) as r:
         r.raise_for_status()
         total = int(r.headers.get('content-length', 0))
         with open(local_path, 'wb') as f, tqdm(
-            desc=f"Downloading {path}",
+            desc=f"Downloading {filename}",
             total=total,
             unit='B',
             unit_scale=True
