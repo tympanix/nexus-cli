@@ -16,3 +16,6 @@ dependencies = [
 [project.scripts]
 nexus = "nexuscli.nexus:main"
 
+[tool.setuptools.packages.find]
+include = ["nexuscli*"]
+
