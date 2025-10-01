@@ -10,7 +10,7 @@ PASSWORD = os.environ.get("NEXUS_PASS", "admin")
 
 SEARCH_ENDPOINT = f"{NEXUS_URL}/service/rest/v1/search/assets"
 
-def list_assets(repository: str, folder: str) -> list:
+def list_assets(repository: str, src: str) -> list:
     continuation_token = None
     assets = []
     params = {
@@ -18,7 +18,7 @@ def list_assets(repository: str, folder: str) -> list:
         'format': 'raw',
         'direction': 'asc',
         'sort': 'name',
-        'q': f"/{folder}/*"
+        'q': f"/{src}/*"
     }
     while True:
         if continuation_token:
@@ -53,14 +53,14 @@ def download_asset(asset: dict, dest_dir: str):
                     f.write(chunk)
                     bar.update(len(chunk))
 
-def download_folder(folder_arg: str, dest_dir: str) -> bool:
-    if '/' not in folder_arg:
-        print("Error: The folder argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
+def download_folder(src_arg: str, dest_dir: str) -> bool:
+    if '/' not in src_arg:
+        print("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
         return False
-    repository, folder = folder_arg.split('/', 1)
-    assets = list_assets(repository, folder)
+    repository, src = src_arg.split('/', 1)
+    assets = list_assets(repository, src)
     if not assets:
-        print(f"No assets found in folder '{folder}' in repository '{repository}'")
+        print(f"No assets found in folder '{src}' in repository '{repository}'")
         return True
     max_workers = min(8, len(assets))
     errors = []
@@ -73,13 +73,13 @@ def download_folder(folder_arg: str, dest_dir: str) -> bool:
                 print(f"Error downloading asset: {e}")
                 errors.append(e)
     if not errors:
-        print(f"Downloaded {len(assets)} files from '{folder}' in repository '{repository}' to '{dest_dir}'")
+        print(f"Downloaded {len(assets)} files from '{src}' in repository '{repository}' to '{dest_dir}'")
     else:
-        print(f"Downloaded {len(assets) - len(errors)} of {len(assets)} files from '{folder}' in repository '{repository}' to '{dest_dir}'. {len(errors)} failed.")
+        print(f"Downloaded {len(assets) - len(errors)} of {len(assets)} files from '{src}' in repository '{repository}' to '{dest_dir}'. {len(errors)} failed.")
     return len(errors) == 0
 
 def main(args):
-    success = download_folder(args.folder, args.dest)
+    success = download_folder(args.src, args.dest)
     if not success:
         import sys
         sys.exit(1)

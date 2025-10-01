@@ -16,7 +16,7 @@ def main():
 
     # Download subcommand
     download_parser = subparsers.add_parser("download", help="Download all files from a Nexus RAW folder recursively.")
-    download_parser.add_argument("folder", help="Nexus RAW folder to download (e.g. 'myrepo/folder' or 'myrepo/folder/subfolder')")
+    download_parser.add_argument("src", help="Nexus RAW folder to download (e.g. 'myrepo/folder' or 'myrepo/folder/subfolder')")
     download_parser.add_argument("dest", help="Destination directory to save files")
     download_parser.set_defaults(func=download_main)
 
