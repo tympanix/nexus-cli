@@ -10,8 +10,6 @@ REPOSITORY = os.environ.get("NEXUS_REPO", "builds")
 USERNAME = os.environ.get("NEXUS_USER", "admin")
 PASSWORD = os.environ.get("NEXUS_PASS", "admin")
 
-UPLOAD_ENDPOINT = f"{NEXUS_URL}/service/rest/v1/components?repository={REPOSITORY}"
-
 def collect_files(directory: str) -> List[str]:
     """
     Recursively collect all file paths from the directory.
@@ -22,7 +20,7 @@ def collect_files(directory: str) -> List[str]:
             file_paths.append(os.path.join(root, file))
     return file_paths
 
-def upload_files(directory: str, subdir: Optional[str] = None):
+def upload_files(directory: str, repository: str, subdir: Optional[str] = None):
     """
     Upload all files from a directory (recursively) to Nexus RAW repository in a single HTTP call.
     """
@@ -35,6 +33,7 @@ def upload_files(directory: str, subdir: Optional[str] = None):
         fields[f'raw.asset{idx}.filename'] = (None, rel_path)
     fields['raw.directory'] = (None, subdir)
 
+    upload_endpoint = f"{NEXUS_URL}/service/rest/v1/components?repository={repository}"
     encoder = MultipartEncoder(fields=fields)
     progress = tqdm(total=encoder.len, unit='B', unit_scale=True, desc='Uploading')
 
@@ -44,7 +43,7 @@ def upload_files(directory: str, subdir: Optional[str] = None):
     monitor = MultipartEncoderMonitor(encoder, callback)
     headers = {'Content-Type': monitor.content_type}
     response = requests.post(
-        UPLOAD_ENDPOINT,
+        upload_endpoint,
         auth=(USERNAME, PASSWORD),
         data=monitor,
         headers=headers
@@ -63,9 +62,13 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Upload all files from a directory to Nexus RAW repository in a single HTTP call.")
     parser.add_argument("directory", help="Directory to upload")
-    parser.add_argument("--subdir", help="Optional subdirectory in Nexus RAW repo", default=None)
+    parser.add_argument("dest", help="Destination in the form 'repository/subdir' (subdir optional)")
     args = parser.parse_args()
-    upload_files(args.directory, args.subdir)
+    if "/" in args.dest:
+        repository, subdir = args.dest.split("/", 1)
+    else:
+        repository, subdir = args.dest, None
+    upload_files(args.directory, repository, subdir)
 
 if __name__ == "__main__":
     main()
