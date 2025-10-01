@@ -23,7 +23,7 @@ def list_assets(folder: str) -> list:
         'format': 'raw',
         'direction': 'asc',
         'sort': 'name',
-        'group': folder  # Changed from 'q' to 'group'
+        'q': f"{folder}/*"  # Use glob pattern with 'q' param
     }
     while True:
         if continuation_token:
@@ -33,10 +33,7 @@ def list_assets(folder: str) -> list:
             raise Exception(f"Failed to list assets: {response.status_code} {response.text}")
         data = response.json()
         for item in data.get('items', []):
-            # Only include files in the specified folder (recursively)
-            path = item.get('path', '')
-            if path.startswith(folder):
-                assets.append(item)
+            assets.append(item)
         continuation_token = data.get('continuationToken')
         if not continuation_token:
             break
@@ -44,18 +41,17 @@ def list_assets(folder: str) -> list:
 
 def download_asset(asset: dict, dest_dir: str):
     """
-    Download a single asset to the destination directory, placing all files directly in dest_dir (no folder structure).
+    Download a single asset to the destination directory, preserving the folder structure.
     """
     download_url = asset['downloadUrl']
-    path = asset['path']
-    filename = os.path.basename(path)
-    local_path = os.path.join(dest_dir, filename)
-    os.makedirs(dest_dir, exist_ok=True)
+    path = asset['path'].lstrip("/")  # Normalize to relative path
+    local_path = os.path.join(dest_dir, path)  # Preserve subfolders
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
     with requests.get(download_url, auth=(USERNAME, PASSWORD), stream=True) as r:
         r.raise_for_status()
         total = int(r.headers.get('content-length', 0))
         with open(local_path, 'wb') as f, tqdm(
-            desc=f"Downloading {filename}",
+            desc=f"Downloading {path}",
             total=total,
             unit='B',
             unit_scale=True
