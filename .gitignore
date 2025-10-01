@@ -132,3 +132,6 @@ cython_debug/
 venv
 out
 dl
+
+# Go binaries
+nexuscli-go/nexuscli-go
