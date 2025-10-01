@@ -42,12 +42,18 @@ func uploadFiles(src, repository, subdir string) error {
 		fileSizes[i] = info.Size()
 		totalBytes += info.Size()
 	}
-	
-	// Show progress bar only if stdout is a TTY and not in quiet mode
+
+	// Create progress bar - write to /dev/null when disabled
 	var bar *progressbar.ProgressBar
 	showProgress := isatty() && !quietMode
 	if showProgress {
 		bar = progressbar.DefaultBytes(totalBytes, "Uploading bytes")
+	} else {
+		devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		bar = progressbar.NewOptions64(totalBytes,
+			progressbar.OptionSetWriter(devNull),
+			progressbar.OptionShowBytes(true),
+		)
 	}
 
 	pr, pw := io.Pipe()
@@ -71,17 +77,10 @@ func uploadFiles(src, repository, subdir string) error {
 				errChan <- err
 				return
 			}
-			if showProgress {
-				reader := io.TeeReader(f, bar)
-				if _, err := io.Copy(part, reader); err != nil {
-					errChan <- err
-					return
-				}
-			} else {
-				if _, err := io.Copy(part, f); err != nil {
-					errChan <- err
-					return
-				}
+			reader := io.TeeReader(f, bar)
+			if _, err := io.Copy(part, reader); err != nil {
+				errChan <- err
+				return
 			}
 			_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), relPath)
 		}
