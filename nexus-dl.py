@@ -44,7 +44,7 @@ def download_asset(asset: dict, dest_dir: str):
     Download a single asset to the destination directory, preserving the folder structure.
     """
     download_url = asset['downloadUrl']
-    path = asset['path']#.lstrip("/")  # Normalize to relative path
+    path = asset['path'].lstrip("/")  # Normalize to relative path
     local_path = os.path.join(dest_dir, path)  # Preserve subfolders
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     with requests.get(download_url, auth=(USERNAME, PASSWORD), stream=True) as r:
