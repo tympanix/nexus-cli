@@ -132,7 +132,5 @@ cython_debug/
 venv
 out
 dl
-
-# Go build artifacts
 nexuscli-go/nexuscli-go
 dist/
