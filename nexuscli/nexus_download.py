@@ -61,7 +61,7 @@ def download_folder(src_arg: str, dest_dir: str) -> bool:
     assets = list_assets(repository, src)
     if not assets:
         print(f"No assets found in folder '{src}' in repository '{repository}'")
-        return True
+        return False
     max_workers = min(8, len(assets))
     errors = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -82,4 +82,4 @@ def main(args):
     success = download_folder(args.src, args.dest)
     if not success:
         import sys
-        sys.exit(1)
+        sys.exit(66)

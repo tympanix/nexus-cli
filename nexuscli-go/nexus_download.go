@@ -153,7 +153,7 @@ func downloadFolder(srcArg, destDir string) bool {
 	}
 	if len(assets) == 0 {
 		fmt.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
-		return true
+		return false
 	}
 	// Calculate total bytes to download using fileSize from search API
 	totalBytes := int64(0)
@@ -243,6 +243,6 @@ func NewSHA1() hash.Hash {
 func downloadMain(src, dest string) {
 	success := downloadFolder(src, dest)
 	if !success {
-		os.Exit(1)
+		os.Exit(66)
 	}
 }
