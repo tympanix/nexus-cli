@@ -6,25 +6,25 @@ import concurrent.futures
 
 # Configuration - update these as needed
 NEXUS_URL = os.environ.get("NEXUS_URL", "http://localhost:8081")
-REPOSITORY = os.environ.get("NEXUS_REPO", "builds")
 USERNAME = os.environ.get("NEXUS_USER", "admin")
 PASSWORD = os.environ.get("NEXUS_PASS", "admin")
 
 SEARCH_ENDPOINT = f"{NEXUS_URL}/service/rest/v1/search/assets"
 
-def list_assets(folder: str) -> list:
+def list_assets(repository: str, folder: str) -> list:
     """
     List all assets in a given folder (recursively) in the Nexus RAW repository.
     """
     continuation_token = None
     assets = []
     params = {
-        'repository': REPOSITORY,
+        'repository': repository,
         'format': 'raw',
         'direction': 'asc',
         'sort': 'name',
-        'q': f"{folder}/*"  # Use glob pattern with 'q' param
+        'q': f"/{folder}/*"  # Use glob pattern with 'q' param
     }
+    print(params)
     while True:
         if continuation_token:
             params['continuationToken'] = continuation_token
@@ -61,14 +61,19 @@ def download_asset(asset: dict, dest_dir: str):
                     f.write(chunk)
                     bar.update(len(chunk))
 
-def download_folder(folder: str, dest_dir: str) -> bool:
+def download_folder(folder_arg: str, dest_dir: str) -> bool:
     """
     Download all assets in a Nexus RAW folder recursively to dest_dir.
     Returns True if all downloads succeed, False if any fail.
+    The folder_arg should be in the form 'repository/folder/subfolder'.
     """
-    assets = list_assets(folder)
+    if '/' not in folder_arg:
+        print("Error: The folder argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
+        return False
+    repository, folder = folder_arg.split('/', 1)
+    assets = list_assets(repository, folder)
     if not assets:
-        print(f"No assets found in folder '{folder}'")
+        print(f"No assets found in folder '{folder}' in repository '{repository}'")
         return True
     max_workers = min(8, len(assets))  # Limit number of threads
     errors = []
@@ -81,9 +86,9 @@ def download_folder(folder: str, dest_dir: str) -> bool:
                 print(f"Error downloading asset: {e}")
                 errors.append(e)
     if not errors:
-        print(f"Downloaded {len(assets)} files from '{folder}' to '{dest_dir}'")
+        print(f"Downloaded {len(assets)} files from '{folder}' in repository '{repository}' to '{dest_dir}'")
     else:
-        print(f"Downloaded {len(assets) - len(errors)} of {len(assets)} files from '{folder}' to '{dest_dir}'. {len(errors)} failed.")
+        print(f"Downloaded {len(assets) - len(errors)} of {len(assets)} files from '{folder}' in repository '{repository}' to '{dest_dir}'. {len(errors)} failed.")
     return len(errors) == 0
 
 def main():
