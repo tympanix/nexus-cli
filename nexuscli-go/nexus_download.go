@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 
+	"crypto/sha1"
+	"hash"
+
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -75,11 +78,23 @@ func listAssets(repository, src string) ([]Asset, error) {
 	return assets, nil
 }
 
-func downloadAsset(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error) {
+func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
+
+	// Check if file exists and validate SHA1
+	if asset.Checksum.SHA1 != "" {
+		if _, err := os.Stat(localPath); err == nil {
+			sha1sum, err := computeSHA1(localPath)
+			if err == nil && strings.EqualFold(sha1sum, asset.Checksum.SHA1) {
+				fmt.Printf("Skipped (SHA1 match): %s\n", localPath)
+				return
+			}
+		}
+	}
+
 	resp, err := http.NewRequest("GET", asset.DownloadURL, nil)
 	if err != nil {
 		errCh <- err
@@ -102,7 +117,11 @@ func downloadAsset(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan e
 		return
 	}
 	defer f.Close()
-	_, err = io.Copy(f, res.Body)
+	var reader io.Reader = res.Body
+	if bar != nil {
+		reader = io.TeeReader(res.Body, bar)
+	}
+	_, err = io.Copy(f, reader)
 	if err != nil {
 		errCh <- err
 	}
@@ -136,7 +155,7 @@ func downloadFolder(srcArg, destDir string) bool {
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset Asset) {
-			downloadAssetWithBar(asset, destDir, &wg, errCh, bar)
+			downloadAssetUnified(asset, destDir, &wg, errCh, bar)
 		}(asset)
 	}
 	wg.Wait()
@@ -154,38 +173,24 @@ func downloadFolder(srcArg, destDir string) bool {
 	return nErrors == 0
 }
 
-func downloadAssetWithBar(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar) {
-	defer wg.Done()
-	path := strings.TrimLeft(asset.Path, "/")
-	localPath := filepath.Join(destDir, path)
-	os.MkdirAll(filepath.Dir(localPath), 0755)
-	resp, err := http.NewRequest("GET", asset.DownloadURL, nil)
+// computeSHA1 computes the SHA1 checksum of a file at the given path.
+func computeSHA1(path string) (string, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		errCh <- err
-		return
+		return "", err
 	}
-	resp.SetBasicAuth(username, password)
-	res, err := http.DefaultClient.Do(resp)
-	if err != nil {
-		errCh <- err
-		return
+	defer file.Close()
+
+	h := NewSHA1()
+	if _, err := io.Copy(h, file); err != nil {
+		return "", err
 	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		errCh <- fmt.Errorf("Failed to download %s: %d", asset.Path, res.StatusCode)
-		return
-	}
-	f, err := os.Create(localPath)
-	if err != nil {
-		errCh <- err
-		return
-	}
-	defer f.Close()
-	reader := io.TeeReader(res.Body, bar)
-	_, err = io.Copy(f, reader)
-	if err != nil {
-		errCh <- err
-	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// NewSHA1 returns a new hash.Hash computing the SHA1 checksum.
+func NewSHA1() hash.Hash {
+	return sha1.New()
 }
 
 func downloadMain(src, dest string) {
