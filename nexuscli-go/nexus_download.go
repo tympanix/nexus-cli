@@ -97,7 +97,7 @@ func listAssets(repository, src string) ([]Asset, error) {
 	return assets, nil
 }
 
-func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar) {
+func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 	localPath := filepath.Join(destDir, path)
@@ -110,6 +110,14 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 			actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
 			if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
 				fmt.Printf("Skipped (%s match): %s\n", strings.ToUpper(checksumAlgorithm), localPath)
+				// Advance progress bar by file size for skipped files
+				if bar != nil {
+					bar.Add64(asset.FileSize)
+				}
+				// Signal that this file was skipped
+				if skipCh != nil {
+					skipCh <- true
+				}
 				return
 			}
 		}
@@ -172,23 +180,38 @@ func downloadFolder(srcArg, destDir string) bool {
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
+	skipCh := make(chan bool, len(assets))
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset Asset) {
-			downloadAssetUnified(asset, destDir, &wg, errCh, bar)
+			downloadAssetUnified(asset, destDir, &wg, errCh, bar, skipCh)
 		}(asset)
 	}
 	wg.Wait()
 	close(errCh)
+	close(skipCh)
 	nErrors := 0
 	for err := range errCh {
 		fmt.Println("Error downloading asset:", err)
 		nErrors++
 	}
+	nSkipped := 0
+	for range skipCh {
+		nSkipped++
+	}
+	nDownloaded := len(assets) - nErrors - nSkipped
 	if nErrors == 0 {
-		fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", len(assets), src, repository, destDir)
+		if nSkipped > 0 {
+			fmt.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
+		} else {
+			fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", nDownloaded, src, repository, destDir)
+		}
 	} else {
-		fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", len(assets)-nErrors, len(assets), src, repository, destDir, nErrors)
+		if nSkipped > 0 {
+			fmt.Printf("Downloaded %d of %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), nSkipped, src, repository, destDir, nErrors)
+		} else {
+			fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), src, repository, destDir, nErrors)
+		}
 	}
 	return nErrors == 0
 }
