@@ -133,3 +133,4 @@ venv
 out
 dl
 nexuscli-go/nexuscli-go
+dist/

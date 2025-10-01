@@ -2,11 +2,25 @@
 
 A command-line tool for uploading and downloading files to/from a Nexus RAW repository.
 
-## Installation
+This repository contains both a Python implementation and a Go implementation of the CLI.
+
+## Python Installation
 
 ```sh
 pip install .
 ```
+
+## Go Build
+
+To build the Go implementation with production packages:
+
+```sh
+make build
+```
+
+This creates standalone binaries, DEB packages, and RPM packages in the `dist/` directory using [GoReleaser](https://goreleaser.com).
+
+See [nexuscli-go/README.md](nexuscli-go/README.md) for more details on the Go implementation.
 
 ## Usage
 
