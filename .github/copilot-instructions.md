@@ -147,6 +147,42 @@ make venv
 - Test with various file structures (nested directories, single files, multiple files)
 - Verify checksum validation works correctly
 
+## Commit Conventions
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit messages.
+
+### Commit Message Format
+```
+<type>: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Common Types
+- `feat` - A new feature
+- `fix` - A bug fix
+- `docs` - Documentation only changes
+- `style` - Changes that do not affect the meaning of the code
+- `refactor` - A code change that neither fixes a bug nor adds a feature
+- `perf` - A code change that improves performance
+- `test` - Adding missing tests or correcting existing tests
+- `chore` - Changes to the build process or auxiliary tools
+
+### Notes
+- The optional "scope" in commit messages is seldomly used for this project
+- Keep commit messages concise and descriptive
+- Use the imperative mood in the subject line (e.g., "add feature" not "added feature")
+
+### Examples
+```
+feat: add support for custom timeout configuration
+fix: handle empty directory uploads correctly
+docs: update README with new environment variables
+refactor: simplify checksum validation logic
+```
+
 ## Making Changes
 
 When making changes to this project:
@@ -157,6 +193,7 @@ When making changes to this project:
 5. Ensure environment variables work correctly
 6. Verify progress bars display correctly
 7. Handle edge cases (empty directories, missing files, network errors)
+8. Follow the Conventional Commits specification for commit messages
 
 ## Notes
 
