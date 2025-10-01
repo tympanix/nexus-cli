@@ -10,11 +10,22 @@ import (
 	"strings"
 	"sync"
 
+	"crypto/md5"
 	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
 	"hash"
 
 	"github.com/schollz/progressbar/v3"
 )
+
+// checksumAlgorithm holds the selected checksum algorithm for validation
+var checksumAlgorithm = "sha1"
+
+// setChecksumAlgorithm sets the checksum algorithm for validation
+func setChecksumAlgorithm(algorithm string) {
+	checksumAlgorithm = strings.ToLower(algorithm)
+}
 
 type Checksum struct {
 	SHA1   string `json:"sha1"`
@@ -84,12 +95,13 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
-	// Check if file exists and validate SHA1
-	if asset.Checksum.SHA1 != "" {
+	// Check if file exists and validate checksum
+	expectedChecksum := getExpectedChecksum(asset.Checksum)
+	if expectedChecksum != "" {
 		if _, err := os.Stat(localPath); err == nil {
-			sha1sum, err := computeSHA1(localPath)
-			if err == nil && strings.EqualFold(sha1sum, asset.Checksum.SHA1) {
-				fmt.Printf("Skipped (SHA1 match): %s\n", localPath)
+			actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
+			if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
+				fmt.Printf("Skipped (%s match): %s\n", strings.ToUpper(checksumAlgorithm), localPath)
 				return
 			}
 		}
@@ -173,19 +185,54 @@ func downloadFolder(srcArg, destDir string) bool {
 	return nErrors == 0
 }
 
-// computeSHA1 computes the SHA1 checksum of a file at the given path.
-func computeSHA1(path string) (string, error) {
+// getExpectedChecksum returns the expected checksum value for the selected algorithm
+func getExpectedChecksum(checksum Checksum) string {
+	switch strings.ToLower(checksumAlgorithm) {
+	case "sha1":
+		return checksum.SHA1
+	case "sha256":
+		return checksum.SHA256
+	case "sha512":
+		return checksum.SHA512
+	case "md5":
+		return checksum.MD5
+	default:
+		return checksum.SHA1 // Default to SHA1
+	}
+}
+
+// computeChecksum computes the checksum of a file using the specified algorithm
+func computeChecksum(path string, algorithm string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 
-	h := NewSHA1()
+	var h hash.Hash
+	switch strings.ToLower(algorithm) {
+	case "sha1":
+		h = sha1.New()
+	case "sha256":
+		h = sha256.New()
+	case "sha512":
+		h = sha512.New()
+	case "md5":
+		h = md5.New()
+	default:
+		h = sha1.New() // Default to SHA1
+	}
+
 	if _, err := io.Copy(h, file); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// computeSHA1 computes the SHA1 checksum of a file at the given path.
+// Deprecated: Use computeChecksum instead
+func computeSHA1(path string) (string, error) {
+	return computeChecksum(path, "sha1")
 }
 
 // NewSHA1 returns a new hash.Hash computing the SHA1 checksum.

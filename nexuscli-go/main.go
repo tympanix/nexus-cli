@@ -24,6 +24,7 @@ func main() {
 		},
 	}
 
+	var checksumAlg string
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -31,9 +32,11 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			src := args[0]
 			dest := args[1]
+			setChecksumAlgorithm(checksumAlg)
 			downloadMain(src, dest)
 		},
 	}
+	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 
 	rootCmd.AddCommand(uploadCmd)
 	rootCmd.AddCommand(downloadCmd)

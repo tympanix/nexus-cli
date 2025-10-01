@@ -132,7 +132,4 @@ cython_debug/
 venv
 out
 dl
-
-# Go binaries and vendor
 nexuscli-go/nexuscli-go
-nexuscli-go/vendor/
