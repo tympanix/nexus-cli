@@ -132,3 +132,4 @@ cython_debug/
 venv
 out
 dl
+nexuscli-go/nexuscli-go
