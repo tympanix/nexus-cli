@@ -32,7 +32,10 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			src := args[0]
 			dest := args[1]
-			setChecksumAlgorithm(checksumAlg)
+			if err := setChecksumAlgorithm(checksumAlg); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 			downloadMain(src, dest)
 		},
 	}
