@@ -1,0 +1,63 @@
+# GoReleaser configuration for nexuscli-go
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    - sh -c "cd nexuscli-go && go mod tidy"
+    - sh -c "cd nexuscli-go && go mod download"
+
+builds:
+  - id: nexuscli-go
+    dir: nexuscli-go
+    main: .
+    binary: nexuscli-go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: nexuscli-go
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE*
+
+nfpms:
+  - id: nexuscli-go
+    package_name: nexuscli-go
+    vendor: tympanix
+    homepage: https://github.com/tympanix/nexus-cli
+    maintainer: tympanix <tympanix@users.noreply.github.com>
+    description: Nexus CLI for upload and download
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    file_name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
