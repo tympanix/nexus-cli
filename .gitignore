@@ -133,5 +133,6 @@ venv
 out
 dl
 
-# Go binaries
+# Go binaries and vendor
 nexuscli-go/nexuscli-go
+nexuscli-go/vendor/

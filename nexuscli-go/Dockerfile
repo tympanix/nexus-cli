@@ -3,11 +3,15 @@ FROM golang:1.22 AS builder
 
 WORKDIR /build
 
-# Copy all source files including vendored dependencies
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
 COPY . .
 
-# Build the binary with static linking using vendored dependencies
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -a -installsuffix cgo -ldflags '-extldflags "-static"' -o nexuscli-go .
+# Build the binary with static linking
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o nexuscli-go .
 
 # Final stage - use scratch for minimal image
 FROM scratch
