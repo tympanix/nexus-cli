@@ -13,10 +13,29 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+type Checksum struct {
+	SHA1   string `json:"sha1"`
+	SHA256 string `json:"sha256"`
+	SHA512 string `json:"sha512"`
+	MD5    string `json:"md5"`
+}
+
 type Asset struct {
-	DownloadURL string `json:"downloadUrl"`
-	Path        string `json:"path"`
-	FileSize    int64  `json:"fileSize"`
+	DownloadURL    string          `json:"downloadUrl"`
+	Path           string          `json:"path"`
+	ID             string          `json:"id"`
+	Repository     string          `json:"repository"`
+	Format         string          `json:"format"`
+	Checksum       Checksum        `json:"checksum"`
+	ContentType    string          `json:"contentType"`
+	LastModified   string          `json:"lastModified"`
+	LastDownloaded string          `json:"lastDownloaded"`
+	Uploader       string          `json:"uploader"`
+	UploaderIP     string          `json:"uploaderIp"`
+	FileSize       int64           `json:"fileSize"`
+	BlobCreated    *string         `json:"blobCreated"`
+	BlobStoreName  *string         `json:"blobStoreName"`
+	Raw            json.RawMessage `json:"raw"`
 }
 
 type searchResponse struct {
