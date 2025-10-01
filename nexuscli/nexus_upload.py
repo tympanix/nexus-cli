@@ -8,18 +8,18 @@ NEXUS_URL = os.environ.get("NEXUS_URL", "http://localhost:8081")
 USERNAME = os.environ.get("NEXUS_USER", "admin")
 PASSWORD = os.environ.get("NEXUS_PASS", "admin")
 
-def collect_files(directory: str) -> List[str]:
+def collect_files(src: str) -> List[str]:
     file_paths = []
-    for root, _, files in os.walk(directory):
+    for root, _, files in os.walk(src):
         for file in files:
             file_paths.append(os.path.join(root, file))
     return file_paths
 
-def upload_files(directory: str, repository: str, subdir: Optional[str] = None):
-    file_paths = collect_files(directory)
+def upload_files(src: str, repository: str, subdir: Optional[str] = None):
+    file_paths = collect_files(src)
     fields = {}
     for idx, file_path in enumerate(file_paths, 1):
-        rel_path = os.path.relpath(file_path, directory)
+        rel_path = os.path.relpath(file_path, src)
         rel_path = rel_path.replace(os.sep, "/")
         fields[f'raw.asset{idx}'] = (os.path.basename(file_path), open(file_path, 'rb'))
         fields[f'raw.asset{idx}.filename'] = (None, rel_path)
@@ -45,7 +45,7 @@ def upload_files(directory: str, repository: str, subdir: Optional[str] = None):
         if isinstance(value, tuple) and hasattr(value[1], 'close'):
             value[1].close()
     if response.status_code == 204:
-        print(f"Uploaded {len(file_paths)} files from {directory}")
+        print(f"Uploaded {len(file_paths)} files from {src}")
     else:
         print(f"Failed to upload files: {response.status_code} {response.text}")
 
@@ -54,4 +54,4 @@ def main(args):
         repository, subdir = args.dest.split("/", 1)
     else:
         repository, subdir = args.dest, None
-    upload_files(args.directory, repository, subdir)
+    upload_files(args.src, repository, subdir)

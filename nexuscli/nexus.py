@@ -10,7 +10,7 @@ def main():
 
     # Upload subcommand
     upload_parser = subparsers.add_parser("upload", help="Upload all files from a directory to Nexus RAW repository.")
-    upload_parser.add_argument("directory", help="Directory to upload")
+    upload_parser.add_argument("src", help="Directory to upload")
     upload_parser.add_argument("dest", help="Destination in the form 'repository/subdir' (subdir optional)")
     upload_parser.set_defaults(func=upload_main)
 
