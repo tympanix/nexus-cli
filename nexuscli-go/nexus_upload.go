@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 func collectFiles(src string) ([]string, error) {
@@ -29,32 +31,56 @@ func uploadFiles(src, repository, subdir string) error {
 	if err != nil {
 		return err
 	}
-	body := &strings.Builder{}
-	writer := multipart.NewWriter(body)
-	for idx, filePath := range filePaths {
-		relPath, _ := filepath.Rel(src, filePath)
-		relPath = filepath.ToSlash(relPath)
-		f, err := os.Open(filePath)
+	// Calculate total bytes to upload
+	totalBytes := int64(0)
+	fileSizes := make([]int64, len(filePaths))
+	for i, filePath := range filePaths {
+		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(filePath))
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(part, f); err != nil {
-			return err
-		}
-		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), relPath)
+		fileSizes[i] = info.Size()
+		totalBytes += info.Size()
 	}
-	if subdir != "" {
-		_ = writer.WriteField("raw.directory", subdir)
-	}
-	writer.Close()
+	bar := progressbar.DefaultBytes(totalBytes, "Uploading bytes")
+
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+
+	// Write multipart form in a goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+		for idx, filePath := range filePaths {
+			relPath, _ := filepath.Rel(src, filePath)
+			relPath = filepath.ToSlash(relPath)
+			f, err := os.Open(filePath)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			defer f.Close()
+			part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(filePath))
+			if err != nil {
+				errChan <- err
+				return
+			}
+			reader := io.TeeReader(f, bar)
+			if _, err := io.Copy(part, reader); err != nil {
+				errChan <- err
+				return
+			}
+			_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), relPath)
+		}
+		if subdir != "" {
+			_ = writer.WriteField("raw.directory", subdir)
+		}
+		writer.Close()
+		errChan <- nil
+	}()
 
 	uploadEndpoint := fmt.Sprintf("%s/service/rest/v1/components?repository=%s", nexusURL, repository)
-	req, err := http.NewRequest("POST", uploadEndpoint, strings.NewReader(body.String()))
+	req, err := http.NewRequest("POST", uploadEndpoint, pr)
 	if err != nil {
 		return err
 	}
@@ -65,6 +91,9 @@ func uploadFiles(src, repository, subdir string) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if goroutineErr := <-errChan; goroutineErr != nil {
+		return goroutineErr
+	}
 	if resp.StatusCode == 204 {
 		fmt.Printf("Uploaded %d files from %s\n", len(filePaths), src)
 	} else {
