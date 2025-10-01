@@ -23,8 +23,16 @@ import (
 var checksumAlgorithm = "sha1"
 
 // setChecksumAlgorithm sets the checksum algorithm for validation
-func setChecksumAlgorithm(algorithm string) {
-	checksumAlgorithm = strings.ToLower(algorithm)
+// Returns an error if the algorithm is not supported
+func setChecksumAlgorithm(algorithm string) error {
+	alg := strings.ToLower(algorithm)
+	switch alg {
+	case "sha1", "sha256", "sha512", "md5":
+		checksumAlgorithm = alg
+		return nil
+	default:
+		return fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
+	}
 }
 
 type Checksum struct {
