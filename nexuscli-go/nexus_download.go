@@ -16,6 +16,7 @@ import (
 type Asset struct {
 	DownloadURL string `json:"downloadUrl"`
 	Path        string `json:"path"`
+	FileSize    int64  `json:"fileSize"`
 }
 
 type searchResponse struct {
@@ -104,40 +105,20 @@ func downloadFolder(srcArg, destDir string) bool {
 		fmt.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
 		return true
 	}
-	// Calculate total bytes to download
+	// Calculate total bytes to download using fileSize from search API
 	totalBytes := int64(0)
-	assetSizes := make([]int64, len(assets))
-	for i, asset := range assets {
-		resp, err := http.NewRequest("HEAD", asset.DownloadURL, nil)
-		if err != nil {
-			fmt.Println("Error preparing HEAD request:", err)
-			return false
-		}
-		resp.SetBasicAuth(username, password)
-		res, err := http.DefaultClient.Do(resp)
-		if err != nil {
-			fmt.Println("Error getting asset size:", err)
-			return false
-		}
-		if res.StatusCode != 200 {
-			fmt.Printf("Failed to get size for %s: %d\n", asset.Path, res.StatusCode)
-			res.Body.Close()
-			return false
-		}
-		size := res.ContentLength
-		assetSizes[i] = size
-		totalBytes += size
-		res.Body.Close()
+	for _, asset := range assets {
+		totalBytes += asset.FileSize
 	}
 	bar := progressbar.DefaultBytes(totalBytes, "Downloading bytes")
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
-	for i, asset := range assets {
+	for _, asset := range assets {
 		wg.Add(1)
-		go func(asset Asset, size int64) {
+		go func(asset Asset) {
 			downloadAssetWithBar(asset, destDir, &wg, errCh, bar)
-		}(asset, assetSizes[i])
+		}(asset)
 	}
 	wg.Wait()
 	close(errCh)
