@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import sys
-from nexus_upload import main as upload_main
-from nexus_download import main as download_main
+from .nexus_upload import main as upload_main
+from .nexus_download import main as download_main
 
 def main():
     parser = argparse.ArgumentParser(description="Nexus CLI with upload and download subcommands.")

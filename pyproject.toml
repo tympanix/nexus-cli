@@ -1,0 +1,18 @@
+[project]
+name = "nexuscli"
+version = "0.1.0"
+description = "Nexus CLI with upload and download commands for Nexus RAW repositories."
+authors = [
+    { name = "tympanix", email = "tympanix@email.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "requests",
+    "tqdm",
+    "requests-toolbelt"
+]
+
+[project.scripts]
+nexus = "nexuscli.nexus:main"
+
