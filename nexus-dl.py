@@ -44,7 +44,7 @@ def download_asset(asset: dict, dest_dir: str):
     Download a single asset to the destination directory, preserving the folder structure.
     """
     download_url = asset['downloadUrl']
-    path = asset['path'].lstrip("/")  # Normalize to relative path
+    path = asset['path']#.lstrip("/")  # Normalize to relative path
     local_path = os.path.join(dest_dir, path)  # Preserve subfolders
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     with requests.get(download_url, auth=(USERNAME, PASSWORD), stream=True) as r:
@@ -61,31 +61,41 @@ def download_asset(asset: dict, dest_dir: str):
                     f.write(chunk)
                     bar.update(len(chunk))
 
-def download_folder(folder: str, dest_dir: str):
+def download_folder(folder: str, dest_dir: str) -> bool:
     """
     Download all assets in a Nexus RAW folder recursively to dest_dir.
+    Returns True if all downloads succeed, False if any fail.
     """
     assets = list_assets(folder)
     if not assets:
         print(f"No assets found in folder '{folder}'")
-        return
+        return True
     max_workers = min(8, len(assets))  # Limit number of threads
+    errors = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(download_asset, asset, dest_dir) for asset in assets]
+        futures = {executor.submit(download_asset, asset, dest_dir): asset for asset in assets}
         for future in concurrent.futures.as_completed(futures):
             try:
                 future.result()
             except Exception as e:
                 print(f"Error downloading asset: {e}")
-    print(f"Downloaded {len(assets)} files from '{folder}' to '{dest_dir}'")
+                errors.append(e)
+    if not errors:
+        print(f"Downloaded {len(assets)} files from '{folder}' to '{dest_dir}'")
+    else:
+        print(f"Downloaded {len(assets) - len(errors)} of {len(assets)} files from '{folder}' to '{dest_dir}'. {len(errors)} failed.")
+    return len(errors) == 0
 
 def main():
     import argparse
+    import sys
     parser = argparse.ArgumentParser(description="Download all files from a Nexus RAW folder recursively.")
     parser.add_argument("folder", help="Nexus RAW folder to download (e.g. 'myfolder' or 'myfolder/subfolder')")
     parser.add_argument("dest", help="Destination directory to save files")
     args = parser.parse_args()
-    download_folder(args.folder, args.dest)
+    success = download_folder(args.folder, args.dest)
+    if not success:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
