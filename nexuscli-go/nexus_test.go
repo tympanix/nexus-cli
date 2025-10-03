@@ -90,7 +90,7 @@ func TestUploadSingleFile(t *testing.T) {
 	defer func() { quietMode = originalQuietMode }()
 	
 	// Test upload
-	err = uploadFiles(testDir, "test-repo", "")
+	err = uploadFiles(testDir, "test-repo", "", osFS{})
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}

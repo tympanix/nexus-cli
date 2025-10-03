@@ -12,18 +12,9 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
-// osOpen is a variable that can be overridden for testing
-var osOpen = os.Open
-
-// osStat is a variable that can be overridden for testing
-var osStat = os.Stat
-
-// filepathWalk is a variable that can be overridden for testing
-var filepathWalk = filepath.Walk
-
-func collectFiles(src string) ([]string, error) {
+func collectFiles(src string, fs fileSystem) ([]string, error) {
 	var files []string
-	err := filepathWalk(src, func(path string, info os.FileInfo, err error) error {
+	err := fs.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -35,8 +26,8 @@ func collectFiles(src string) ([]string, error) {
 	return files, err
 }
 
-func uploadFiles(src, repository, subdir string) error {
-	filePaths, err := collectFiles(src)
+func uploadFiles(src, repository, subdir string, fs fileSystem) error {
+	filePaths, err := collectFiles(src, fs)
 	if err != nil {
 		return err
 	}
@@ -44,7 +35,7 @@ func uploadFiles(src, repository, subdir string) error {
 	totalBytes := int64(0)
 	fileSizes := make([]int64, len(filePaths))
 	for i, filePath := range filePaths {
-		info, err := osStat(filePath)
+		info, err := fs.Stat(filePath)
 		if err != nil {
 			return err
 		}
@@ -74,7 +65,7 @@ func uploadFiles(src, repository, subdir string) error {
 		for idx, filePath := range filePaths {
 			relPath, _ := filepath.Rel(src, filePath)
 			relPath = filepath.ToSlash(relPath)
-			f, err := osOpen(filePath)
+			f, err := fs.Open(filePath)
 			if err != nil {
 				errChan <- err
 				return
@@ -133,7 +124,7 @@ func uploadMain(src, dest string) {
 		repository = parts[0]
 		subdir = parts[1]
 	}
-	err := uploadFiles(src, repository, subdir)
+	err := uploadFiles(src, repository, subdir, osFS{})
 	if err != nil {
 		fmt.Println("Upload error:", err)
 		os.Exit(1)
