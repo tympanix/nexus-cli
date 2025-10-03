@@ -5,9 +5,9 @@ import (
 )
 
 var (
-	nexusURL = getenv("NEXUS_URL", "http://localhost:8081")
-	username = getenv("NEXUS_USER", "admin")
-	password = getenv("NEXUS_PASS", "admin")
+	nexusURL  = getenv("NEXUS_URL", "http://localhost:8081")
+	username  = getenv("NEXUS_USER", "admin")
+	password  = getenv("NEXUS_PASS", "admin")
 	quietMode = false
 )
 

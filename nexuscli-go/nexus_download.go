@@ -147,10 +147,7 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 		return
 	}
 	defer f.Close()
-	var reader io.Reader = res.Body
-	if bar != nil {
-		reader = io.TeeReader(res.Body, bar)
-	}
+	reader := io.TeeReader(res.Body, bar)
 	_, err = io.Copy(f, reader)
 	if err != nil {
 		errCh <- err
@@ -184,13 +181,18 @@ func downloadFolder(srcArg, destDir string) bool {
 	for _, asset := range assets {
 		totalBytes += asset.FileSize
 	}
-	
-	// Show progress bar only if stdout is a TTY and not in quiet mode
-	var bar *progressbar.ProgressBar
+
+	// Create progress bar - write to /dev/null when disabled
 	showProgress := isatty() && !quietMode
-	if showProgress {
-		bar = progressbar.DefaultBytes(totalBytes, "Downloading bytes")
+	progressWriter := os.Stdout
+	if !showProgress {
+		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	}
+	bar := progressbar.NewOptions64(totalBytes,
+		progressbar.OptionSetWriter(progressWriter),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetDescription("Downloading bytes"),
+	)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
