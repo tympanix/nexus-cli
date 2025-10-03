@@ -330,6 +330,7 @@ func TestUploadURLConstruction(t *testing.T) {
 			}
 
 			opts := &UploadOptions{
+				Logger:    NewLogger(io.Discard),
 				QuietMode: true,
 			}
 
