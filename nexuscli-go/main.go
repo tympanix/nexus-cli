@@ -64,6 +64,7 @@ func main() {
 
 	var checksumAlg string
 	var skipChecksumValidation bool
+	var stripFolders bool
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -71,9 +72,11 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
+			stripFolders, _ = cmd.Flags().GetBool("strip-folders")
 			opts := &DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
+				StripFolders:      stripFolders,
 				Logger:            logger,
 				QuietMode:         quietMode,
 			}
@@ -88,6 +91,7 @@ func main() {
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolP("strip-folders", "f", false, "Strip parent folders from file paths when saving locally")
 
 	rootCmd.AddCommand(uploadCmd)
 	rootCmd.AddCommand(downloadCmd)

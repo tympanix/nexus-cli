@@ -470,3 +470,134 @@ func TestUploadURLConstruction(t *testing.T) {
 		})
 	}
 }
+
+// TestDownloadStripFolders tests the strip-folders functionality
+func TestDownloadStripFolders(t *testing.T) {
+	testContent1 := "Content 1"
+	testContent2 := "Content 2"
+	testPath1 := "/test-folder/subfolder/file1.txt"
+	testPath2 := "/test-folder/other/file2.txt"
+
+	var serverURL string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := searchResponse{
+				Items: []Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + testPath1,
+						Path:        testPath1,
+						ID:          "test-id-1",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent1)),
+						Checksum: Checksum{
+							SHA1: "abc123",
+						},
+					},
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + testPath2,
+						Path:        testPath2,
+						ID:          "test-id-2",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent2)),
+						Checksum: Checksum{
+							SHA1: "def456",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, testPath1) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent1))
+			return
+		}
+
+		if strings.Contains(r.URL.Path, testPath2) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent2))
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	tests := []struct {
+		name         string
+		stripFolders bool
+		expectedPath1 string
+		expectedPath2 string
+	}{
+		{
+			name:         "with strip folders enabled",
+			stripFolders: true,
+			expectedPath1: "file1.txt",
+			expectedPath2: "file2.txt",
+		},
+		{
+			name:         "with strip folders disabled",
+			stripFolders: false,
+			expectedPath1: testPath1,
+			expectedPath2: testPath2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &DownloadOptions{
+				ChecksumAlgorithm: "sha1",
+				SkipChecksum:      false,
+				StripFolders:      tt.stripFolders,
+				Logger:            NewLogger(io.Discard),
+				QuietMode:         true,
+			}
+
+			destDir, err := os.MkdirTemp("", "test-download-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp directory: %v", err)
+			}
+			defer os.RemoveAll(destDir)
+
+			success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+			if !success {
+				t.Fatal("Download failed")
+			}
+
+			// Validate file1 was downloaded to expected path
+			downloadedFile1 := filepath.Join(destDir, tt.expectedPath1)
+			content1, err := os.ReadFile(downloadedFile1)
+			if err != nil {
+				t.Fatalf("Failed to read downloaded file1 at %s: %v", downloadedFile1, err)
+			}
+			if string(content1) != testContent1 {
+				t.Errorf("Expected file1 content '%s', got '%s'", testContent1, string(content1))
+			}
+
+			// Validate file2 was downloaded to expected path
+			downloadedFile2 := filepath.Join(destDir, tt.expectedPath2)
+			content2, err := os.ReadFile(downloadedFile2)
+			if err != nil {
+				t.Fatalf("Failed to read downloaded file2 at %s: %v", downloadedFile2, err)
+			}
+			if string(content2) != testContent2 {
+				t.Errorf("Expected file2 content '%s', got '%s'", testContent2, string(content2))
+			}
+		})
+	}
+}
+

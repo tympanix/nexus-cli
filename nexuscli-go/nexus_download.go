@@ -24,6 +24,7 @@ import (
 type DownloadOptions struct {
 	ChecksumAlgorithm string
 	SkipChecksum      bool
+	StripFolders      bool
 	Logger            Logger
 	QuietMode         bool
 }
@@ -117,6 +118,12 @@ func listAssets(repository, src string, config *Config) ([]Asset, error) {
 func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
+	
+	// If StripFolders is enabled, use only the filename
+	if opts.StripFolders {
+		path = filepath.Base(path)
+	}
+	
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
