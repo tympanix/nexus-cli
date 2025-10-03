@@ -135,3 +135,8 @@ dl
 nexuscli-go/nexuscli-go
 nexuscli-go/nexuscli-go-test
 dist/
+
+# Go build artifacts
+nexuscli-go
+*.test
+*.out

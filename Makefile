@@ -6,4 +6,4 @@ build:
 	goreleaser release --snapshot --clean --skip=publish
 
 test:
-	cd nexuscli-go && go test -v
+	go test -v ./...
