@@ -240,19 +240,8 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		nSkipped++
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
-	if nErrors == 0 {
-		if nSkipped > 0 {
-			opts.Logger.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
-		} else {
-			opts.Logger.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", nDownloaded, src, repository, destDir)
-		}
-	} else {
-		if nSkipped > 0 {
-			opts.Logger.Printf("Downloaded %d of %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), nSkipped, src, repository, destDir, nErrors)
-		} else {
-			opts.Logger.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), src, repository, destDir, nErrors)
-		}
-	}
+	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
+		nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
 	return nErrors == 0
 }
 
