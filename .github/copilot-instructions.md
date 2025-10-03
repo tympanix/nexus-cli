@@ -8,13 +8,20 @@ Nexus CLI is a command-line tool for uploading and downloading files to/from a N
 
 ```
 nexus-cli/
-├── nexuscli-go/           # Go implementation
-│   ├── main.go            # Main CLI entry point
-│   ├── config.go          # Configuration management
-│   ├── nexus_upload.go    # Upload functionality
-│   └── nexus_download.go  # Download functionality
-├── Makefile               # Build automation
-└── README.md              # User documentation
+├── cmd/
+│   └── nexuscli-go/        # Main CLI entry point
+│       ├── main.go
+│       └── main_test.go
+├── internal/               # Private application packages
+│   ├── config/             # Configuration management
+│   ├── logger/             # Logger implementation
+│   └── nexus/              # Nexus client (upload/download)
+├── go.mod                  # Go module definition
+├── go.sum
+├── Dockerfile              # Multi-stage Docker build
+├── Makefile                # Build automation
+├── .goreleaser.yaml        # Release configuration
+└── README.md               # User documentation
 ```
 
 ## Key Features
@@ -45,8 +52,7 @@ This uses [GoReleaser](https://goreleaser.com) to create standalone binaries, DE
 
 ### Development Build
 ```bash
-cd nexuscli-go
-go build -o nexuscli-go
+go build -o nexuscli-go ./cmd/nexuscli-go
 ```
 
 ### Command Format
@@ -67,9 +73,9 @@ go build -o nexuscli-go
 
 ## Development Workflow
 
-1. Navigate to `nexuscli-go/`
-2. Build: `go build -o nexuscli-go`
-3. Run: `./nexuscli-go <command> <args>`
+1. Build: `go build -o nexuscli-go ./cmd/nexuscli-go`
+2. Run: `./nexuscli-go <command> <args>`
+3. Test: `go test -v ./...` or `make test`
 
 For production builds, use `make build` from the repository root.
 
@@ -107,10 +113,10 @@ For production builds, use `make build` from the repository root.
 
 ## Testing Considerations
 
-- Unit tests are located in the `nexuscli-go/` directory alongside the source code
+- Unit tests are organized by package in the repository
 - Test files follow the Go convention: `*_test.go`
 - Run tests from the repository root using: `make test`
-- Or run tests directly: `cd nexuscli-go && go test -v`
+- Or run tests directly: `go test -v ./...`
 - Test suite includes:
   - Configuration tests (environment variables and defaults)
   - Upload/download functionality tests

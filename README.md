@@ -45,8 +45,7 @@ docker run --rm -v $(pwd):/data \
 To build the Go CLI locally for development:
 
 ```bash
-cd nexuscli-go
-go build -o nexuscli-go
+go build -o nexuscli-go ./cmd/nexuscli-go
 ```
 
 ### Production Build with Packages
@@ -90,11 +89,10 @@ To run the unit tests:
 make test
 ```
 
-This will run all tests in the `nexuscli-go` directory with verbose output. Alternatively, you can run tests directly using Go:
+This will run all tests in the repository with verbose output. Alternatively, you can run tests directly using Go:
 
 ```bash
-cd nexuscli-go
-go test -v
+go test -v ./...
 ```
 
 The test suite includes:
