@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,12 +75,23 @@ func listAssets(repository, src string, config *Config) ([]Asset, error) {
 	var assets []Asset
 	continuationToken := ""
 	for {
-		params := fmt.Sprintf("?repository=%s&format=raw&direction=asc&sort=name&q=/%s/*", repository, src)
-		if continuationToken != "" {
-			params += "&continuationToken=" + continuationToken
+		baseURL, err := url.Parse(config.NexusURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Nexus URL: %w", err)
 		}
-		url := fmt.Sprintf("%s/service/rest/v1/search/assets%s", config.NexusURL, params)
-		req, _ := http.NewRequest("GET", url, nil)
+		baseURL.Path = "/service/rest/v1/search/assets"
+		query := baseURL.Query()
+		query.Set("repository", repository)
+		query.Set("format", "raw")
+		query.Set("direction", "asc")
+		query.Set("sort", "name")
+		query.Set("q", fmt.Sprintf("/%s/*", src))
+		if continuationToken != "" {
+			query.Set("continuationToken", continuationToken)
+		}
+		baseURL.RawQuery = query.Encode()
+
+		req, _ := http.NewRequest("GET", baseURL.String(), nil)
 		req.SetBasicAuth(config.Username, config.Password)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {

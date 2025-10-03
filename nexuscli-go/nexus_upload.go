@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,8 +97,16 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		errChan <- nil
 	}()
 
-	uploadEndpoint := fmt.Sprintf("%s/service/rest/v1/components?repository=%s", config.NexusURL, repository)
-	req, err := http.NewRequest("POST", uploadEndpoint, pr)
+	baseURL, err := url.Parse(config.NexusURL)
+	if err != nil {
+		return fmt.Errorf("invalid Nexus URL: %w", err)
+	}
+	baseURL.Path = "/service/rest/v1/components"
+	query := baseURL.Query()
+	query.Set("repository", repository)
+	baseURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequest("POST", baseURL.String(), pr)
 	if err != nil {
 		return err
 	}
