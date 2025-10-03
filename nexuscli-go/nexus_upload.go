@@ -42,7 +42,13 @@ func uploadFiles(src, repository, subdir string) error {
 		fileSizes[i] = info.Size()
 		totalBytes += info.Size()
 	}
-	bar := progressbar.DefaultBytes(totalBytes, "Uploading bytes")
+	
+	// Show progress bar only if stdout is a TTY and not in quiet mode
+	var bar *progressbar.ProgressBar
+	showProgress := isatty() && !quietMode
+	if showProgress {
+		bar = progressbar.DefaultBytes(totalBytes, "Uploading bytes")
+	}
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -65,10 +71,17 @@ func uploadFiles(src, repository, subdir string) error {
 				errChan <- err
 				return
 			}
-			reader := io.TeeReader(f, bar)
-			if _, err := io.Copy(part, reader); err != nil {
-				errChan <- err
-				return
+			if showProgress {
+				reader := io.TeeReader(f, bar)
+				if _, err := io.Copy(part, reader); err != nil {
+					errChan <- err
+					return
+				}
+			} else {
+				if _, err := io.Copy(part, f); err != nil {
+					errChan <- err
+					return
+				}
 			}
 			_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), relPath)
 		}
@@ -94,11 +107,13 @@ func uploadFiles(src, repository, subdir string) error {
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
-	if resp.StatusCode == 204 {
-		fmt.Printf("Uploaded %d files from %s\n", len(filePaths), src)
-	} else {
-		respBody, _ := io.ReadAll(resp.Body)
-		fmt.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
+	if !quietMode {
+		if resp.StatusCode == 204 {
+			fmt.Printf("Uploaded %d files from %s\n", len(filePaths), src)
+		} else {
+			respBody, _ := io.ReadAll(resp.Body)
+			fmt.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
+		}
 	}
 	return nil
 }

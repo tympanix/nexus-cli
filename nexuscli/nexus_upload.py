@@ -1,4 +1,5 @@
 import os
+import sys
 import requests
 from typing import Optional, List
 from tqdm import tqdm
@@ -15,7 +16,7 @@ def collect_files(src: str) -> List[str]:
             file_paths.append(os.path.join(root, file))
     return file_paths
 
-def upload_files(src: str, repository: str, subdir: Optional[str] = None):
+def upload_files(src: str, repository: str, subdir: Optional[str] = None, quiet: bool = False):
     file_paths = collect_files(src)
     fields = {}
     for idx, file_path in enumerate(file_paths, 1):
@@ -27,7 +28,10 @@ def upload_files(src: str, repository: str, subdir: Optional[str] = None):
 
     upload_endpoint = f"{NEXUS_URL}/service/rest/v1/components?repository={repository}"
     encoder = MultipartEncoder(fields=fields)
-    progress = tqdm(total=encoder.len, unit='B', unit_scale=True, desc='Uploading')
+    
+    # Show progress bar only if stdout is a TTY and not in quiet mode
+    show_progress = sys.stdout.isatty() and not quiet
+    progress = tqdm(total=encoder.len, unit='B', unit_scale=True, desc='Uploading', disable=not show_progress)
 
     def callback(monitor):
         progress.update(monitor.bytes_read - progress.n)
@@ -44,14 +48,16 @@ def upload_files(src: str, repository: str, subdir: Optional[str] = None):
     for key, value in fields.items():
         if isinstance(value, tuple) and hasattr(value[1], 'close'):
             value[1].close()
-    if response.status_code == 204:
-        print(f"Uploaded {len(file_paths)} files from {src}")
-    else:
-        print(f"Failed to upload files: {response.status_code} {response.text}")
+    if not quiet:
+        if response.status_code == 204:
+            print(f"Uploaded {len(file_paths)} files from {src}")
+        else:
+            print(f"Failed to upload files: {response.status_code} {response.text}")
 
 def main(args):
     if "/" in args.dest:
         repository, subdir = args.dest.split("/", 1)
     else:
         repository, subdir = args.dest, None
-    upload_files(args.src, repository, subdir)
+    quiet = getattr(args, 'quiet', False)
+    upload_files(args.src, repository, subdir, quiet)
