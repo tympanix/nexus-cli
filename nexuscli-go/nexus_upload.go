@@ -14,6 +14,7 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
+	Logger    Logger
 	QuietMode bool
 }
 
@@ -110,13 +111,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
-	if !opts.QuietMode {
-		if resp.StatusCode == 204 {
-			fmt.Printf("Uploaded %d files from %s\n", len(filePaths), src)
-		} else {
-			respBody, _ := io.ReadAll(resp.Body)
-			fmt.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
-		}
+	if resp.StatusCode == 204 {
+		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
+	} else {
+		respBody, _ := io.ReadAll(resp.Body)
+		opts.Logger.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
