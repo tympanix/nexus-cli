@@ -2,17 +2,85 @@
 
 A command-line tool for uploading and downloading files to/from a Nexus RAW repository.
 
+## Features
+- Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
+- Download all files from a Nexus RAW folder recursively
+- Parallel downloads for speed
+- Small container image size using multi-stage build with scratch base
+
 ## Building
 
-To build with production packages:
+### Using Docker (Recommended)
 
-```sh
+Build the Docker image:
+
+```bash
+docker build -t nexuscli-go .
+```
+
+> **Note**: The Docker build downloads dependencies during the build process. If you encounter certificate issues in restricted environments, ensure your Docker daemon has proper internet access and CA certificates.
+
+Run upload:
+
+```bash
+docker run --rm -v $(pwd):/data \
+  -e NEXUS_URL=http://your-nexus:8081 \
+  -e NEXUS_USER=admin \
+  -e NEXUS_PASS=admin \
+  nexuscli-go upload /data/<directory> <repository/subdir>
+```
+
+Run download:
+
+```bash
+docker run --rm -v $(pwd):/data \
+  -e NEXUS_URL=http://your-nexus:8081 \
+  -e NEXUS_USER=admin \
+  -e NEXUS_PASS=admin \
+  nexuscli-go download <repository/folder> /data/<directory>
+```
+
+### Native Build
+
+To build the Go CLI locally for development:
+
+```bash
+cd nexuscli-go
+go build -o nexuscli-go
+```
+
+### Production Build with Packages
+
+From the root of the repository, use the Makefile to build production packages:
+
+```bash
 make build
 ```
 
-This creates standalone binaries, DEB packages, and RPM packages in the `dist/` directory using [GoReleaser](https://goreleaser.com).
+This will use [GoReleaser](https://goreleaser.com) to build:
+- Standalone binaries for Linux, macOS, and Windows (amd64 and arm64)
+- DEB packages for Debian/Ubuntu-based systems
+- RPM packages for Red Hat/Fedora-based systems
+- Archives (tar.gz) for all platforms
 
-For development builds and other options, see [nexuscli-go/README.md](nexuscli-go/README.md).
+All artifacts are placed in the `dist/` directory.
+
+### Installing from Packages
+
+**DEB (Debian/Ubuntu):**
+```bash
+sudo dpkg -i dist/nexus-cli_*_linux_amd64.deb
+```
+
+**RPM (Red Hat/Fedora):**
+```bash
+sudo rpm -i dist/nexus-cli_*_linux_amd64.rpm
+```
+
+**Standalone Binary:**
+```bash
+./dist/nexuscli-go_linux_amd64_v1/nexuscli-go
+```
 
 ## Usage
 
@@ -32,14 +100,14 @@ You can authenticate with Nexus using environment variables or CLI flags:
 
 ### Upload
 
-```
+```bash
 nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] <directory> <repository[/subdir]>
 ```
 
 ### Download
 
-```
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] <repository/folder> <dest>
+```bash
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] <repository/folder> <directory>
 ```
 
 **Examples:**
@@ -55,4 +123,10 @@ nexuscli-go upload ./files my-repo/path
 Using CLI flags:
 ```bash
 nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword ./files my-repo/path
+```
+
+Using Docker with CLI flags:
+```bash
+docker run --rm -v $(pwd):/data \
+  nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword /data/<directory> <repository/subdir>
 ```
