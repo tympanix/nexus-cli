@@ -52,16 +52,17 @@ func uploadFiles(src, repository, subdir string, cfg *config.Config, opts *Uploa
 		totalBytes += info.Size()
 	}
 
-	// Create progress bar - write to /dev/null when disabled
+	// Create progress bar - write to io.Discard when disabled
 	showProgress := config.Isatty() && !opts.QuietMode
-	progressWriter := os.Stdout
+	progressWriter := io.Writer(os.Stdout)
 	if !showProgress {
-		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		progressWriter = io.Discard
 	}
 	bar := progressbar.NewOptions64(totalBytes,
 		progressbar.OptionSetWriter(progressWriter),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetDescription("Uploading bytes"),
+		progressbar.OptionFullWidth(),
 	)
 
 	pr, pw := io.Pipe()

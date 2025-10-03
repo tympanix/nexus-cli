@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -36,9 +37,8 @@ func main() {
 			}
 			// Configure logger based on quiet mode
 			if quietMode {
-				// Use /dev/null for logging when quiet mode is enabled
-				devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-				log = logger.New(devNull)
+				// Use io.Discard for logging when quiet mode is enabled
+				log = logger.New(io.Discard)
 			} else {
 				log = logger.New(os.Stdout)
 			}
