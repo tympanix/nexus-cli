@@ -12,6 +12,11 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+// UploadOptions holds options for upload operations
+type UploadOptions struct {
+	QuietMode bool
+}
+
 // osOpen is a variable that can be overridden for testing
 var osOpen = os.Open
 
@@ -35,7 +40,7 @@ func collectFiles(src string) ([]string, error) {
 	return files, err
 }
 
-func uploadFiles(src, repository, subdir string) error {
+func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOptions) error {
 	filePaths, err := collectFiles(src)
 	if err != nil {
 		return err
@@ -53,7 +58,7 @@ func uploadFiles(src, repository, subdir string) error {
 	}
 
 	// Create progress bar - write to /dev/null when disabled
-	showProgress := isatty() && !quietMode
+	showProgress := isatty() && !opts.QuietMode
 	progressWriter := os.Stdout
 	if !showProgress {
 		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -99,12 +104,12 @@ func uploadFiles(src, repository, subdir string) error {
 		errChan <- nil
 	}()
 
-	uploadEndpoint := fmt.Sprintf("%s/service/rest/v1/components?repository=%s", nexusURL, repository)
+	uploadEndpoint := fmt.Sprintf("%s/service/rest/v1/components?repository=%s", config.NexusURL, repository)
 	req, err := http.NewRequest("POST", uploadEndpoint, pr)
 	if err != nil {
 		return err
 	}
-	req.SetBasicAuth(username, password)
+	req.SetBasicAuth(config.Username, config.Password)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -114,7 +119,7 @@ func uploadFiles(src, repository, subdir string) error {
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
-	if !quietMode {
+	if !opts.QuietMode {
 		if resp.StatusCode == 204 {
 			fmt.Printf("Uploaded %d files from %s\n", len(filePaths), src)
 		} else {
@@ -125,7 +130,7 @@ func uploadFiles(src, repository, subdir string) error {
 	return nil
 }
 
-func uploadMain(src, dest string) {
+func uploadMain(src, dest string, config *Config, opts *UploadOptions) {
 	repository := dest
 	subdir := ""
 	if strings.Contains(dest, "/") {
@@ -133,7 +138,7 @@ func uploadMain(src, dest string) {
 		repository = parts[0]
 		subdir = parts[1]
 	}
-	err := uploadFiles(src, repository, subdir)
+	err := uploadFiles(src, repository, subdir, config, opts)
 	if err != nil {
 		fmt.Println("Upload error:", err)
 		os.Exit(1)

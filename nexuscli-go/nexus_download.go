@@ -19,19 +19,20 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
-// checksumAlgorithm holds the selected checksum algorithm for validation
-var checksumAlgorithm = "sha1"
+// DownloadOptions holds options for download operations
+type DownloadOptions struct {
+	ChecksumAlgorithm string
+	SkipChecksum      bool
+	QuietMode         bool
+}
 
-// skipChecksum indicates whether checksum validation should be skipped
-var skipChecksum = false
-
-// setChecksumAlgorithm sets the checksum algorithm for validation
+// setChecksumAlgorithm validates and sets the checksum algorithm
 // Returns an error if the algorithm is not supported
-func setChecksumAlgorithm(algorithm string) error {
+func (opts *DownloadOptions) setChecksumAlgorithm(algorithm string) error {
 	alg := strings.ToLower(algorithm)
 	switch alg {
 	case "sha1", "sha256", "sha512", "md5":
-		checksumAlgorithm = alg
+		opts.ChecksumAlgorithm = alg
 		return nil
 	default:
 		return fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
@@ -68,7 +69,7 @@ type searchResponse struct {
 	ContinuationToken string  `json:"continuationToken"`
 }
 
-func listAssets(repository, src string) ([]Asset, error) {
+func listAssets(repository, src string, config *Config) ([]Asset, error) {
 	var assets []Asset
 	continuationToken := ""
 	for {
@@ -76,9 +77,9 @@ func listAssets(repository, src string) ([]Asset, error) {
 		if continuationToken != "" {
 			params += "&continuationToken=" + continuationToken
 		}
-		url := fmt.Sprintf("%s/service/rest/v1/search/assets%s", nexusURL, params)
+		url := fmt.Sprintf("%s/service/rest/v1/search/assets%s", config.NexusURL, params)
 		req, _ := http.NewRequest("GET", url, nil)
-		req.SetBasicAuth(username, password)
+		req.SetBasicAuth(config.Username, config.Password)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return nil, err
@@ -100,7 +101,7 @@ func listAssets(repository, src string) ([]Asset, error) {
 	return assets, nil
 }
 
-func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool) {
+func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 	localPath := filepath.Join(destDir, path)
@@ -111,25 +112,25 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 	skipReason := ""
 
 	if _, err := os.Stat(localPath); err == nil {
-		if skipChecksum {
+		if opts.SkipChecksum {
 			// When checksum validation is skipped, only check if file exists
 			shouldSkip = true
 			skipReason = "Skipped (file exists): %s\n"
 		} else {
 			// Normal checksum validation
-			expectedChecksum := getExpectedChecksum(asset.Checksum)
+			expectedChecksum := getExpectedChecksum(asset.Checksum, opts)
 			if expectedChecksum != "" {
-				actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
+				actualChecksum, err := computeChecksum(localPath, opts.ChecksumAlgorithm)
 				if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
 					shouldSkip = true
-					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(checksumAlgorithm))
+					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
 				}
 			}
 		}
 	}
 
 	if shouldSkip {
-		if !quietMode {
+		if !opts.QuietMode {
 			fmt.Printf(skipReason, localPath)
 		}
 		// Advance progress bar by file size for skipped files
@@ -148,7 +149,7 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 		errCh <- err
 		return
 	}
-	resp.SetBasicAuth(username, password)
+	resp.SetBasicAuth(config.Username, config.Password)
 	res, err := http.DefaultClient.Do(resp)
 	if err != nil {
 		errCh <- err
@@ -172,24 +173,24 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 	}
 }
 
-func downloadFolder(srcArg, destDir string) bool {
+func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) bool {
 	parts := strings.SplitN(srcArg, "/", 2)
 	if len(parts) != 2 {
-		if !quietMode {
+		if !opts.QuietMode {
 			fmt.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
 		}
 		return false
 	}
 	repository, src := parts[0], parts[1]
-	assets, err := listAssets(repository, src)
+	assets, err := listAssets(repository, src, config)
 	if err != nil {
-		if !quietMode {
+		if !opts.QuietMode {
 			fmt.Println("Error listing assets:", err)
 		}
 		return false
 	}
 	if len(assets) == 0 {
-		if !quietMode {
+		if !opts.QuietMode {
 			fmt.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
 		}
 		return false
@@ -201,7 +202,7 @@ func downloadFolder(srcArg, destDir string) bool {
 	}
 
 	// Create progress bar - write to /dev/null when disabled
-	showProgress := isatty() && !quietMode
+	showProgress := isatty() && !opts.QuietMode
 	progressWriter := os.Stdout
 	if !showProgress {
 		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -218,7 +219,7 @@ func downloadFolder(srcArg, destDir string) bool {
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset Asset) {
-			downloadAssetUnified(asset, destDir, &wg, errCh, bar, skipCh)
+			downloadAssetUnified(asset, destDir, &wg, errCh, bar, skipCh, config, opts)
 		}(asset)
 	}
 	wg.Wait()
@@ -226,7 +227,7 @@ func downloadFolder(srcArg, destDir string) bool {
 	close(skipCh)
 	nErrors := 0
 	for err := range errCh {
-		if !quietMode {
+		if !opts.QuietMode {
 			fmt.Println("Error downloading asset:", err)
 		}
 		nErrors++
@@ -236,7 +237,7 @@ func downloadFolder(srcArg, destDir string) bool {
 		nSkipped++
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
-	if !quietMode {
+	if !opts.QuietMode {
 		if nErrors == 0 {
 			if nSkipped > 0 {
 				fmt.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
@@ -255,8 +256,8 @@ func downloadFolder(srcArg, destDir string) bool {
 }
 
 // getExpectedChecksum returns the expected checksum value for the selected algorithm
-func getExpectedChecksum(checksum Checksum) string {
-	switch strings.ToLower(checksumAlgorithm) {
+func getExpectedChecksum(checksum Checksum, opts *DownloadOptions) string {
+	switch strings.ToLower(opts.ChecksumAlgorithm) {
 	case "sha1":
 		return checksum.SHA1
 	case "sha256":
@@ -309,8 +310,8 @@ func NewSHA1() hash.Hash {
 	return sha1.New()
 }
 
-func downloadMain(src, dest string) {
-	success := downloadFolder(src, dest)
+func downloadMain(src, dest string, config *Config, opts *DownloadOptions) {
+	success := downloadFolder(src, dest, config, opts)
 	if !success {
 		os.Exit(66)
 	}
