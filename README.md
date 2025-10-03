@@ -16,20 +16,41 @@ For development builds and other options, see [nexuscli-go/README.md](nexuscli-g
 
 ## Usage
 
-Set the following environment variables for authentication and Nexus URL:
+### Authentication
 
+You can authenticate with Nexus using environment variables or CLI flags:
+
+**Environment variables:**
 - `NEXUS_URL` (default: http://localhost:8081)
 - `NEXUS_USER` (default: admin)
 - `NEXUS_PASS` (default: admin)
 
+**CLI flags (take precedence over environment variables):**
+- `--username <username>` - Username for Nexus authentication
+- `--password <password>` - Password for Nexus authentication
+
 ### Upload
 
 ```
-nexuscli-go upload <directory> <repository[/subdir]>
+nexuscli-go upload [--username <user>] [--password <pass>] <directory> <repository[/subdir]>
 ```
 
 ### Download
 
 ```
-nexuscli-go download <repository/folder> <dest>
+nexuscli-go download [--username <user>] [--password <pass>] <repository/folder> <dest>
+```
+
+**Examples:**
+
+Using environment variables:
+```bash
+export NEXUS_USER=myuser
+export NEXUS_PASS=mypassword
+nexuscli-go upload ./files my-repo/path
+```
+
+Using CLI flags:
+```bash
+nexuscli-go upload --username myuser --password mypassword ./files my-repo/path
 ```
