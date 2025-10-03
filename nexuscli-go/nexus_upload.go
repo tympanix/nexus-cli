@@ -50,11 +50,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		totalBytes += info.Size()
 	}
 
-	// Create progress bar - write to /dev/null when disabled
+	// Create progress bar - write to io.Discard when disabled
 	showProgress := isatty() && !opts.QuietMode
-	progressWriter := os.Stdout
+	progressWriter := io.Writer(os.Stdout)
 	if !showProgress {
-		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		progressWriter = io.Discard
 	}
 	bar := progressbar.NewOptions64(totalBytes,
 		progressbar.OptionSetWriter(progressWriter),
