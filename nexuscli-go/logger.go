@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 )
 
 // Logger interface for output operations
@@ -12,36 +11,20 @@ type Logger interface {
 	Println(v ...interface{})
 }
 
-// StdLogger writes to the given writer (typically os.Stdout)
-type StdLogger struct {
+// SimpleLogger writes to the given writer
+type SimpleLogger struct {
 	writer io.Writer
 }
 
-// NewStdLogger creates a new logger that writes to stdout
-func NewStdLogger() Logger {
-	return &StdLogger{writer: os.Stdout}
+// NewLogger creates a new logger that writes to the given writer
+func NewLogger(writer io.Writer) Logger {
+	return &SimpleLogger{writer: writer}
 }
 
-func (l *StdLogger) Printf(format string, v ...interface{}) {
+func (l *SimpleLogger) Printf(format string, v ...interface{}) {
 	fmt.Fprintf(l.writer, format, v...)
 }
 
-func (l *StdLogger) Println(v ...interface{}) {
+func (l *SimpleLogger) Println(v ...interface{}) {
 	fmt.Fprintln(l.writer, v...)
-}
-
-// NoopLogger discards all output
-type NoopLogger struct{}
-
-// NewNoopLogger creates a new logger that discards all output
-func NewNoopLogger() Logger {
-	return &NoopLogger{}
-}
-
-func (l *NoopLogger) Printf(format string, v ...interface{}) {
-	// Do nothing
-}
-
-func (l *NoopLogger) Println(v ...interface{}) {
-	// Do nothing
 }

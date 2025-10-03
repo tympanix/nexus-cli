@@ -88,7 +88,8 @@ func TestUploadSingleFile(t *testing.T) {
 	
 	// Create test options
 	opts := &UploadOptions{
-		Logger: NewNoopLogger(),
+		Logger:    NewLogger(io.Discard),
+		QuietMode: true,
 	}
 	
 	// Test upload
@@ -168,7 +169,8 @@ func TestDownloadSingleFile(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewNoopLogger(),
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
 	}
 	
 	// Create temp directory for download

@@ -14,7 +14,8 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
-	Logger Logger
+	Logger    Logger
+	QuietMode bool
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -49,8 +50,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	}
 
 	// Create progress bar - write to /dev/null when disabled
-	_, isNoopLogger := opts.Logger.(*NoopLogger)
-	showProgress := isatty() && !isNoopLogger
+	showProgress := isatty() && !opts.QuietMode
 	progressWriter := os.Stdout
 	if !showProgress {
 		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)

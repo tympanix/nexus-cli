@@ -24,6 +24,7 @@ type DownloadOptions struct {
 	ChecksumAlgorithm string
 	SkipChecksum      bool
 	Logger            Logger
+	QuietMode         bool
 }
 
 // setChecksumAlgorithm validates and sets the checksum algorithm
@@ -194,8 +195,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 
 	// Create progress bar - write to /dev/null when disabled
-	_, isNoopLogger := opts.Logger.(*NoopLogger)
-	showProgress := isatty() && !isNoopLogger
+	showProgress := isatty() && !opts.QuietMode
 	progressWriter := os.Stdout
 	if !showProgress {
 		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)

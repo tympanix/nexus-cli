@@ -11,6 +11,7 @@ func main() {
 	// Create config from environment variables
 	config := NewConfig()
 	var logger Logger
+	var quietMode bool
 
 	var rootCmd = &cobra.Command{
 		Use:   "nexuscli-go",
@@ -20,7 +21,7 @@ func main() {
 			cliURL, _ := cmd.Flags().GetString("url")
 			cliUsername, _ := cmd.Flags().GetString("username")
 			cliPassword, _ := cmd.Flags().GetString("password")
-			quietMode, _ := cmd.Flags().GetBool("quiet")
+			quietMode, _ = cmd.Flags().GetBool("quiet")
 			if cliURL != "" {
 				config.NexusURL = cliURL
 			}
@@ -32,9 +33,11 @@ func main() {
 			}
 			// Configure logger based on quiet mode
 			if quietMode {
-				logger = NewNoopLogger()
+				// Use /dev/null for logging when quiet mode is enabled
+				devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+				logger = NewLogger(devNull)
 			} else {
-				logger = NewStdLogger()
+				logger = NewLogger(os.Stdout)
 			}
 		},
 	}
@@ -51,7 +54,8 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			opts := &UploadOptions{
-				Logger: logger,
+				Logger:    logger,
+				QuietMode: quietMode,
 			}
 			src := args[0]
 			dest := args[1]
@@ -72,6 +76,7 @@ func main() {
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
 				Logger:            logger,
+				QuietMode:         quietMode,
 			}
 			src := args[0]
 			dest := args[1]
