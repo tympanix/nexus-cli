@@ -21,8 +21,10 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 		name        string
 		envUser     string
 		envPass     string
+		envURL      string
 		cliUser     string
 		cliPass     string
+		cliURL      string
 		expectHelp  bool
 		description string
 	}{
@@ -30,8 +32,10 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			name:        "environment variables only",
 			envUser:     "env_user",
 			envPass:     "env_pass",
+			envURL:      "",
 			cliUser:     "",
 			cliPass:     "",
+			cliURL:      "",
 			expectHelp:  true,
 			description: "Should use environment variables when no CLI flags provided",
 		},
@@ -39,8 +43,10 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			name:        "CLI flags only",
 			envUser:     "",
 			envPass:     "",
+			envURL:      "",
 			cliUser:     "cli_user",
 			cliPass:     "cli_pass",
+			cliURL:      "",
 			expectHelp:  true,
 			description: "Should use CLI flags when no environment variables set",
 		},
@@ -48,8 +54,10 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			name:        "CLI flags override environment",
 			envUser:     "env_user",
 			envPass:     "env_pass",
+			envURL:      "",
 			cliUser:     "cli_user",
 			cliPass:     "cli_pass",
+			cliURL:      "",
 			expectHelp:  true,
 			description: "CLI flags should override environment variables",
 		},
@@ -57,8 +65,10 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			name:        "partial override - username only",
 			envUser:     "env_user",
 			envPass:     "env_pass",
+			envURL:      "",
 			cliUser:     "cli_user",
 			cliPass:     "",
+			cliURL:      "",
 			expectHelp:  true,
 			description: "CLI username should override, password should use env",
 		},
@@ -66,10 +76,45 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			name:        "partial override - password only",
 			envUser:     "env_user",
 			envPass:     "env_pass",
+			envURL:      "",
 			cliUser:     "",
 			cliPass:     "cli_pass",
+			cliURL:      "",
 			expectHelp:  true,
 			description: "CLI password should override, username should use env",
+		},
+		{
+			name:        "URL from environment only",
+			envUser:     "",
+			envPass:     "",
+			envURL:      "http://env-nexus:8081",
+			cliUser:     "",
+			cliPass:     "",
+			cliURL:      "",
+			expectHelp:  true,
+			description: "Should use URL from environment variable",
+		},
+		{
+			name:        "CLI URL overrides environment URL",
+			envUser:     "",
+			envPass:     "",
+			envURL:      "http://env-nexus:8081",
+			cliUser:     "",
+			cliPass:     "",
+			cliURL:      "http://cli-nexus:8081",
+			expectHelp:  true,
+			description: "CLI URL should override environment URL",
+		},
+		{
+			name:        "all CLI flags override all environment",
+			envUser:     "env_user",
+			envPass:     "env_pass",
+			envURL:      "http://env-nexus:8081",
+			cliUser:     "cli_user",
+			cliPass:     "cli_pass",
+			cliURL:      "http://cli-nexus:8081",
+			expectHelp:  true,
+			description: "All CLI flags should override all environment variables",
 		},
 	}
 
@@ -78,9 +123,11 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			// Set up environment
 			oldUser := os.Getenv("NEXUS_USER")
 			oldPass := os.Getenv("NEXUS_PASS")
+			oldURL := os.Getenv("NEXUS_URL")
 			defer func() {
 				os.Setenv("NEXUS_USER", oldUser)
 				os.Setenv("NEXUS_PASS", oldPass)
+				os.Setenv("NEXUS_URL", oldURL)
 			}()
 
 			if tt.envUser != "" {
@@ -93,6 +140,11 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			} else {
 				os.Unsetenv("NEXUS_PASS")
 			}
+			if tt.envURL != "" {
+				os.Setenv("NEXUS_URL", tt.envURL)
+			} else {
+				os.Unsetenv("NEXUS_URL")
+			}
 
 			// Build command
 			args := []string{"--help"}
@@ -101,6 +153,9 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 			}
 			if tt.cliPass != "" {
 				args = append([]string{"--password", tt.cliPass}, args...)
+			}
+			if tt.cliURL != "" {
+				args = append([]string{"--url", tt.cliURL}, args...)
 			}
 
 			cmd := exec.Command("./nexuscli-go-test", args...)
