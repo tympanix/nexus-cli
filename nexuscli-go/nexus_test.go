@@ -79,18 +79,20 @@ func TestUploadSingleFile(t *testing.T) {
 	}))
 	defer server.Close()
 	
-	// Override nexusURL for testing
-	originalURL := nexusURL
-	nexusURL = server.URL
-	defer func() { nexusURL = originalURL }()
+	// Create test config
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
 	
-	// Set quiet mode to suppress output during tests
-	originalQuietMode := quietMode
-	quietMode = true
-	defer func() { quietMode = originalQuietMode }()
+	// Create test options
+	opts := &UploadOptions{
+		QuietMode: true,
+	}
 	
 	// Test upload
-	err = uploadFiles(testDir, "test-repo", "")
+	err = uploadFiles(testDir, "test-repo", "", config, opts)
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
@@ -155,15 +157,19 @@ func TestDownloadSingleFile(t *testing.T) {
 	defer server.Close()
 	serverURL = server.URL
 	
-	// Override nexusURL for testing
-	originalURL := nexusURL
-	nexusURL = server.URL
-	defer func() { nexusURL = originalURL }()
+	// Create test config
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
 	
-	// Set quiet mode to suppress output during tests
-	originalQuietMode := quietMode
-	quietMode = true
-	defer func() { quietMode = originalQuietMode }()
+	// Create test options
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		QuietMode:         true,
+	}
 	
 	// Create temp directory for download
 	destDir, err := os.MkdirTemp("", "test-download-*")
@@ -173,7 +179,7 @@ func TestDownloadSingleFile(t *testing.T) {
 	defer os.RemoveAll(destDir)
 	
 	// Test download
-	success := downloadFolder("test-repo/test-folder", destDir)
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
 	if !success {
 		t.Fatal("Download failed")
 	}
