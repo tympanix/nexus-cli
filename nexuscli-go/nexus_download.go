@@ -23,8 +23,16 @@ import (
 var checksumAlgorithm = "sha1"
 
 // setChecksumAlgorithm sets the checksum algorithm for validation
-func setChecksumAlgorithm(algorithm string) {
-	checksumAlgorithm = strings.ToLower(algorithm)
+// Returns an error if the algorithm is not supported
+func setChecksumAlgorithm(algorithm string) error {
+	alg := strings.ToLower(algorithm)
+	switch alg {
+	case "sha1", "sha256", "sha512", "md5":
+		checksumAlgorithm = alg
+		return nil
+	default:
+		return fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
+	}
 }
 
 type Checksum struct {
@@ -101,7 +109,9 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 		if _, err := os.Stat(localPath); err == nil {
 			actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
 			if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
-				fmt.Printf("Skipped (%s match): %s\n", strings.ToUpper(checksumAlgorithm), localPath)
+				if !quietMode {
+					fmt.Printf("Skipped (%s match): %s\n", strings.ToUpper(checksumAlgorithm), localPath)
+				}
 				return
 			}
 		}
@@ -142,17 +152,23 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 func downloadFolder(srcArg, destDir string) bool {
 	parts := strings.SplitN(srcArg, "/", 2)
 	if len(parts) != 2 {
-		fmt.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
+		if !quietMode {
+			fmt.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
+		}
 		return false
 	}
 	repository, src := parts[0], parts[1]
 	assets, err := listAssets(repository, src)
 	if err != nil {
-		fmt.Println("Error listing assets:", err)
+		if !quietMode {
+			fmt.Println("Error listing assets:", err)
+		}
 		return false
 	}
 	if len(assets) == 0 {
-		fmt.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
+		if !quietMode {
+			fmt.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
+		}
 		return false
 	}
 	// Calculate total bytes to download using fileSize from search API
@@ -160,7 +176,13 @@ func downloadFolder(srcArg, destDir string) bool {
 	for _, asset := range assets {
 		totalBytes += asset.FileSize
 	}
-	bar := progressbar.DefaultBytes(totalBytes, "Downloading bytes")
+	
+	// Show progress bar only if stdout is a TTY and not in quiet mode
+	var bar *progressbar.ProgressBar
+	showProgress := isatty() && !quietMode
+	if showProgress {
+		bar = progressbar.DefaultBytes(totalBytes, "Downloading bytes")
+	}
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
@@ -174,13 +196,17 @@ func downloadFolder(srcArg, destDir string) bool {
 	close(errCh)
 	nErrors := 0
 	for err := range errCh {
-		fmt.Println("Error downloading asset:", err)
+		if !quietMode {
+			fmt.Println("Error downloading asset:", err)
+		}
 		nErrors++
 	}
-	if nErrors == 0 {
-		fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", len(assets), src, repository, destDir)
-	} else {
-		fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", len(assets)-nErrors, len(assets), src, repository, destDir, nErrors)
+	if !quietMode {
+		if nErrors == 0 {
+			fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", len(assets), src, repository, destDir)
+		} else {
+			fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", len(assets)-nErrors, len(assets), src, repository, destDir, nErrors)
+		}
 	}
 	return nErrors == 0
 }

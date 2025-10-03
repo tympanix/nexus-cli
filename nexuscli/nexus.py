@@ -19,6 +19,7 @@ def main():
     )
     upload_parser.add_argument("src", help="Directory to upload")
     upload_parser.add_argument("dest", help="Destination in the form 'repository/subdir' (subdir optional)")
+    upload_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
     upload_parser.set_defaults(func=upload_main)
 
     # Download subcommand
@@ -29,6 +30,7 @@ def main():
     )
     download_parser.add_argument("src", help="Nexus RAW folder to download (e.g. 'myrepo/folder' or 'myrepo/folder/subfolder')")
     download_parser.add_argument("dest", help="Destination directory to save files")
+    download_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
     download_parser.set_defaults(func=download_main)
 
     args = parser.parse_args()
