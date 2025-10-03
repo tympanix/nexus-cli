@@ -82,6 +82,28 @@ sudo rpm -i dist/nexus-cli_*_linux_amd64.rpm
 ./dist/nexuscli-go_linux_amd64_v1/nexuscli-go
 ```
 
+## Running Tests
+
+To run the unit tests:
+
+```bash
+make test
+```
+
+This will run all tests in the `nexuscli-go` directory with verbose output. Alternatively, you can run tests directly using Go:
+
+```bash
+cd nexuscli-go
+go test -v
+```
+
+The test suite includes:
+- Configuration tests (environment variables and defaults)
+- Upload/download functionality tests
+- URL construction and encoding tests
+- CLI flag parsing and override tests
+- Logger functionality tests
+
 ## Usage
 
 ### Authentication

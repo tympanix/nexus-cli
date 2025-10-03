@@ -107,8 +107,17 @@ For production builds, use `make build` from the repository root.
 
 ## Testing Considerations
 
-- No existing test infrastructure in this repository
-- Manual testing requires a running Nexus instance
+- Unit tests are located in the `nexuscli-go/` directory alongside the source code
+- Test files follow the Go convention: `*_test.go`
+- Run tests from the repository root using: `make test`
+- Or run tests directly: `cd nexuscli-go && go test -v`
+- Test suite includes:
+  - Configuration tests (environment variables and defaults)
+  - Upload/download functionality tests
+  - URL construction and encoding tests
+  - CLI flag parsing and override tests
+  - Logger functionality tests
+- Manual integration testing requires a running Nexus instance
 - Test with various file structures (nested directories, single files, multiple files)
 - Verify checksum validation works correctly
 
