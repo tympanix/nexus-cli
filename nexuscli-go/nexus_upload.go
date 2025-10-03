@@ -60,6 +60,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		progressbar.OptionSetWriter(progressWriter),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetDescription("Uploading bytes"),
+		progressbar.OptionFullWidth(),
 	)
 
 	pr, pw := io.Pipe()

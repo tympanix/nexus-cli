@@ -216,6 +216,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		progressbar.OptionSetWriter(progressWriter),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetDescription("Downloading bytes"),
+		progressbar.OptionFullWidth(),
 	)
 
 	var wg sync.WaitGroup
