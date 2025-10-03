@@ -1,6 +1,6 @@
 # Nexus CLI Go implementation
 
-This folder contains a Go translation of the Python nexuscli tool. It provides the same upload and download features, using similar command-line arguments and environment variables for configuration.
+A command-line tool for uploading and downloading files to/from a Nexus RAW repository.
 
 ## Building
 
@@ -99,5 +99,3 @@ Environment variables:
 - Download all files from a Nexus RAW folder recursively
 - Parallel downloads for speed
 - Small container image size using multi-stage build with scratch base
-
-See the Python code for the original implementation.

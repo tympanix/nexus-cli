@@ -1,11 +1,6 @@
 # Makefile for nexuscli project
 
-.PHONY: venv build
-
-venv:
-	python3 -m venv venv
-	. venv/bin/activate && pip install --upgrade pip
-	. venv/bin/activate && pip install .
+.PHONY: build
 
 build:
 	goreleaser release --snapshot --clean --skip=publish
