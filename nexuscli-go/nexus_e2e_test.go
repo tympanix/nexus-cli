@@ -67,8 +67,8 @@ func TestEndToEndUploadDownload(t *testing.T) {
 
 	// Create some test files with known content
 	testFiles := map[string]string{
-		"file1.txt":       "Hello from file 1",
-		"file2.txt":       "Content of file 2",
+		"file1.txt":        "Hello from file 1",
+		"file2.txt":        "Content of file 2",
 		"subdir/file3.txt": "Nested file content",
 	}
 
@@ -88,7 +88,7 @@ func TestEndToEndUploadDownload(t *testing.T) {
 		Logger:    NewLogger(os.Stdout),
 		QuietMode: false,
 	}
-	
+
 	uploadPath := repoName + "/test-folder"
 	err = uploadFiles(testDir, repoName, "test-folder", config, uploadOpts)
 	if err != nil {
@@ -167,7 +167,7 @@ func waitForNexus(nexusURL string, timeout time.Duration) bool {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	fmt.Println("Waiting for Nexus to be ready...")
-	
+
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(nexusURL + "/service/rest/v1/status")
 		if err == nil && resp.StatusCode == 200 {
@@ -178,11 +178,11 @@ func waitForNexus(nexusURL string, timeout time.Duration) bool {
 		if resp != nil {
 			resp.Body.Close()
 		}
-		
+
 		fmt.Print(".")
 		time.Sleep(5 * time.Second)
 	}
-	
+
 	fmt.Println()
 	return false
 }
@@ -191,7 +191,7 @@ func waitForNexus(nexusURL string, timeout time.Duration) bool {
 func getAdminPassword(containerID string) (string, error) {
 	// Wait a bit for the password file to be created
 	time.Sleep(10 * time.Second)
-	
+
 	// Try to read the admin password file from the container
 	cmd := exec.Command("docker", "exec", containerID, "cat", "/nexus-data/admin.password")
 	output, err := cmd.Output()
@@ -259,7 +259,7 @@ func cleanupContainer(containerID string) {
 	}
 
 	fmt.Printf("Cleaning up container: %s\n", containerID)
-	
+
 	// Use context with timeout for cleanup
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

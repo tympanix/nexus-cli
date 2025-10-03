@@ -118,12 +118,12 @@ func listAssets(repository, src string, config *Config) ([]Asset, error) {
 func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
-	
+
 	// If StripFolders is enabled, use only the filename
 	if opts.StripFolders {
 		path = filepath.Base(path)
 	}
-	
+
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
@@ -248,7 +248,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		nSkipped++
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
-	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
+	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
 		nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
 	return nErrors == 0
 }

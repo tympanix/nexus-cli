@@ -538,20 +538,20 @@ func TestDownloadStripFolders(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		stripFolders bool
+		name          string
+		stripFolders  bool
 		expectedPath1 string
 		expectedPath2 string
 	}{
 		{
-			name:         "with strip folders enabled",
-			stripFolders: true,
+			name:          "with strip folders enabled",
+			stripFolders:  true,
 			expectedPath1: "file1.txt",
 			expectedPath2: "file2.txt",
 		},
 		{
-			name:         "with strip folders disabled",
-			stripFolders: false,
+			name:          "with strip folders disabled",
+			stripFolders:  false,
 			expectedPath1: testPath1,
 			expectedPath2: testPath2,
 		},
@@ -600,4 +600,3 @@ func TestDownloadStripFolders(t *testing.T) {
 		})
 	}
 }
-
