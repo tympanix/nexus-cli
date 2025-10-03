@@ -12,9 +12,9 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
-func collectFiles(src string, fs fileSystem) ([]string, error) {
+func collectFiles(src string) ([]string, error) {
 	var files []string
-	err := fs.Walk(src, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -26,8 +26,8 @@ func collectFiles(src string, fs fileSystem) ([]string, error) {
 	return files, err
 }
 
-func uploadFiles(src, repository, subdir string, fs fileSystem) error {
-	filePaths, err := collectFiles(src, fs)
+func uploadFiles(src, repository, subdir string) error {
+	filePaths, err := collectFiles(src)
 	if err != nil {
 		return err
 	}
@@ -35,7 +35,7 @@ func uploadFiles(src, repository, subdir string, fs fileSystem) error {
 	totalBytes := int64(0)
 	fileSizes := make([]int64, len(filePaths))
 	for i, filePath := range filePaths {
-		info, err := fs.Stat(filePath)
+		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func uploadFiles(src, repository, subdir string, fs fileSystem) error {
 		for idx, filePath := range filePaths {
 			relPath, _ := filepath.Rel(src, filePath)
 			relPath = filepath.ToSlash(relPath)
-			f, err := fs.Open(filePath)
+			f, err := os.Open(filePath)
 			if err != nil {
 				errChan <- err
 				return
@@ -124,7 +124,7 @@ func uploadMain(src, dest string) {
 		repository = parts[0]
 		subdir = parts[1]
 	}
-	err := uploadFiles(src, repository, subdir, osFS{})
+	err := uploadFiles(src, repository, subdir)
 	if err != nil {
 		fmt.Println("Upload error:", err)
 		os.Exit(1)
