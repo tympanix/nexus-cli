@@ -1,6 +1,8 @@
 module nexuscli-go
 
-go 1.22
+go 1.23.0
+
+toolchain go1.24.7
 
 require (
 	github.com/schollz/progressbar/v3 v3.18.0
