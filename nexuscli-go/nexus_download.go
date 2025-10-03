@@ -23,7 +23,7 @@ import (
 type DownloadOptions struct {
 	ChecksumAlgorithm string
 	SkipChecksum      bool
-	QuietMode         bool
+	Logger            Logger
 }
 
 // setChecksumAlgorithm validates and sets the checksum algorithm
@@ -130,9 +130,7 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 	}
 
 	if shouldSkip {
-		if !opts.QuietMode {
-			fmt.Printf(skipReason, localPath)
-		}
+		opts.Logger.Printf(skipReason, localPath)
 		// Advance progress bar by file size for skipped files
 		if bar != nil {
 			bar.Add64(asset.FileSize)
@@ -176,23 +174,17 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) bool {
 	parts := strings.SplitN(srcArg, "/", 2)
 	if len(parts) != 2 {
-		if !opts.QuietMode {
-			fmt.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
-		}
+		opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
 		return false
 	}
 	repository, src := parts[0], parts[1]
 	assets, err := listAssets(repository, src, config)
 	if err != nil {
-		if !opts.QuietMode {
-			fmt.Println("Error listing assets:", err)
-		}
+		opts.Logger.Println("Error listing assets:", err)
 		return false
 	}
 	if len(assets) == 0 {
-		if !opts.QuietMode {
-			fmt.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
-		}
+		opts.Logger.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
 		return false
 	}
 	// Calculate total bytes to download using fileSize from search API
@@ -202,7 +194,8 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 
 	// Create progress bar - write to /dev/null when disabled
-	showProgress := isatty() && !opts.QuietMode
+	_, isNoopLogger := opts.Logger.(*NoopLogger)
+	showProgress := isatty() && !isNoopLogger
 	progressWriter := os.Stdout
 	if !showProgress {
 		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -227,9 +220,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	close(skipCh)
 	nErrors := 0
 	for err := range errCh {
-		if !opts.QuietMode {
-			fmt.Println("Error downloading asset:", err)
-		}
+		opts.Logger.Println("Error downloading asset:", err)
 		nErrors++
 	}
 	nSkipped := 0
@@ -237,19 +228,17 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		nSkipped++
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
-	if !opts.QuietMode {
-		if nErrors == 0 {
-			if nSkipped > 0 {
-				fmt.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
-			} else {
-				fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", nDownloaded, src, repository, destDir)
-			}
+	if nErrors == 0 {
+		if nSkipped > 0 {
+			opts.Logger.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
 		} else {
-			if nSkipped > 0 {
-				fmt.Printf("Downloaded %d of %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), nSkipped, src, repository, destDir, nErrors)
-			} else {
-				fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), src, repository, destDir, nErrors)
-			}
+			opts.Logger.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", nDownloaded, src, repository, destDir)
+		}
+	} else {
+		if nSkipped > 0 {
+			opts.Logger.Printf("Downloaded %d of %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), nSkipped, src, repository, destDir, nErrors)
+		} else {
+			opts.Logger.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), src, repository, destDir, nErrors)
 		}
 	}
 	return nErrors == 0

@@ -14,7 +14,7 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
-	QuietMode bool
+	Logger Logger
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -49,7 +49,8 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	}
 
 	// Create progress bar - write to /dev/null when disabled
-	showProgress := isatty() && !opts.QuietMode
+	_, isNoopLogger := opts.Logger.(*NoopLogger)
+	showProgress := isatty() && !isNoopLogger
 	progressWriter := os.Stdout
 	if !showProgress {
 		progressWriter, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -110,13 +111,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
-	if !opts.QuietMode {
-		if resp.StatusCode == 204 {
-			fmt.Printf("Uploaded %d files from %s\n", len(filePaths), src)
-		} else {
-			respBody, _ := io.ReadAll(resp.Body)
-			fmt.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
-		}
+	if resp.StatusCode == 204 {
+		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
+	} else {
+		respBody, _ := io.ReadAll(resp.Body)
+		opts.Logger.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
