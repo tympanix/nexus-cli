@@ -13,6 +13,21 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+// EventType represents the type of event that occurred
+type EventType int
+
+const (
+	EventError EventType = iota
+	EventSkip
+	EventSuccess
+)
+
+// Event represents a channel event with type and optional error
+type Event struct {
+	Type  EventType
+	Error error
+}
+
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
 	Logger    Logger
@@ -66,7 +81,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	writer := multipart.NewWriter(pw)
 
 	// Write multipart form in a goroutine
-	errChan := make(chan error, 1)
+	eventChan := make(chan Event, 1)
 	go func() {
 		defer pw.Close()
 		for idx, filePath := range filePaths {
@@ -74,18 +89,18 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 			relPath = filepath.ToSlash(relPath)
 			f, err := os.Open(filePath)
 			if err != nil {
-				errChan <- err
+				eventChan <- Event{Type: EventError, Error: err}
 				return
 			}
 			defer f.Close()
 			part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(filePath))
 			if err != nil {
-				errChan <- err
+				eventChan <- Event{Type: EventError, Error: err}
 				return
 			}
 			reader := io.TeeReader(f, bar)
 			if _, err := io.Copy(part, reader); err != nil {
-				errChan <- err
+				eventChan <- Event{Type: EventError, Error: err}
 				return
 			}
 			_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), relPath)
@@ -94,7 +109,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 			_ = writer.WriteField("raw.directory", subdir)
 		}
 		writer.Close()
-		errChan <- nil
+		eventChan <- Event{Type: EventSuccess}
 	}()
 
 	baseURL, err := url.Parse(config.NexusURL)
@@ -117,8 +132,9 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return err
 	}
 	defer resp.Body.Close()
-	if goroutineErr := <-errChan; goroutineErr != nil {
-		return goroutineErr
+	event := <-eventChan
+	if event.Type == EventError {
+		return event.Error
 	}
 	if resp.StatusCode == 204 {
 		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)

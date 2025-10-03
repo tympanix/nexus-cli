@@ -114,7 +114,7 @@ func listAssets(repository, src string, config *Config) ([]Asset, error) {
 	return assets, nil
 }
 
-func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
+func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, eventCh chan Event, bar *progressbar.ProgressBar, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 	localPath := filepath.Join(destDir, path)
@@ -149,38 +149,36 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 			bar.Add64(asset.FileSize)
 		}
 		// Signal that this file was skipped
-		if skipCh != nil {
-			skipCh <- true
-		}
+		eventCh <- Event{Type: EventSkip}
 		return
 	}
 
 	resp, err := http.NewRequest("GET", asset.DownloadURL, nil)
 	if err != nil {
-		errCh <- err
+		eventCh <- Event{Type: EventError, Error: err}
 		return
 	}
 	resp.SetBasicAuth(config.Username, config.Password)
 	res, err := http.DefaultClient.Do(resp)
 	if err != nil {
-		errCh <- err
+		eventCh <- Event{Type: EventError, Error: err}
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		errCh <- fmt.Errorf("Failed to download %s: %d", asset.Path, res.StatusCode)
+		eventCh <- Event{Type: EventError, Error: fmt.Errorf("Failed to download %s: %d", asset.Path, res.StatusCode)}
 		return
 	}
 	f, err := os.Create(localPath)
 	if err != nil {
-		errCh <- err
+		eventCh <- Event{Type: EventError, Error: err}
 		return
 	}
 	defer f.Close()
 	reader := io.TeeReader(res.Body, bar)
 	_, err = io.Copy(f, reader)
 	if err != nil {
-		errCh <- err
+		eventCh <- Event{Type: EventError, Error: err}
 	}
 }
 
@@ -219,25 +217,25 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	)
 
 	var wg sync.WaitGroup
-	errCh := make(chan error, len(assets))
-	skipCh := make(chan bool, len(assets))
+	eventCh := make(chan Event, len(assets))
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset Asset) {
-			downloadAssetUnified(asset, destDir, &wg, errCh, bar, skipCh, config, opts)
+			downloadAssetUnified(asset, destDir, &wg, eventCh, bar, config, opts)
 		}(asset)
 	}
 	wg.Wait()
-	close(errCh)
-	close(skipCh)
+	close(eventCh)
 	nErrors := 0
-	for err := range errCh {
-		opts.Logger.Println("Error downloading asset:", err)
-		nErrors++
-	}
 	nSkipped := 0
-	for range skipCh {
-		nSkipped++
+	for event := range eventCh {
+		switch event.Type {
+		case EventError:
+			opts.Logger.Println("Error downloading asset:", event.Error)
+			nErrors++
+		case EventSkip:
+			nSkipped++
+		}
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
 	if nErrors == 0 {

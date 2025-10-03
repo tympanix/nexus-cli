@@ -331,6 +331,7 @@ func TestUploadURLConstruction(t *testing.T) {
 
 			opts := &UploadOptions{
 				QuietMode: true,
+				Logger:    NewLogger(io.Discard),
 			}
 
 			err = uploadFiles(testDir, tt.repository, "", config, opts)
