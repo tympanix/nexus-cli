@@ -130,3 +130,50 @@ Using Docker with CLI flags:
 docker run --rm -v $(pwd):/data \
   nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword /data/<directory> <repository/subdir>
 ```
+
+## Testing
+
+### Unit Tests
+
+Run unit tests with:
+
+```bash
+make test-short
+```
+
+Or directly with Go:
+
+```bash
+cd nexuscli-go
+go test -v -short
+```
+
+### End-to-End Tests
+
+An end-to-end test is provided that uses a real Nexus instance running in Docker. This test:
+- Starts a Sonatype Nexus Docker container
+- Waits for Nexus to be ready
+- Creates a RAW repository
+- Uploads test files using the CLI
+- Downloads the files to a new location
+- Validates that the downloaded content matches the uploaded content
+- Cleans up the Docker container
+
+**Requirements:**
+- Docker must be installed and running
+- The test takes approximately 1-2 minutes to complete
+
+**Run the end-to-end test:**
+
+```bash
+make test-e2e
+```
+
+Or directly with Go:
+
+```bash
+cd nexuscli-go
+go test -v -run TestEndToEndUploadDownload -timeout 15m
+```
+
+**Note:** The e2e test is automatically skipped when running `go test -short` or `make test-short`.
