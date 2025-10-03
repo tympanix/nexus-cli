@@ -2,26 +2,17 @@
 
 ## Project Overview
 
-Nexus CLI is a command-line tool for uploading and downloading files to/from a Nexus RAW repository. The project includes two implementations:
-- **Python implementation** (`nexuscli/`) - The original implementation
-- **Go implementation** (`nexuscli-go/`) - A translation of the Python tool with similar functionality
+Nexus CLI is a command-line tool for uploading and downloading files to/from a Nexus RAW repository, implemented in Go.
 
 ## Project Structure
 
 ```
 nexus-cli/
-├── nexuscli/              # Python implementation
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── nexus.py           # Main CLI entry point
-│   ├── nexus_upload.py    # Upload functionality
-│   └── nexus_download.py  # Download functionality
 ├── nexuscli-go/           # Go implementation
 │   ├── main.go            # Main CLI entry point
 │   ├── config.go          # Configuration management
 │   ├── nexus_upload.go    # Upload functionality
 │   └── nexus_download.go  # Download functionality
-├── pyproject.toml         # Python project configuration
 ├── Makefile               # Build automation
 └── README.md              # User documentation
 ```
@@ -32,42 +23,27 @@ nexus-cli/
 2. **Download**: Download all files from a Nexus RAW folder recursively
 3. **Authentication**: Uses environment variables for Nexus credentials
 4. **Progress tracking**: Shows progress bars during upload/download operations
-5. **Checksum validation**: Go implementation supports multiple checksum algorithms (SHA1, SHA256, SHA512, MD5)
+5. **Checksum validation**: Supports multiple checksum algorithms (SHA1, SHA256, SHA512, MD5)
+6. **Parallel downloads**: Downloads multiple files concurrently for improved performance
 
 ## Environment Variables
 
-Both implementations use the same environment variables:
+The following environment variables are used for configuration:
 - `NEXUS_URL` - Nexus server URL (default: `http://localhost:8081`)
 - `NEXUS_USER` - Username for authentication (default: `admin`)
 - `NEXUS_PASS` - Password for authentication (default: `admin`)
 
-## Python Implementation
+## Build
 
-### Installation
+### Production Build
+From the root of the repository:
 ```bash
-pip install .
+make build
 ```
 
-### Command Format
-```bash
-nexus upload <directory> <repository[/subdir]>
-nexus download <repository/folder> <dest>
-```
+This uses [GoReleaser](https://goreleaser.com) to create standalone binaries, DEB packages, and RPM packages in the `dist/` directory.
 
-### Key Dependencies
-- `requests` - HTTP client
-- `tqdm` - Progress bars
-- `requests-toolbelt` - Multipart file uploads
-
-### Code Style
-- Use Python 3.8+ features
-- Type hints are used where appropriate (`Optional`, `List`, etc.)
-- Follow PEP 8 conventions
-- No explicit comments unless necessary for clarity
-
-## Go Implementation
-
-### Build
+### Development Build
 ```bash
 cd nexuscli-go
 go build -o nexuscli-go
@@ -91,21 +67,11 @@ go build -o nexuscli-go
 
 ## Development Workflow
 
-### Python Development
-1. Create a virtual environment: `python3 -m venv venv`
-2. Activate: `. venv/bin/activate`
-3. Install: `pip install .`
-4. Run: `nexus <command> <args>`
-
-Or use the Makefile:
-```bash
-make venv
-```
-
-### Go Development
 1. Navigate to `nexuscli-go/`
 2. Build: `go build -o nexuscli-go`
 3. Run: `./nexuscli-go <command> <args>`
+
+For production builds, use `make build` from the repository root.
 
 ## Common Patterns
 
@@ -118,12 +84,11 @@ make venv
 
 ### Download Flow
 1. Query Nexus API for assets in the specified path (using pagination with continuation tokens)
-2. For each asset (in parallel using ThreadPoolExecutor/goroutines):
-   - Check if file exists locally with matching checksum (skip if match - Go only)
+2. For each asset (in parallel using goroutines):
+   - Check if file exists locally with matching checksum (skip if match)
    - Download file to local path
    - Show individual progress bar per file
-3. Both implementations support parallel downloads for efficiency
-4. Handle pagination automatically for large asset lists
+3. Handle pagination automatically for large asset lists
 
 ## API Endpoints
 
@@ -186,19 +151,18 @@ refactor: simplify checksum validation logic
 ## Making Changes
 
 When making changes to this project:
-1. Maintain compatibility between Python and Go implementations where applicable
-2. Keep command-line interfaces similar
-3. Update both READMEs if changing usage or behavior
-4. Test both upload and download functionality
-5. Ensure environment variables work correctly
-6. Verify progress bars display correctly
-7. Handle edge cases (empty directories, missing files, network errors)
-8. Follow the Conventional Commits specification for commit messages
+1. Test both upload and download functionality
+2. Ensure environment variables work correctly
+3. Verify progress bars display correctly
+4. Handle edge cases (empty directories, missing files, network errors)
+5. Follow the Conventional Commits specification for commit messages
+6. Update README.md if changing usage or behavior
 
 ## Notes
 
-- The Go implementation supports configurable checksum algorithms via `--checksum` flag
-- The Python implementation uses SHA1 by default (Nexus standard)
-- Both implementations support subdirectories in the repository path
+- Supports configurable checksum algorithms via `--checksum` flag (sha1, sha256, sha512, md5)
+- SHA1 is used by default (Nexus standard)
+- Supports subdirectories in the repository path
 - File paths are preserved relative to source directory during upload
 - Downloads create necessary parent directories automatically
+- Parallel downloads improve performance for large file sets
