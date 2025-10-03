@@ -122,11 +122,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	}
 	if resp.StatusCode == 204 {
 		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
-	} else {
-		respBody, _ := io.ReadAll(resp.Body)
-		opts.Logger.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
+		return nil
 	}
-	return nil
+	respBody, _ := io.ReadAll(resp.Body)
+	opts.Logger.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
+	return fmt.Errorf("upload failed with status %d", resp.StatusCode)
 }
 
 func uploadMain(src, dest string, config *Config, opts *UploadOptions) {

@@ -277,6 +277,131 @@ func TestURLConstruction(t *testing.T) {
 	}
 }
 
+// TestUploadLogging tests that upload logging is simplified
+func TestUploadLogging(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	err = os.WriteFile(testFile, []byte("test"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Capture logger output
+	var logBuf strings.Builder
+	logger := NewLogger(&logBuf)
+
+	opts := &UploadOptions{
+		Logger:    logger,
+		QuietMode: true,
+	}
+
+	err = uploadFiles(testDir, "test-repo", "", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Check log output contains expected message
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "Uploaded 1 files from") {
+		t.Errorf("Expected log message containing 'Uploaded 1 files from', got: %s", logOutput)
+	}
+}
+
+// TestDownloadLogging tests that download logging is simplified
+func TestDownloadLogging(t *testing.T) {
+	testContent := "test content"
+	testPath := "/test-folder/test.txt"
+
+	var serverURL string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := searchResponse{
+				Items: []Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + testPath,
+						Path:        testPath,
+						ID:          "test-id",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: Checksum{
+							SHA1: "abc123",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent))
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Capture logger output
+	var logBuf strings.Builder
+	logger := NewLogger(&logBuf)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            logger,
+		QuietMode:         true,
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Check log output contains expected format with all metrics
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "Downloaded 1/1 files") {
+		t.Errorf("Expected log message containing 'Downloaded 1/1 files', got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "(skipped: 0, failed: 0)") {
+		t.Errorf("Expected log message containing '(skipped: 0, failed: 0)', got: %s", logOutput)
+	}
+}
+
 // TestUploadURLConstruction tests that upload URLs are properly constructed
 func TestUploadURLConstruction(t *testing.T) {
 	tests := []struct {
@@ -330,6 +455,7 @@ func TestUploadURLConstruction(t *testing.T) {
 			}
 
 			opts := &UploadOptions{
+				Logger:    NewLogger(io.Discard),
 				QuietMode: true,
 			}
 
