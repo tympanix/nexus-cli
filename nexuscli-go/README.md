@@ -87,25 +87,27 @@ You can authenticate with Nexus using environment variables or CLI flags:
 - `NEXUS_PASS` (default: admin)
 
 **CLI flags (take precedence over environment variables):**
+- `--url <url>` - URL to Nexus server
 - `--username <username>` - Username for Nexus authentication
 - `--password <password>` - Password for Nexus authentication
 
 ### Upload
 
 ```bash
-nexuscli-go upload [--username <user>] [--password <pass>] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] <directory> <repository[/subdir]>
 ```
 
 ### Download
 
 ```bash
-nexuscli-go download [--username <user>] [--password <pass>] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] <repository/folder> <directory>
 ```
 
 **Examples:**
 
 Using environment variables:
 ```bash
+export NEXUS_URL=http://your-nexus:8081
 export NEXUS_USER=myuser
 export NEXUS_PASS=mypassword
 nexuscli-go upload ./files my-repo/path
@@ -113,14 +115,13 @@ nexuscli-go upload ./files my-repo/path
 
 Using CLI flags:
 ```bash
-nexuscli-go upload --username myuser --password mypassword ./files my-repo/path
+nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword ./files my-repo/path
 ```
 
 Using Docker with CLI flags:
 ```bash
 docker run --rm -v $(pwd):/data \
-  -e NEXUS_URL=http://your-nexus:8081 \
-  nexuscli-go upload --username myuser --password mypassword /data/<directory> <repository/subdir>
+  nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword /data/<directory> <repository/subdir>
 ```
 
 ## Features
