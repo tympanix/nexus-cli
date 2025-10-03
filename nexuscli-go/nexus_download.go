@@ -107,44 +107,40 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
 	// Check if file exists and validate checksum or skip based on file existence
-	if skipChecksum {
-		// When checksum validation is skipped, only check if file exists
-		if _, err := os.Stat(localPath); err == nil {
-			if !quietMode {
-				fmt.Printf("Skipped (file exists): %s\n", localPath)
-			}
-			// Advance progress bar by file size for skipped files
-			if bar != nil {
-				bar.Add64(asset.FileSize)
-			}
-			// Signal that this file was skipped
-			if skipCh != nil {
-				skipCh <- true
-			}
-			return
-		}
-	} else {
-		// Normal checksum validation
-		expectedChecksum := getExpectedChecksum(asset.Checksum)
-		if expectedChecksum != "" {
-			if _, err := os.Stat(localPath); err == nil {
+	shouldSkip := false
+	skipReason := ""
+
+	if _, err := os.Stat(localPath); err == nil {
+		if skipChecksum {
+			// When checksum validation is skipped, only check if file exists
+			shouldSkip = true
+			skipReason = "Skipped (file exists): %s\n"
+		} else {
+			// Normal checksum validation
+			expectedChecksum := getExpectedChecksum(asset.Checksum)
+			if expectedChecksum != "" {
 				actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
 				if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
-					if !quietMode {
-						fmt.Printf("Skipped (%s match): %s\n", strings.ToUpper(checksumAlgorithm), localPath)
-					}
-					// Advance progress bar by file size for skipped files
-					if bar != nil {
-						bar.Add64(asset.FileSize)
-					}
-					// Signal that this file was skipped
-					if skipCh != nil {
-						skipCh <- true
-					}
-					return
+					shouldSkip = true
+					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(checksumAlgorithm))
 				}
 			}
 		}
+	}
+
+	if shouldSkip {
+		if !quietMode {
+			fmt.Printf(skipReason, localPath)
+		}
+		// Advance progress bar by file size for skipped files
+		if bar != nil {
+			bar.Add64(asset.FileSize)
+		}
+		// Signal that this file was skipped
+		if skipCh != nil {
+			skipCh <- true
+		}
+		return
 	}
 
 	resp, err := http.NewRequest("GET", asset.DownloadURL, nil)
