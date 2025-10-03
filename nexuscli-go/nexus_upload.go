@@ -17,18 +17,9 @@ type UploadOptions struct {
 	QuietMode bool
 }
 
-// osOpen is a variable that can be overridden for testing
-var osOpen = os.Open
-
-// osStat is a variable that can be overridden for testing
-var osStat = os.Stat
-
-// filepathWalk is a variable that can be overridden for testing
-var filepathWalk = filepath.Walk
-
 func collectFiles(src string) ([]string, error) {
 	var files []string
-	err := filepathWalk(src, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -49,7 +40,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	totalBytes := int64(0)
 	fileSizes := make([]int64, len(filePaths))
 	for i, filePath := range filePaths {
-		info, err := osStat(filePath)
+		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
 		}
@@ -79,7 +70,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		for idx, filePath := range filePaths {
 			relPath, _ := filepath.Rel(src, filePath)
 			relPath = filepath.ToSlash(relPath)
-			f, err := osOpen(filePath)
+			f, err := os.Open(filePath)
 			if err != nil {
 				errChan <- err
 				return
