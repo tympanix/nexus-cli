@@ -22,6 +22,9 @@ import (
 // checksumAlgorithm holds the selected checksum algorithm for validation
 var checksumAlgorithm = "sha1"
 
+// skipChecksum indicates whether checksum validation should be skipped
+var skipChecksum = false
+
 // setChecksumAlgorithm sets the checksum algorithm for validation
 // Returns an error if the algorithm is not supported
 func setChecksumAlgorithm(algorithm string) error {
@@ -103,26 +106,41 @@ func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
-	// Check if file exists and validate checksum
-	expectedChecksum := getExpectedChecksum(asset.Checksum)
-	if expectedChecksum != "" {
-		if _, err := os.Stat(localPath); err == nil {
-			actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
-			if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
-        if !quietMode {
-          fmt.Printf("Skipped (%s match): %s\n", strings.ToUpper(checksumAlgorithm), localPath)
-        }
-				// Advance progress bar by file size for skipped files
-				if bar != nil {
-					bar.Add64(asset.FileSize)
+	// Check if file exists and validate checksum or skip based on file existence
+	shouldSkip := false
+	skipReason := ""
+
+	if _, err := os.Stat(localPath); err == nil {
+		if skipChecksum {
+			// When checksum validation is skipped, only check if file exists
+			shouldSkip = true
+			skipReason = "Skipped (file exists): %s\n"
+		} else {
+			// Normal checksum validation
+			expectedChecksum := getExpectedChecksum(asset.Checksum)
+			if expectedChecksum != "" {
+				actualChecksum, err := computeChecksum(localPath, checksumAlgorithm)
+				if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
+					shouldSkip = true
+					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(checksumAlgorithm))
 				}
-				// Signal that this file was skipped
-				if skipCh != nil {
-					skipCh <- true
-				}
-				return
 			}
 		}
+	}
+
+	if shouldSkip {
+		if !quietMode {
+			fmt.Printf(skipReason, localPath)
+		}
+		// Advance progress bar by file size for skipped files
+		if bar != nil {
+			bar.Add64(asset.FileSize)
+		}
+		// Signal that this file was skipped
+		if skipCh != nil {
+			skipCh <- true
+		}
+		return
 	}
 
 	resp, err := http.NewRequest("GET", asset.DownloadURL, nil)
@@ -218,21 +236,21 @@ func downloadFolder(srcArg, destDir string) bool {
 		nSkipped++
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
-  if !quietMode {
-    if nErrors == 0 {
-      if nSkipped > 0 {
-        fmt.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
-      } else {
-        fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", nDownloaded, src, repository, destDir)
-      }
-    } else {
-      if nSkipped > 0 {
-        fmt.Printf("Downloaded %d of %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), nSkipped, src, repository, destDir, nErrors)
-      } else {
-        fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), src, repository, destDir, nErrors)
-      }
-    }
-  }
+	if !quietMode {
+		if nErrors == 0 {
+			if nSkipped > 0 {
+				fmt.Printf("Downloaded %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'\n", nDownloaded, nSkipped, src, repository, destDir)
+			} else {
+				fmt.Printf("Downloaded %d files from '%s' in repository '%s' to '%s'\n", nDownloaded, src, repository, destDir)
+			}
+		} else {
+			if nSkipped > 0 {
+				fmt.Printf("Downloaded %d of %d files, skipped %d files (cache hit) from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), nSkipped, src, repository, destDir, nErrors)
+			} else {
+				fmt.Printf("Downloaded %d of %d files from '%s' in repository '%s' to '%s'. %d failed.\n", nDownloaded, len(assets), src, repository, destDir, nErrors)
+			}
+		}
+	}
 	return nErrors == 0
 }
 

@@ -47,6 +47,7 @@ func main() {
 	uploadCmd.Flags().BoolP("quiet", "q", false, "Suppress all output")
 
 	var checksumAlg string
+	var skipChecksumValidation bool
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -54,6 +55,8 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			quietMode, _ = cmd.Flags().GetBool("quiet")
+			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
+			skipChecksum = skipChecksumValidation
 			src := args[0]
 			dest := args[1]
 			if err := setChecksumAlgorithm(checksumAlg); err != nil {
@@ -64,6 +67,7 @@ func main() {
 		},
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
+	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 	downloadCmd.Flags().BoolP("quiet", "q", false, "Suppress all output")
 
 	rootCmd.AddCommand(uploadCmd)
