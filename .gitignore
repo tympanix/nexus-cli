@@ -133,4 +133,5 @@ venv
 out
 dl
 nexuscli-go/nexuscli-go
+nexuscli-go/nexuscli-go-test
 dist/

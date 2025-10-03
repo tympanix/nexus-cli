@@ -12,7 +12,20 @@ func main() {
 		Use:   "nexuscli-go",
 		Short: "Nexus CLI for upload and download",
 		Long:  "Nexus CLI for upload and download\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found (download only)",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			cliUsername, _ := cmd.Flags().GetString("username")
+			cliPassword, _ := cmd.Flags().GetString("password")
+			if cliUsername != "" {
+				username = cliUsername
+			}
+			if cliPassword != "" {
+				password = cliPassword
+			}
+		},
 	}
+
+	rootCmd.PersistentFlags().String("username", "", "Username for Nexus authentication (defaults to NEXUS_USER env var or 'admin')")
+	rootCmd.PersistentFlags().String("password", "", "Password for Nexus authentication (defaults to NEXUS_PASS env var or 'admin')")
 
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",

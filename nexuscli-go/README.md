@@ -77,22 +77,51 @@ sudo rpm -i dist/nexus-cli_*_linux_amd64.rpm
 
 ## Usage
 
-Run upload:
+### Authentication
 
-```bash
-nexuscli-go upload <directory> <repository[/subdir]>
-```
+You can authenticate with Nexus using environment variables or CLI flags:
 
-Run download:
-
-```bash
-nexuscli-go download <repository/folder> <directory>
-```
-
-Environment variables:
+**Environment variables:**
 - `NEXUS_URL` (default: http://localhost:8081)
 - `NEXUS_USER` (default: admin)
 - `NEXUS_PASS` (default: admin)
+
+**CLI flags (take precedence over environment variables):**
+- `--username <username>` - Username for Nexus authentication
+- `--password <password>` - Password for Nexus authentication
+
+### Upload
+
+```bash
+nexuscli-go upload [--username <user>] [--password <pass>] <directory> <repository[/subdir]>
+```
+
+### Download
+
+```bash
+nexuscli-go download [--username <user>] [--password <pass>] <repository/folder> <directory>
+```
+
+**Examples:**
+
+Using environment variables:
+```bash
+export NEXUS_USER=myuser
+export NEXUS_PASS=mypassword
+nexuscli-go upload ./files my-repo/path
+```
+
+Using CLI flags:
+```bash
+nexuscli-go upload --username myuser --password mypassword ./files my-repo/path
+```
+
+Using Docker with CLI flags:
+```bash
+docker run --rm -v $(pwd):/data \
+  -e NEXUS_URL=http://your-nexus:8081 \
+  nexuscli-go upload --username myuser --password mypassword /data/<directory> <repository/subdir>
+```
 
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
