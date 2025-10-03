@@ -82,6 +82,29 @@ sudo rpm -i dist/nexus-cli_*_linux_amd64.rpm
 ./dist/nexuscli-go_linux_amd64_v1/nexuscli-go
 ```
 
+## Documentation
+
+### Generating API Documentation
+
+The project includes an OpenAPI specification file for the Nexus Repository Manager REST API. You can generate comprehensive markdown documentation from this spec using:
+
+```bash
+make generate-docs
+```
+
+This will:
+- Install `widdershins` (if not already installed)
+- Convert the OpenAPI spec (`docs/sonatype-nexus-repository-api.json`) to markdown
+- Save the generated documentation to `.github/nexus-api-reference.md`
+
+The generated documentation includes:
+- Complete API endpoint reference
+- Code samples in multiple languages (shell, HTTP, JavaScript, Ruby, Python, etc.)
+- Request/response schemas
+- Parameter descriptions
+
+**Note:** This documentation is stored in the `.github` folder to make it available as context for GitHub Copilot.
+
 ## Running Tests
 
 To run the unit tests:
