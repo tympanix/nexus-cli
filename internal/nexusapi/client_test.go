@@ -3,12 +3,12 @@ package nexusapi
 import (
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
-	"mime/multipart"
 )
 
 // TestNewClient tests creating a new Nexus API client
@@ -278,13 +278,13 @@ func TestBuildRawUploadForm(t *testing.T) {
 	tempDir := t.TempDir()
 	file1Path := tempDir + "/file1.txt"
 	file2Path := tempDir + "/subdir/file2.txt"
-	
+
 	// Create subdirectory
 	err := os.MkdirAll(tempDir+"/subdir", 0755)
 	if err != nil {
 		t.Fatalf("Failed to create subdirectory: %v", err)
 	}
-	
+
 	// Create test files
 	err = os.WriteFile(file1Path, []byte("content1"), 0644)
 	if err != nil {
@@ -294,26 +294,26 @@ func TestBuildRawUploadForm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file2: %v", err)
 	}
-	
+
 	// Prepare file uploads
 	files := []FileUpload{
 		{FilePath: file1Path, RelativePath: "file1.txt"},
 		{FilePath: file2Path, RelativePath: "subdir/file2.txt"},
 	}
-	
+
 	// Build form
 	var buf strings.Builder
 	writer := multipart.NewWriter(&buf)
-	
+
 	err = BuildRawUploadForm(writer, files, "test-subdir", nil)
 	if err != nil {
 		t.Fatalf("BuildRawUploadForm failed: %v", err)
 	}
 	writer.Close()
-	
+
 	// Parse the form
 	formData := buf.String()
-	
+
 	// Verify form contains expected fields
 	if !strings.Contains(formData, "raw.asset1") {
 		t.Error("Expected form to contain 'raw.asset1'")
@@ -346,4 +346,3 @@ func TestBuildRawUploadForm(t *testing.T) {
 		t.Error("Expected form to contain 'content2'")
 	}
 }
-

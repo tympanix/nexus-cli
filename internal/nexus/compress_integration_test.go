@@ -202,7 +202,6 @@ func TestCompressedUploadWithoutExplicitName(t *testing.T) {
 	}
 }
 
-
 // TestCompressedDownload tests downloading and extracting a compressed archive
 func TestCompressedDownload(t *testing.T) {
 	// Create test files for the archive
@@ -479,7 +478,6 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 		t.Fatal("Expected download to fail when using compress without explicit archive name")
 	}
 }
-
 
 // TestCompressedRoundTrip tests the full upload-download cycle with compression
 func TestCompressedRoundTrip(t *testing.T) {

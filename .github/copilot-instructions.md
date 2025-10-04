@@ -71,10 +71,19 @@ go build -o nexuscli-go ./cmd/nexuscli-go
 - Error handling should be explicit
 - No explicit comments unless necessary for clarity
 
+### Code Formatting
+- **All Go source code must be formatted using `gofmt`** with default settings
+- Before committing changes, run `make format` to automatically format all Go files
+- CI/CD pipelines should validate formatting with `make format-check`
+- Code that doesn't pass `gofmt` checks should not be merged
+
 ## Development Workflow
 
 1. Build: `go build -o nexuscli-go ./cmd/nexuscli-go`
 2. Run: `./nexuscli-go <command> <args>`
+3. Format: `make format` (formats all Go files with gofmt)
+4. Check formatting: `make format-check` (validates all files are properly formatted)
+5. Test: `make test` or `make test-short`
 
 For production builds, use `make build` from the repository root.
 
