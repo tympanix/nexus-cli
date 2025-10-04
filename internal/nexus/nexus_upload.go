@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
 // UploadOptions holds options for upload operations
@@ -85,37 +85,20 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		errChan <- nil
 	}()
 
-	baseURL, err := url.Parse(config.NexusURL)
-	if err != nil {
-		return fmt.Errorf("invalid Nexus URL: %w", err)
-	}
-	baseURL.Path = "/service/rest/v1/components"
-	query := baseURL.Query()
-	query.Set("repository", repository)
-	baseURL.RawQuery = query.Encode()
-
-	req, err := http.NewRequest("POST", baseURL.String(), pr)
-	if err != nil {
-		return err
-	}
-	req.SetBasicAuth(config.Username, config.Password)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	contentType := nexusapi.GetFormDataContentType(writer)
+	
+	err = client.UploadComponent(repository, pr, contentType)
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
-	if resp.StatusCode == 204 {
-		bar.Finish()
-		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
-		return nil
+	if err != nil {
+		opts.Logger.Printf("Failed to upload files: %v\n", err)
+		return err
 	}
-	respBody, _ := io.ReadAll(resp.Body)
-	opts.Logger.Printf("Failed to upload files: %d %s\n", resp.StatusCode, string(respBody))
-	return fmt.Errorf("upload failed with status %d", resp.StatusCode)
+	bar.Finish()
+	opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
+	return nil
 }
 
 func UploadMain(src, dest string, config *Config, opts *UploadOptions) {

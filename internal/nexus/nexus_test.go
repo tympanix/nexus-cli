@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
 // TestUploadSingleFile tests uploading a single file to the Nexus API
@@ -124,15 +126,18 @@ func TestDownloadSingleFile(t *testing.T) {
 		// Handle asset listing request
 		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
 			// Return mock asset list
-			assets := searchResponse{
-				Items: []Asset{
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
 					{
 						DownloadURL: serverURL + "/repository/test-repo" + testPath,
 						Path:        testPath,
 						ID:          "test-id",
 						Repository:  "test-repo",
 						FileSize:    int64(len(testContent)),
-						Checksum: Checksum{
+						Checksum: nexusapi.Checksum{
 							SHA1: "abc123",
 						},
 					},
@@ -246,8 +251,11 @@ func TestURLConstruction(t *testing.T) {
 				receivedRepo = r.URL.Query().Get("repository")
 				receivedQuery = r.URL.Query().Get("q")
 
-				assets := searchResponse{
-					Items:             []Asset{},
+				assets := struct {
+					Items             []nexusapi.Asset `json:"items"`
+					ContinuationToken string           `json:"continuationToken"`
+				}{
+					Items:             []nexusapi.Asset{},
 					ContinuationToken: "",
 				}
 				w.Header().Set("Content-Type", "application/json")
@@ -332,15 +340,18 @@ func TestDownloadLogging(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := searchResponse{
-				Items: []Asset{
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
 					{
 						DownloadURL: serverURL + "/repository/test-repo" + testPath,
 						Path:        testPath,
 						ID:          "test-id",
 						Repository:  "test-repo",
 						FileSize:    int64(len(testContent)),
-						Checksum: Checksum{
+						Checksum: nexusapi.Checksum{
 							SHA1: "abc123",
 						},
 					},

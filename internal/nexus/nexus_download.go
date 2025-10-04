@@ -1,11 +1,8 @@
 package nexus
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +15,7 @@ import (
 	"hash"
 
 	"github.com/schollz/progressbar/v3"
+	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
 // DownloadOptions holds options for download operations
@@ -42,77 +40,9 @@ func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
 	}
 }
 
-type Checksum struct {
-	SHA1   string `json:"sha1"`
-	SHA256 string `json:"sha256"`
-	SHA512 string `json:"sha512"`
-	MD5    string `json:"md5"`
-}
-
-type Asset struct {
-	DownloadURL    string          `json:"downloadUrl"`
-	Path           string          `json:"path"`
-	ID             string          `json:"id"`
-	Repository     string          `json:"repository"`
-	Format         string          `json:"format"`
-	Checksum       Checksum        `json:"checksum"`
-	ContentType    string          `json:"contentType"`
-	LastModified   string          `json:"lastModified"`
-	LastDownloaded string          `json:"lastDownloaded"`
-	Uploader       string          `json:"uploader"`
-	UploaderIP     string          `json:"uploaderIp"`
-	FileSize       int64           `json:"fileSize"`
-	BlobCreated    *string         `json:"blobCreated"`
-	BlobStoreName  *string         `json:"blobStoreName"`
-	Raw            json.RawMessage `json:"raw"`
-}
-
-type searchResponse struct {
-	Items             []Asset `json:"items"`
-	ContinuationToken string  `json:"continuationToken"`
-}
-
-func listAssets(repository, src string, config *Config) ([]Asset, error) {
-	var assets []Asset
-	continuationToken := ""
-	for {
-		baseURL, err := url.Parse(config.NexusURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid Nexus URL: %w", err)
-		}
-		baseURL.Path = "/service/rest/v1/search/assets"
-		query := baseURL.Query()
-		query.Set("repository", repository)
-		query.Set("format", "raw")
-		query.Set("direction", "asc")
-		query.Set("sort", "name")
-		query.Set("q", fmt.Sprintf("/%s/*", src))
-		if continuationToken != "" {
-			query.Set("continuationToken", continuationToken)
-		}
-		baseURL.RawQuery = query.Encode()
-
-		req, _ := http.NewRequest("GET", baseURL.String(), nil)
-		req.SetBasicAuth(config.Username, config.Password)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			return nil, fmt.Errorf("Failed to list assets: %d", resp.StatusCode)
-		}
-		var sr searchResponse
-		if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
-			return nil, err
-		}
-		assets = append(assets, sr.Items...)
-		if sr.ContinuationToken == "" {
-			break
-		}
-		continuationToken = sr.ContinuationToken
-	}
-	return assets, nil
+func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error) {
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	return client.ListAssets(repository, src)
 }
 
 func downloadAssetUnified(asset Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
@@ -169,30 +99,17 @@ func downloadAssetUnified(asset Asset, destDir string, basePath string, wg *sync
 		return
 	}
 
-	resp, err := http.NewRequest("GET", asset.DownloadURL, nil)
-	if err != nil {
-		errCh <- err
-		return
-	}
-	resp.SetBasicAuth(config.Username, config.Password)
-	res, err := http.DefaultClient.Do(resp)
-	if err != nil {
-		errCh <- err
-		return
-	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		errCh <- fmt.Errorf("Failed to download %s: %d", asset.Path, res.StatusCode)
-		return
-	}
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	f, err := os.Create(localPath)
 	if err != nil {
 		errCh <- err
 		return
 	}
 	defer f.Close()
-	reader := io.TeeReader(res.Body, bar)
-	_, err = io.Copy(f, reader)
+	
+	// Use a tee reader to update progress bar while downloading
+	writer := io.MultiWriter(f, bar)
+	err = client.DownloadAsset(asset.DownloadURL, writer)
 	if err != nil {
 		errCh <- err
 	}
@@ -227,7 +144,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	skipCh := make(chan bool, len(assets))
 	for _, asset := range assets {
 		wg.Add(1)
-		go func(asset Asset) {
+		go func(asset nexusapi.Asset) {
 			downloadAssetUnified(asset, destDir, src, &wg, errCh, bar, skipCh, config, opts)
 		}(asset)
 	}
@@ -251,7 +168,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 }
 
 // getExpectedChecksum returns the expected checksum value for the selected algorithm
-func getExpectedChecksum(checksum Checksum, opts *DownloadOptions) string {
+func getExpectedChecksum(checksum nexusapi.Checksum, opts *DownloadOptions) string {
 	switch strings.ToLower(opts.ChecksumAlgorithm) {
 	case "sha1":
 		return checksum.SHA1
