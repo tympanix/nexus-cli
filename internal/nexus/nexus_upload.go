@@ -13,9 +13,10 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
-	Logger    Logger
-	QuietMode bool
-	Compress  bool // Enable compression (tar.gz)
+	Logger            Logger
+	QuietMode         bool
+	Compress          bool              // Enable compression (tar.gz or tar.zst)
+	CompressionFormat CompressionFormat // Compression format to use (gzip or zstd)
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -101,7 +102,7 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 	return uploadFilesCompressedWithArchiveName(src, repository, subdir, "", config, opts)
 }
 
-// uploadFilesCompressedWithArchiveName creates a tar.gz archive and uploads it as a single file with optional explicit name
+// uploadFilesCompressedWithArchiveName creates a compressed archive and uploads it as a single file with optional explicit name
 func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName string, config *Config, opts *UploadOptions) error {
 	filePaths, err := collectFiles(src)
 	if err != nil {
@@ -124,11 +125,12 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 
 	// Require explicit archive name
 	if explicitArchiveName == "" {
-		return fmt.Errorf("when using --compress, you must specify the .tar.gz filename in the destination path (e.g., repo/path/archive.tar.gz)")
+		ext := opts.CompressionFormat.Extension()
+		return fmt.Errorf("when using --compress, you must specify the %s filename in the destination path (e.g., repo/path/archive%s)", ext, ext)
 	}
 	
 	archiveName := explicitArchiveName
-	opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
+	opts.Logger.Printf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
 	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
 
@@ -147,9 +149,9 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 			return
 		}
 
-		// Create tar.gz archive with progress tracking
+		// Create compressed archive with progress tracking
 		progressWriter := io.MultiWriter(part, bar)
-		if err := CreateTarGz(src, progressWriter); err != nil {
+		if err := opts.CompressionFormat.CreateArchive(src, progressWriter); err != nil {
 			errChan <- fmt.Errorf("failed to create archive: %w", err)
 			return
 		}
@@ -192,8 +194,8 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 		repository = parts[0]
 		subdir = parts[1]
 		
-		// If compress is enabled and dest ends with .tar.gz, treat it as explicit archive name
-		if opts.Compress && strings.HasSuffix(subdir, ".tar.gz") {
+		// If compress is enabled and dest ends with .tar.gz or .tar.zst, treat it as explicit archive name
+		if opts.Compress && (strings.HasSuffix(subdir, ".tar.gz") || strings.HasSuffix(subdir, ".tar.zst")) {
 			// Extract the archive name from the path
 			lastSlash := strings.LastIndex(subdir, "/")
 			if lastSlash >= 0 {
@@ -204,12 +206,25 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 				explicitArchiveName = subdir
 				subdir = ""
 			}
+			// Detect compression format from filename if not explicitly set
+			if explicitArchiveName != "" && opts.CompressionFormat == "" {
+				opts.CompressionFormat = DetectCompressionFromFilename(explicitArchiveName)
+			}
 		}
-	} else if opts.Compress && strings.HasSuffix(dest, ".tar.gz") {
-		// Repository name ends with .tar.gz, treat it as explicit archive name
+	} else if opts.Compress && (strings.HasSuffix(dest, ".tar.gz") || strings.HasSuffix(dest, ".tar.zst")) {
+		// Repository name ends with .tar.gz or .tar.zst, treat it as explicit archive name
 		explicitArchiveName = dest
 		repository = ""
 		subdir = ""
+		// Detect compression format from filename if not explicitly set
+		if opts.CompressionFormat == "" {
+			opts.CompressionFormat = DetectCompressionFromFilename(explicitArchiveName)
+		}
+	}
+	
+	// Default compression format if not set
+	if opts.Compress && opts.CompressionFormat == "" {
+		opts.CompressionFormat = CompressionGzip
 	}
 	
 	err := uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)

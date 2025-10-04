@@ -70,9 +70,10 @@ func TestCompressedUpload(t *testing.T) {
 	}
 
 	opts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
-		QuietMode: true,
-		Compress:  true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Upload compressed with explicit archive name
@@ -141,9 +142,10 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 	}
 
 	opts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
-		QuietMode: true,
-		Compress:  true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Upload with explicit archive name via uploadFilesWithArchiveName
@@ -185,9 +187,10 @@ func TestCompressedUploadWithoutExplicitName(t *testing.T) {
 	}
 
 	opts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
-		QuietMode: true,
-		Compress:  true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Upload without explicit archive name should fail
@@ -196,7 +199,7 @@ func TestCompressedUploadWithoutExplicitName(t *testing.T) {
 		t.Fatal("Expected error when uploading with compress but no explicit archive name")
 	}
 
-	expectedErrorMsg := "when using --compress, you must specify the .tar.gz filename"
+	expectedErrorMsg := "when using --compress, you must specify the"
 	if !strings.Contains(err.Error(), expectedErrorMsg) {
 		t.Errorf("Expected error message to contain %q, got %q", expectedErrorMsg, err.Error())
 	}
@@ -307,6 +310,7 @@ func TestCompressedDownload(t *testing.T) {
 		Logger:            NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Download and extract with explicit archive name
@@ -428,6 +432,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 		Logger:            NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Download with explicit archive name via downloadFolderCompressedWithArchiveName
@@ -471,6 +476,7 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 		Logger:            NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Download without explicit archive name should fail (return false)
@@ -577,9 +583,10 @@ func TestCompressedRoundTrip(t *testing.T) {
 
 	// Upload compressed
 	uploadOpts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
-		QuietMode: true,
-		Compress:  true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	// Upload compressed with explicit archive name
@@ -605,6 +612,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 		Logger:            NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
+		CompressionFormat: CompressionGzip,
 	}
 
 	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
