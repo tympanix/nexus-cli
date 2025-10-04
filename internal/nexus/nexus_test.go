@@ -30,55 +30,8 @@ func TestUploadSingleFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Track upload request
-	var uploadedContent string
-	var uploadedFilename string
-	receivedRepository := ""
-
 	// Create mock Nexus server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify the request
-		if r.Method != "POST" {
-			t.Errorf("Expected POST request, got %s", r.Method)
-		}
-
-		if !strings.Contains(r.URL.Path, "/service/rest/v1/components") {
-			t.Errorf("Unexpected URL path: %s", r.URL.Path)
-		}
-
-		receivedRepository = r.URL.Query().Get("repository")
-
-		// Parse multipart form
-		err := r.ParseMultipartForm(32 << 20) // 32 MB
-		if err != nil {
-			t.Errorf("Failed to parse multipart form: %v", err)
-			http.Error(w, "Failed to parse form", http.StatusBadRequest)
-			return
-		}
-
-		// Check for uploaded file
-		file, header, err := r.FormFile("raw.asset1")
-		if err != nil {
-			t.Errorf("Failed to get uploaded file: %v", err)
-			http.Error(w, "No file uploaded", http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
-
-		uploadedFilename = header.Filename
-
-		// Read file content
-		content, err := io.ReadAll(file)
-		if err != nil {
-			t.Errorf("Failed to read file content: %v", err)
-			http.Error(w, "Failed to read file", http.StatusInternalServerError)
-			return
-		}
-		uploadedContent = string(content)
-
-		// Return success
-		w.WriteHeader(http.StatusNoContent)
-	}))
+	server := newMockNexusServer()
 	defer server.Close()
 
 	// Create test config
@@ -101,12 +54,21 @@ func TestUploadSingleFile(t *testing.T) {
 	}
 
 	// Validate uploaded content
-	if uploadedContent != testContent {
-		t.Errorf("Expected uploaded content '%s', got '%s'", testContent, uploadedContent)
+	server.mu.RLock()
+	uploadedFiles := server.UploadedFiles
+	receivedRepository := server.LastUploadRepo
+	server.mu.RUnlock()
+
+	if len(uploadedFiles) != 1 {
+		t.Fatalf("Expected 1 uploaded file, got %d", len(uploadedFiles))
 	}
 
-	if uploadedFilename != "test.txt" {
-		t.Errorf("Expected filename 'test.txt', got '%s'", uploadedFilename)
+	if string(uploadedFiles[0].Content) != testContent {
+		t.Errorf("Expected uploaded content '%s', got '%s'", testContent, string(uploadedFiles[0].Content))
+	}
+
+	if uploadedFiles[0].Filename != "test.txt" {
+		t.Errorf("Expected filename 'test.txt', got '%s'", uploadedFiles[0].Filename)
 	}
 
 	if receivedRepository != "test-repo" {
@@ -119,49 +81,23 @@ func TestDownloadSingleFile(t *testing.T) {
 	testContent := "Downloaded content from Nexus"
 	testPath := "/test-folder/downloaded.txt"
 
-	var serverURL string
-
 	// Create mock Nexus server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle asset listing request
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			// Return mock asset list
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + testPath,
-						Path:        testPath,
-						ID:          "test-id",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
-
-		// Handle file download request
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
+	server := newMockNexusServer()
 	defer server.Close()
-	serverURL = server.URL
+
+	// Setup mock data
+	downloadURL := server.URL + "/repository/test-repo" + testPath
+	server.addAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        testPath,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.setAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
 	// Create test config
 	config := &Config{
@@ -299,9 +235,7 @@ func TestUploadLogging(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
+	server := newMockNexusServer()
 	defer server.Close()
 
 	config := &Config{
