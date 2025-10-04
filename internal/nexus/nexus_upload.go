@@ -122,6 +122,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return goroutineErr
 	}
 	if resp.StatusCode == 204 {
+		bar.Finish()
 		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
 		return nil
 	}
