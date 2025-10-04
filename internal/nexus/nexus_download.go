@@ -45,7 +45,7 @@ func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error
 	return client.ListAssets(repository, src)
 }
 
-func downloadAssetUnified(asset Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
+func downloadAssetUnified(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 	

@@ -427,15 +427,18 @@ func TestDownloadFlatten(t *testing.T) {
 	// 2. /test-folder/subdir/file.txt -> should become subdir/file.txt
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := searchResponse{
-				Items: []Asset{
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
 					{
 						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
 						Path:        basePath + fileName,
 						ID:          "test-id-1",
 						Repository:  "test-repo",
 						FileSize:    int64(len(testContent)),
-						Checksum: Checksum{
+						Checksum: nexusapi.Checksum{
 							SHA1: "abc123",
 						},
 					},
@@ -445,7 +448,7 @@ func TestDownloadFlatten(t *testing.T) {
 						ID:          "test-id-2",
 						Repository:  "test-repo",
 						FileSize:    int64(len(testContent)),
-						Checksum: Checksum{
+						Checksum: nexusapi.Checksum{
 							SHA1: "def456",
 						},
 					},
@@ -522,15 +525,18 @@ func TestDownloadNoFlatten(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := searchResponse{
-				Items: []Asset{
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
 					{
 						DownloadURL: serverURL + "/repository/test-repo" + testPath,
 						Path:        testPath,
 						ID:          "test-id",
 						Repository:  "test-repo",
 						FileSize:    int64(len(testContent)),
-						Checksum: Checksum{
+						Checksum: nexusapi.Checksum{
 							SHA1: "abc123",
 						},
 					},
