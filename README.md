@@ -18,6 +18,12 @@ Build the Docker image:
 docker build -t nexuscli-go .
 ```
 
+To build with a specific version:
+
+```bash
+docker build --build-arg VERSION=1.0.0 -t nexuscli-go:1.0.0 .
+```
+
 > **Note**: The Docker build downloads dependencies during the build process. If you encounter certificate issues in restricted environments, ensure your Docker daemon has proper internet access and CA certificates.
 
 Run upload:
@@ -48,6 +54,12 @@ To build the Go CLI locally for development:
 go build -o nexuscli-go ./cmd/nexuscli-go
 ```
 
+To build with a specific version:
+
+```bash
+go build -ldflags "-X main.version=1.0.0" -o nexuscli-go ./cmd/nexuscli-go
+```
+
 ### Production Build with Packages
 
 From the root of the repository, use the Makefile to build production packages:
@@ -63,6 +75,8 @@ This will use [GoReleaser](https://goreleaser.com) to build:
 - Archives (tar.gz) for all platforms
 
 All artifacts are placed in the `dist/` directory.
+
+**Note:** GoReleaser automatically injects the version based on Git tags. When building from a tagged commit (e.g., `v1.0.0`), the version will be set accordingly. For development builds without tags, the version will default to a snapshot version.
 
 ### Installing from Packages
 
@@ -104,6 +118,14 @@ The test suite includes:
 
 ## Usage
 
+### Version
+
+Check the version of the CLI:
+
+```bash
+nexuscli-go version
+```
+
 ### Authentication
 
 You can authenticate with Nexus using environment variables or CLI flags:
@@ -127,8 +149,22 @@ nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] <direct
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] <repository/folder> <directory>
 ```
+
+**Download options:**
+- `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
+- `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
+- `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
+
+**About the `--flatten` flag:**
+
+By default, when downloading from `repository/path/to/folder`, the entire path structure is preserved locally. For example:
+- File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/path/to/folder/file.txt` locally
+
+With the `--flatten` flag enabled, the base path specified in the source argument is stripped:
+- File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/file.txt` locally
+- File at `/path/to/folder/subdir/file.txt` in Nexus → saved to `<dest>/subdir/file.txt` locally (subdirectories beyond the base path are preserved)
 
 **Examples:**
 
@@ -143,6 +179,15 @@ nexuscli-go upload ./files my-repo/path
 Using CLI flags:
 ```bash
 nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword ./files my-repo/path
+```
+
+Download with flatten flag:
+```bash
+# Without flatten: files are saved with full path structure (my-repo/path/subdir/file.txt)
+nexuscli-go download my-repo/path ./local-folder
+
+# With flatten: files are saved without the base path (subdir/file.txt)
+nexuscli-go download --flatten my-repo/path ./local-folder
 ```
 
 Using Docker with CLI flags:

@@ -9,6 +9,8 @@ import (
 	"github.com/tympanix/nexus-cli/internal/nexus"
 )
 
+var version = "dev"
+
 func main() {
 	// Create config from environment variables
 	config := nexus.NewConfig()
@@ -65,6 +67,7 @@ func main() {
 
 	var checksumAlg string
 	var skipChecksumValidation bool
+	var flattenPath bool
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -72,9 +75,11 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
+			flattenPath, _ = cmd.Flags().GetBool("flatten")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
+				Flatten:           flattenPath,
 				Logger:            logger,
 				QuietMode:         quietMode,
 			}
@@ -89,9 +94,20 @@ func main() {
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number",
+		Long:  "Print the version number of nexuscli-go",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("nexuscli-go version %s\n", version)
+		},
+	}
 
 	rootCmd.AddCommand(uploadCmd)
 	rootCmd.AddCommand(downloadCmd)
+	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

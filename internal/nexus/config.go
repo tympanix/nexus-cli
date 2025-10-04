@@ -1,7 +1,10 @@
 package nexus
 
 import (
+	"io"
 	"os"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 // Config holds the configuration for connecting to Nexus
@@ -30,4 +33,21 @@ func getenv(key, fallback string) string {
 func isatty() bool {
 	fileInfo, _ := os.Stdout.Stat()
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
+// newProgressBar creates a new progress bar with standard configuration
+// The description parameter should describe the operation (e.g., "Uploading bytes", "Downloading bytes")
+// The quietMode parameter controls whether progress should be shown
+func newProgressBar(totalBytes int64, description string, quietMode bool) *progressbar.ProgressBar {
+	showProgress := isatty() && !quietMode
+	progressWriter := io.Writer(os.Stdout)
+	if !showProgress {
+		progressWriter = io.Discard
+	}
+	return progressbar.NewOptions64(totalBytes,
+		progressbar.OptionSetWriter(progressWriter),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetDescription(description),
+		progressbar.OptionFullWidth(),
+	)
 }
