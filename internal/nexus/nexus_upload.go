@@ -94,7 +94,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	contentType := nexusapi.GetFormDataContentType(writer)
-	
+
 	err = client.UploadComponent(repository, pr, contentType)
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
@@ -171,7 +171,7 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	contentType := nexusapi.GetFormDataContentType(writer)
-	
+
 	err = client.UploadComponent(repository, pr, contentType)
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr

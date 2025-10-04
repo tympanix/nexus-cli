@@ -49,19 +49,19 @@ func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error
 func downloadAssetUnified(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
-	
+
 	// If flatten is enabled, strip the base path from the asset path
 	if opts.Flatten && basePath != "" {
 		// Normalize basePath to ensure it has a leading slash for comparison
 		normalizedBasePath := "/" + strings.TrimLeft(basePath, "/")
 		assetPath := "/" + path
-		
+
 		// If the asset path starts with the base path, remove it
 		if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
 			path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
 		}
 	}
-	
+
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
@@ -107,7 +107,7 @@ func downloadAssetUnified(asset nexusapi.Asset, destDir string, basePath string,
 		return
 	}
 	defer f.Close()
-	
+
 	// Use a tee reader to update progress bar while downloading
 	writer := io.MultiWriter(f, bar)
 	err = client.DownloadAsset(asset.DownloadURL, writer)
@@ -170,7 +170,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
 	bar.Finish()
-	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
+	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
 		nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
 	return nErrors == 0
 }
@@ -210,7 +210,7 @@ func downloadFolderCompressed(repository, src, destDir string, config *Config, o
 
 	// Download and extract archive
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	
+
 	// Create a pipe for streaming decompression
 	pr, pw := io.Pipe()
 	errChan := make(chan error, 1)
@@ -241,7 +241,7 @@ func downloadFolderCompressed(repository, src, destDir string, config *Config, o
 	}
 
 	bar.Finish()
-	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n", 
+	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
 		archiveName, src, repository, destDir)
 	return true
 }

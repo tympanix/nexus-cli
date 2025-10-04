@@ -23,8 +23,8 @@ func TestCompressedUpload(t *testing.T) {
 	defer os.RemoveAll(testDir)
 
 	testFiles := map[string]string{
-		"file1.txt":       "Content 1",
-		"file2.txt":       "Content 2",
+		"file1.txt":        "Content 1",
+		"file2.txt":        "Content 2",
 		"subdir/file3.txt": "Content 3",
 	}
 
@@ -101,8 +101,8 @@ func TestCompressedDownload(t *testing.T) {
 	defer os.RemoveAll(srcDir)
 
 	testFiles := map[string]string{
-		"file1.txt":       "Content 1",
-		"file2.txt":       "Content 2",
+		"file1.txt":        "Content 1",
+		"file2.txt":        "Content 2",
 		"subdir/file3.txt": "Content 3",
 	}
 

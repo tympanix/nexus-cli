@@ -18,8 +18,8 @@ func TestCreateTarGz(t *testing.T) {
 
 	// Create test files
 	testFiles := map[string]string{
-		"file1.txt":       "Content of file 1",
-		"file2.txt":       "Content of file 2",
+		"file1.txt":        "Content of file 1",
+		"file2.txt":        "Content of file 2",
 		"subdir/file3.txt": "Nested file content",
 	}
 
@@ -63,8 +63,8 @@ func TestExtractTarGz(t *testing.T) {
 
 	// Create test files
 	testFiles := map[string]string{
-		"file1.txt":       "Content of file 1",
-		"file2.txt":       "Content of file 2",
+		"file1.txt":        "Content of file 1",
+		"file2.txt":        "Content of file 2",
 		"subdir/file3.txt": "Nested file content",
 	}
 

@@ -59,7 +59,7 @@ func CreateTarGz(srcDir string, writer io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", filePath, err)
 		}
-		
+
 		if _, err := io.Copy(tarWriter, file); err != nil {
 			file.Close()
 			return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
@@ -92,7 +92,7 @@ func ExtractTarGz(reader io.Reader, destDir string) error {
 
 		// Construct target path
 		targetPath := filepath.Join(destDir, header.Name)
-		
+
 		// Security check: ensure path doesn't escape destDir
 		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)) {
 			return fmt.Errorf("illegal file path in archive: %s", header.Name)

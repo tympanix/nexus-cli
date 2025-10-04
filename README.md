@@ -5,6 +5,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
 - Download all files from a Nexus RAW folder recursively
+- Compression support: upload/download files as tar.gz archives
 - Parallel downloads for speed
 - Small container image size using multi-stage build with scratch base
 
@@ -115,6 +116,8 @@ The test suite includes:
 - URL construction and encoding tests
 - CLI flag parsing and override tests
 - Logger functionality tests
+- Compression and decompression tests
+- Round-trip compression tests
 
 ## Usage
 
@@ -143,19 +146,36 @@ You can authenticate with Nexus using environment variables or CLI flags:
 ### Upload
 
 ```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] <directory> <repository[/subdir]>
+```
+
+**Upload options:**
+- `--compress` or `-z` - Create and upload files as a compressed tar.gz archive
+
+**About the `--compress` flag:**
+
+When the `--compress` flag is used, all files in the source directory are compressed into a single tar.gz archive before uploading. The archive is named based on the repository and subdirectory (e.g., `my-repo-path.tar.gz`). This is useful for:
+- Uploading many small files more efficiently
+- Reducing network overhead
+- Storing files as a single artifact in Nexus
+
+**Example:**
+```bash
+nexuscli-go upload --compress ./files my-repo/path
+# Creates and uploads: my-repo-path.tar.gz
 ```
 
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] <repository/folder> <directory>
 ```
 
 **Download options:**
 - `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
+- `--compress` or `-z` - Download and extract a compressed tar.gz archive
 
 **About the `--flatten` flag:**
 
@@ -165,6 +185,21 @@ By default, when downloading from `repository/path/to/folder`, the entire path s
 With the `--flatten` flag enabled, the base path specified in the source argument is stripped:
 - File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/file.txt` locally
 - File at `/path/to/folder/subdir/file.txt` in Nexus → saved to `<dest>/subdir/file.txt` locally (subdirectories beyond the base path are preserved)
+
+**About the `--compress` flag:**
+
+When the `--compress` flag is used with download, the CLI looks for a tar.gz archive in the specified path and extracts it to the destination directory. This is useful for:
+- Downloading files that were uploaded with compression
+- Extracting archives on-the-fly without storing the compressed file locally
+- Faster downloads when dealing with many small files
+
+The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz`
+
+**Example:**
+```bash
+nexuscli-go download --compress my-repo/path ./local-folder
+# Downloads and extracts: my-repo-path.tar.gz
+```
 
 **Examples:**
 
@@ -188,6 +223,15 @@ nexuscli-go download my-repo/path ./local-folder
 
 # With flatten: files are saved without the base path (subdir/file.txt)
 nexuscli-go download --flatten my-repo/path ./local-folder
+```
+
+Upload and download with compression:
+```bash
+# Upload files as a compressed archive
+nexuscli-go upload --compress ./files my-repo/artifacts
+
+# Download and extract the compressed archive
+nexuscli-go download --compress my-repo/artifacts ./local-folder
 ```
 
 Using Docker with CLI flags:
