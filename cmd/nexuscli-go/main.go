@@ -77,7 +77,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
 			flattenPath, _ = cmd.Flags().GetBool("flatten")
-			deleteExtra, _ = cmd.Flags().GetBool("delete-extra")
+			deleteExtra, _ = cmd.Flags().GetBool("delete")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
@@ -98,7 +98,7 @@ func main() {
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
-	downloadCmd.Flags().BoolP("delete-extra", "d", false, "Remove local files from the destination folder that are not present in Nexus")
+	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
