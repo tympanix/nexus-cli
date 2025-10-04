@@ -1,21 +1,21 @@
 package nexus
 
 import (
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
+"fmt"
+"io"
+"os"
+"path/filepath"
+"strings"
+"sync"
 
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
-	"hash"
+"crypto/md5"
+"crypto/sha1"
+"crypto/sha256"
+"crypto/sha512"
+"hash"
 
-	"github.com/schollz/progressbar/v3"
-	"github.com/tympanix/nexus-cli/internal/nexusapi"
+"github.com/schollz/progressbar/v3"
+"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
 // DownloadOptions holds options for download operations
@@ -32,89 +32,89 @@ type DownloadOptions struct {
 // SetChecksumAlgorithm validates and sets the checksum algorithm
 // Returns an error if the algorithm is not supported
 func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
-	alg := strings.ToLower(algorithm)
-	switch alg {
-	case "sha1", "sha256", "sha512", "md5":
-		opts.ChecksumAlgorithm = alg
-		return nil
-	default:
-		return fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
-	}
+alg := strings.ToLower(algorithm)
+switch alg {
+case "sha1", "sha256", "sha512", "md5":
+opts.ChecksumAlgorithm = alg
+return nil
+default:
+return fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
+}
 }
 
 func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error) {
-	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	return client.ListAssets(repository, src)
+client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+return client.ListAssets(repository, src)
 }
 
 func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
-	defer wg.Done()
-	path := strings.TrimLeft(asset.Path, "/")
+defer wg.Done()
+path := strings.TrimLeft(asset.Path, "/")
 
-	// If flatten is enabled, strip the base path from the asset path
-	if opts.Flatten && basePath != "" {
-		// Normalize basePath to ensure it has a leading slash for comparison
-		normalizedBasePath := "/" + strings.TrimLeft(basePath, "/")
-		assetPath := "/" + path
+// If flatten is enabled, strip the base path from the asset path
+if opts.Flatten && basePath != "" {
+// Normalize basePath to ensure it has a leading slash for comparison
+normalizedBasePath := "/" + strings.TrimLeft(basePath, "/")
+assetPath := "/" + path
 
-		// If the asset path starts with the base path, remove it
-		if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
-			path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
-		}
-	}
+// If the asset path starts with the base path, remove it
+if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
+path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
+}
+}
 
-	localPath := filepath.Join(destDir, path)
-	os.MkdirAll(filepath.Dir(localPath), 0755)
+localPath := filepath.Join(destDir, path)
+os.MkdirAll(filepath.Dir(localPath), 0755)
 
-	// Check if file exists and validate checksum or skip based on file existence
-	shouldSkip := false
-	skipReason := ""
+// Check if file exists and validate checksum or skip based on file existence
+shouldSkip := false
+skipReason := ""
 
-	if _, err := os.Stat(localPath); err == nil {
-		if opts.SkipChecksum {
-			// When checksum validation is skipped, only check if file exists
-			shouldSkip = true
-			skipReason = "Skipped (file exists): %s\n"
-		} else {
-			// Normal checksum validation
-			expectedChecksum := getExpectedChecksum(asset.Checksum, opts)
-			if expectedChecksum != "" {
-				actualChecksum, err := computeChecksum(localPath, opts.ChecksumAlgorithm)
-				if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
-					shouldSkip = true
-					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
-				}
-			}
-		}
-	}
+if _, err := os.Stat(localPath); err == nil {
+if opts.SkipChecksum {
+// When checksum validation is skipped, only check if file exists
+shouldSkip = true
+skipReason = "Skipped (file exists): %s\n"
+} else {
+// Normal checksum validation
+expectedChecksum := getExpectedChecksum(asset.Checksum, opts)
+if expectedChecksum != "" {
+actualChecksum, err := computeChecksum(localPath, opts.ChecksumAlgorithm)
+if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
+shouldSkip = true
+skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+}
+}
+}
+}
 
-	if shouldSkip {
-		opts.Logger.Printf(skipReason, localPath)
-		// Advance progress bar by file size for skipped files
-		if bar != nil {
-			bar.Add64(asset.FileSize)
-		}
-		// Signal that this file was skipped
-		if skipCh != nil {
-			skipCh <- true
-		}
-		return
-	}
+if shouldSkip {
+opts.Logger.Printf(skipReason, localPath)
+// Advance progress bar by file size for skipped files
+if bar != nil {
+bar.Add64(asset.FileSize)
+}
+// Signal that this file was skipped
+if skipCh != nil {
+skipCh <- true
+}
+return
+}
 
-	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	f, err := os.Create(localPath)
-	if err != nil {
-		errCh <- err
-		return
-	}
-	defer f.Close()
+client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+f, err := os.Create(localPath)
+if err != nil {
+errCh <- err
+return
+}
+defer f.Close()
 
-	// Use a tee reader to update progress bar while downloading
-	writer := io.MultiWriter(f, bar)
-	err = client.DownloadAsset(asset.DownloadURL, writer)
-	if err != nil {
-		errCh <- err
-	}
+// Use a tee reader to update progress bar while downloading
+writer := io.MultiWriter(f, bar)
+err = client.DownloadAsset(asset.DownloadURL, writer)
+if err != nil {
+errCh <- err
+}
 }
 
 func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) bool {
@@ -209,128 +209,196 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 
 // downloadFolderCompressed downloads and extracts a tar.gz archive
 func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
-	// Generate expected archive name
-	archiveName := GenerateArchiveName(repository, src)
-	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+// Generate expected archive name
+archiveName := GenerateArchiveName(repository, src)
+opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
 
-	// List assets to find the archive
-	assets, err := listAssets(repository, src, config)
-	if err != nil {
-		opts.Logger.Println("Error listing assets:", err)
-		return false
-	}
+// List assets to find the archive
+assets, err := listAssets(repository, src, config)
+if err != nil {
+opts.Logger.Println("Error listing assets:", err)
+return false
+}
 
-	// Find the archive file
-	var archiveAsset *nexusapi.Asset
-	for _, asset := range assets {
-		if strings.HasSuffix(asset.Path, archiveName) {
-			archiveAsset = &asset
-			break
-		}
-	}
+// Find the archive file
+var archiveAsset *nexusapi.Asset
+for _, asset := range assets {
+if strings.HasSuffix(asset.Path, archiveName) {
+archiveAsset = &asset
+break
+}
+}
 
-	if archiveAsset == nil {
-		opts.Logger.Printf("Archive '%s' not found in '%s' in repository '%s'\n", archiveName, src, repository)
-		opts.Logger.Println("Available assets:")
-		for _, asset := range assets {
-			opts.Logger.Printf("  - %s\n", asset.Path)
-		}
-		return false
-	}
+if archiveAsset == nil {
+opts.Logger.Printf("Archive '%s' not found in '%s' in repository '%s'\n", archiveName, src, repository)
+opts.Logger.Println("Available assets:")
+for _, asset := range assets {
+opts.Logger.Printf("  - %s\n", asset.Path)
+}
+return false
+}
 
-	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", opts.QuietMode)
+bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", opts.QuietMode)
 
-	// Download and extract archive
-	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+// Download and extract archive
+client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 
-	// Create a pipe for streaming decompression
-	pr, pw := io.Pipe()
-	errChan := make(chan error, 1)
+// Create a pipe for streaming decompression
+pr, pw := io.Pipe()
+errChan := make(chan error, 1)
 
-	// Extract in a goroutine
-	go func() {
-		if err := ExtractTarGz(pr, destDir); err != nil {
-			errChan <- fmt.Errorf("failed to extract archive: %w", err)
-		} else {
-			errChan <- nil
-		}
-	}()
+// Extract in a goroutine
+go func() {
+if err := ExtractTarGz(pr, destDir); err != nil {
+errChan <- fmt.Errorf("failed to extract archive: %w", err)
+} else {
+errChan <- nil
+}
+}()
 
-	// Download with progress tracking
-	progressWriter := io.MultiWriter(pw, bar)
-	err = client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
-	pw.Close()
+// Download with progress tracking
+progressWriter := io.MultiWriter(pw, bar)
+err = client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
+pw.Close()
 
-	if err != nil {
-		opts.Logger.Printf("Failed to download archive: %v\n", err)
-		return false
-	}
+if err != nil {
+opts.Logger.Printf("Failed to download archive: %v\n", err)
+return false
+}
 
-	// Wait for extraction to complete
-	if extractErr := <-errChan; extractErr != nil {
-		opts.Logger.Printf("Failed to extract archive: %v\n", extractErr)
-		return false
-	}
+// Wait for extraction to complete
+if extractErr := <-errChan; extractErr != nil {
+opts.Logger.Printf("Failed to extract archive: %v\n", extractErr)
+return false
+}
 
-	bar.Finish()
-	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
-		archiveName, src, repository, destDir)
-	return true
+bar.Finish()
+opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
+archiveName, src, repository, destDir)
+return true
 }
 
 // getExpectedChecksum returns the expected checksum value for the selected algorithm
 func getExpectedChecksum(checksum nexusapi.Checksum, opts *DownloadOptions) string {
-	switch strings.ToLower(opts.ChecksumAlgorithm) {
-	case "sha1":
-		return checksum.SHA1
-	case "sha256":
-		return checksum.SHA256
-	case "sha512":
-		return checksum.SHA512
-	case "md5":
-		return checksum.MD5
-	default:
-		return checksum.SHA1 // Default to SHA1
-	}
+switch strings.ToLower(opts.ChecksumAlgorithm) {
+case "sha1":
+return checksum.SHA1
+case "sha256":
+return checksum.SHA256
+case "sha512":
+return checksum.SHA512
+case "md5":
+return checksum.MD5
+default:
+return checksum.SHA1 // Default to SHA1
+}
 }
 
 // computeChecksum computes the checksum of a file using the specified algorithm
 func computeChecksum(path string, algorithm string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
+file, err := os.Open(path)
+if err != nil {
+return "", err
+}
+defer file.Close()
 
-	var h hash.Hash
-	switch strings.ToLower(algorithm) {
-	case "sha1":
-		h = sha1.New()
-	case "sha256":
-		h = sha256.New()
-	case "sha512":
-		h = sha512.New()
-	case "md5":
-		h = md5.New()
-	default:
-		h = sha1.New() // Default to SHA1
-	}
+var h hash.Hash
+switch strings.ToLower(algorithm) {
+case "sha1":
+h = sha1.New()
+case "sha256":
+h = sha256.New()
+case "sha512":
+h = sha512.New()
+case "md5":
+h = md5.New()
+default:
+h = sha1.New() // Default to SHA1
+}
 
-	if _, err := io.Copy(h, file); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+if _, err := io.Copy(h, file); err != nil {
+return "", err
+}
+return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 // computeSHA1 computes the SHA1 checksum of a file at the given path.
 // Deprecated: Use computeChecksum instead
 func computeSHA1(path string) (string, error) {
-	return computeChecksum(path, "sha1")
+return computeChecksum(path, "sha1")
 }
 
 // NewSHA1 returns a new hash.Hash computing the SHA1 checksum.
 func NewSHA1() hash.Hash {
-	return sha1.New()
+return sha1.New()
+}
+
+// deleteExtraFiles removes local files that are not present in the remote asset map
+func deleteExtraFiles(destDir string, remoteAssetPaths map[string]bool, opts *DownloadOptions) int {
+nDeleted := 0
+
+// Walk through all files in the destination directory
+err := filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+if err != nil {
+return err
+}
+
+// Skip directories
+if info.IsDir() {
+return nil
+}
+
+// Check if this file exists in remote assets
+if !remoteAssetPaths[path] {
+opts.Logger.Printf("Deleting extra file: %s\n", path)
+if err := os.Remove(path); err != nil {
+opts.Logger.Printf("Failed to delete file %s: %v\n", path, err)
+} else {
+nDeleted++
+}
+}
+
+return nil
+})
+
+if err != nil {
+opts.Logger.Printf("Error walking directory: %v\n", err)
+}
+
+// Clean up empty directories
+cleanupEmptyDirectories(destDir, opts)
+
+return nDeleted
+}
+
+// cleanupEmptyDirectories removes empty directories from the destination
+func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
+// Walk in reverse order to remove nested empty directories first
+filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+if err != nil {
+return err
+}
+
+// Skip the root destination directory itself
+if path == destDir {
+return nil
+}
+
+if info.IsDir() {
+// Check if directory is empty
+entries, err := os.ReadDir(path)
+if err != nil {
+return nil
+}
+
+if len(entries) == 0 {
+opts.Logger.Printf("Removing empty directory: %s\n", path)
+os.Remove(path)
+}
+}
+
+return nil
+})
 }
 
 // deleteExtraFiles removes local files that are not present in the remote asset map
@@ -402,8 +470,8 @@ func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
 }
 
 func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
-	success := downloadFolder(src, dest, config, opts)
-	if !success {
-		os.Exit(66)
-	}
+success := downloadFolder(src, dest, config, opts)
+if !success {
+os.Exit(66)
+}
 }

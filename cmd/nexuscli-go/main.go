@@ -49,24 +49,24 @@ func main() {
 	rootCmd.PersistentFlags().String("password", "", "Password for Nexus authentication (defaults to NEXUS_PASS env var or 'admin')")
 	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "Suppress all output")
 
+	var uploadCompress bool
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			compress, _ := cmd.Flags().GetBool("compress")
 			opts := &nexus.UploadOptions{
 				Logger:    logger,
 				QuietMode: quietMode,
-				Compress:  compress,
+				Compress:  uploadCompress,
 			}
 			src := args[0]
 			dest := args[1]
 			nexus.UploadMain(src, dest, config, opts)
 		},
 	}
-	uploadCmd.Flags().BoolP("compress", "z", false, "Create and upload files as a compressed tar.gz archive")
+	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed tar.gz archive")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
