@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary with static linking
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o nexuscli-go .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o nexuscli-go ./cmd/nexuscli-go
 
 # Final stage - use scratch for minimal image
 FROM scratch

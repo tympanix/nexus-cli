@@ -45,8 +45,7 @@ docker run --rm -v $(pwd):/data \
 To build the Go CLI locally for development:
 
 ```bash
-cd nexuscli-go
-go build -o nexuscli-go
+go build -o nexuscli-go ./cmd/nexuscli-go
 ```
 
 ### Production Build with Packages
@@ -90,11 +89,10 @@ To run the unit tests:
 make test
 ```
 
-This will run all tests in the `nexuscli-go` directory with verbose output. Alternatively, you can run tests directly using Go:
+This will run all tests with verbose output. Alternatively, you can run tests directly using Go:
 
 ```bash
-cd nexuscli-go
-go test -v
+go test -v ./...
 ```
 
 The test suite includes:
@@ -166,8 +164,7 @@ make test-short
 Or directly with Go:
 
 ```bash
-cd nexuscli-go
-go test -v -short
+go test -v -short ./...
 ```
 
 ### End-to-End Tests
@@ -194,8 +191,7 @@ make test-e2e
 Or directly with Go:
 
 ```bash
-cd nexuscli-go
-go test -v -run TestEndToEndUploadDownload -timeout 15m
+go test -v -run TestEndToEndUploadDownload -timeout 15m ./internal/nexus
 ```
 
 **Note:** The e2e test is automatically skipped when running `go test -short` or `make test-short`.

@@ -1,4 +1,4 @@
-package main
+package nexus
 
 import (
 	"encoding/json"
@@ -28,9 +28,9 @@ type DownloadOptions struct {
 	QuietMode         bool
 }
 
-// setChecksumAlgorithm validates and sets the checksum algorithm
+// SetChecksumAlgorithm validates and sets the checksum algorithm
 // Returns an error if the algorithm is not supported
-func (opts *DownloadOptions) setChecksumAlgorithm(algorithm string) error {
+func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
 	alg := strings.ToLower(algorithm)
 	switch alg {
 	case "sha1", "sha256", "sha512", "md5":
@@ -301,7 +301,7 @@ func NewSHA1() hash.Hash {
 	return sha1.New()
 }
 
-func downloadMain(src, dest string, config *Config, opts *DownloadOptions) {
+func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
 	success := downloadFolder(src, dest, config, opts)
 	if !success {
 		os.Exit(66)

@@ -135,3 +135,7 @@ dl
 nexuscli-go/nexuscli-go
 nexuscli-go/nexuscli-go-test
 dist/
+
+# Go build artifacts at root level
+/nexuscli-go
+/nexuscli-go-test

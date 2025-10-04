@@ -6,13 +6,12 @@ version: 2
 
 before:
   hooks:
-    - sh -c "cd nexuscli-go && go mod tidy"
-    - sh -c "cd nexuscli-go && go mod download"
+    - go mod tidy
+    - go mod download
 
 builds:
   - id: nexuscli-go
-    dir: nexuscli-go
-    main: .
+    main: ./cmd/nexuscli-go
     binary: nexuscli-go
     env:
       - CGO_ENABLED=0
