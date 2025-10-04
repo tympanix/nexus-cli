@@ -18,6 +18,12 @@ Build the Docker image:
 docker build -t nexuscli-go .
 ```
 
+To build with a specific version:
+
+```bash
+docker build --build-arg VERSION=1.0.0 -t nexuscli-go:1.0.0 .
+```
+
 > **Note**: The Docker build downloads dependencies during the build process. If you encounter certificate issues in restricted environments, ensure your Docker daemon has proper internet access and CA certificates.
 
 Run upload:
@@ -48,6 +54,12 @@ To build the Go CLI locally for development:
 go build -o nexuscli-go ./cmd/nexuscli-go
 ```
 
+To build with a specific version:
+
+```bash
+go build -ldflags "-X main.version=1.0.0" -o nexuscli-go ./cmd/nexuscli-go
+```
+
 ### Production Build with Packages
 
 From the root of the repository, use the Makefile to build production packages:
@@ -63,6 +75,8 @@ This will use [GoReleaser](https://goreleaser.com) to build:
 - Archives (tar.gz) for all platforms
 
 All artifacts are placed in the `dist/` directory.
+
+**Note:** GoReleaser automatically injects the version based on Git tags. When building from a tagged commit (e.g., `v1.0.0`), the version will be set accordingly. For development builds without tags, the version will default to a snapshot version.
 
 ### Installing from Packages
 
@@ -103,6 +117,14 @@ The test suite includes:
 - Logger functionality tests
 
 ## Usage
+
+### Version
+
+Check the version of the CLI:
+
+```bash
+nexuscli-go version
+```
 
 ### Authentication
 
