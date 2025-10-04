@@ -174,44 +174,6 @@ func TestRoundTripCompression(t *testing.T) {
 	}
 }
 
-func TestGenerateArchiveName(t *testing.T) {
-	tests := []struct {
-		repository string
-		subdir     string
-		expected   string
-	}{
-		{
-			repository: "my-repo",
-			subdir:     "",
-			expected:   "my-repo.tar.gz",
-		},
-		{
-			repository: "my-repo",
-			subdir:     "folder",
-			expected:   "my-repo-folder.tar.gz",
-		},
-		{
-			repository: "my-repo",
-			subdir:     "path/to/folder",
-			expected:   "my-repo-path-to-folder.tar.gz",
-		},
-		{
-			repository: "my repo with spaces",
-			subdir:     "folder with spaces",
-			expected:   "my_repo_with_spaces-folder_with_spaces.tar.gz",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			result := GenerateArchiveName(tt.repository, tt.subdir)
-			if result != tt.expected {
-				t.Errorf("Expected %q, got %q", tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestExtractTarGzWithProgress(t *testing.T) {
 	// Create a temporary directory with test files
 	srcDir, err := os.MkdirTemp("", "test-compress-progress-*")

@@ -70,13 +70,13 @@ func TestCompressedUpload(t *testing.T) {
 	}
 
 	opts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
-		QuietMode: true,
-		Compress:  true,
+		Logger:       NewLogger(io.Discard),
+		QuietMode:    true,
+		CompressPath: "test-archive.tar.gz",
 	}
 
 	// Upload compressed
-	err = uploadFiles(testDir, "test-repo", "test-folder", config, opts)
+	err = uploadFilesCompressed(testDir, "test-repo", "test-folder", "test-archive.tar.gz", config, opts)
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestCompressedUpload(t *testing.T) {
 		t.Error("Archive was not uploaded")
 	}
 
-	expectedName := "test-repo-test-folder.tar.gz"
+	expectedName := "test-archive.tar.gz"
 	if receivedArchiveName != expectedName {
 		t.Errorf("Expected archive name %q, got %q", expectedName, receivedArchiveName)
 	}
@@ -137,7 +137,7 @@ func TestCompressedDownload(t *testing.T) {
 	}
 
 	var serverURL string
-	archiveName := "test-repo-test-folder.tar.gz"
+	archiveName := "test-archive.tar.gz"
 
 	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -194,11 +194,11 @@ func TestCompressedDownload(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            NewLogger(io.Discard),
 		QuietMode:         true,
-		Compress:          true,
+		CompressPath:      "test-archive.tar.gz",
 	}
 
 	// Download and extract
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	success := downloadFolderCompressed("test-repo", "test-folder", destDir, "test-archive.tar.gz", config, opts)
 	if !success {
 		t.Fatal("Download failed")
 	}
@@ -249,7 +249,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 
 	var uploadedArchiveContent []byte
 	var serverURL string
-	archiveName := "test-repo-test-folder.tar.gz"
+	archiveName := "test-archive.tar.gz"
 
 	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -313,12 +313,12 @@ func TestCompressedRoundTrip(t *testing.T) {
 
 	// Upload compressed
 	uploadOpts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
-		QuietMode: true,
-		Compress:  true,
+		Logger:       NewLogger(io.Discard),
+		QuietMode:    true,
+		CompressPath: "test-archive.tar.gz",
 	}
 
-	err = uploadFiles(srcDir, "test-repo", "test-folder", config, uploadOpts)
+	err = uploadFilesCompressed(srcDir, "test-repo", "test-folder", "test-archive.tar.gz", config, uploadOpts)
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
@@ -339,10 +339,10 @@ func TestCompressedRoundTrip(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            NewLogger(io.Discard),
 		QuietMode:         true,
-		Compress:          true,
+		CompressPath:      "test-archive.tar.gz",
 	}
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, downloadOpts)
+	success := downloadFolderCompressed("test-repo", "test-folder", destDir, "test-archive.tar.gz", config, downloadOpts)
 	if !success {
 		t.Fatal("Download failed")
 	}

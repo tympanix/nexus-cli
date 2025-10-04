@@ -13,9 +13,9 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
-	Logger    Logger
-	QuietMode bool
-	Compress  bool // Enable compression (tar.gz)
+	Logger       Logger
+	QuietMode    bool
+	CompressPath string // Path to tar.gz archive file
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -33,9 +33,9 @@ func collectFiles(src string) ([]string, error) {
 }
 
 func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOptions) error {
-	// If compression is enabled, use compressed upload
-	if opts.Compress {
-		return uploadFilesCompressed(src, repository, subdir, config, opts)
+	// If compress path is specified, use compressed upload
+	if opts.CompressPath != "" {
+		return uploadFilesCompressed(src, repository, subdir, opts.CompressPath, config, opts)
 	}
 
 	// Original uncompressed upload logic
@@ -97,7 +97,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 }
 
 // uploadFilesCompressed creates a tar.gz archive and uploads it as a single file
-func uploadFilesCompressed(src, repository, subdir string, config *Config, opts *UploadOptions) error {
+func uploadFilesCompressed(src, repository, subdir, archivePath string, config *Config, opts *UploadOptions) error {
 	filePaths, err := collectFiles(src)
 	if err != nil {
 		return err
@@ -117,8 +117,8 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 		totalBytes += info.Size()
 	}
 
-	// Generate archive name
-	archiveName := GenerateArchiveName(repository, subdir)
+	// Extract archive name from path
+	archiveName := filepath.Base(archivePath)
 	opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
 
 	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)

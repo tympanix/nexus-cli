@@ -25,7 +25,7 @@ type DownloadOptions struct {
 	Logger            Logger
 	QuietMode         bool
 	Flatten           bool
-	Compress          bool // Enable decompression (tar.gz)
+	CompressPath      string // Path to tar.gz archive file
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -124,9 +124,9 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 	repository, src := parts[0], parts[1]
 
-	// If compression is enabled, look for a tar.gz archive
-	if opts.Compress {
-		return downloadFolderCompressed(repository, src, destDir, config, opts)
+	// If compress path is specified, look for a tar.gz archive
+	if opts.CompressPath != "" {
+		return downloadFolderCompressed(repository, src, destDir, opts.CompressPath, config, opts)
 	}
 
 	// Original uncompressed download logic
@@ -176,9 +176,9 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 }
 
 // downloadFolderCompressed downloads and extracts a tar.gz archive
-func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
-	// Generate expected archive name
-	archiveName := GenerateArchiveName(repository, src)
+func downloadFolderCompressed(repository, src, destDir, archivePath string, config *Config, opts *DownloadOptions) bool {
+	// Extract archive name from path
+	archiveName := filepath.Base(archivePath)
 	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
 
 	// List assets to find the archive
