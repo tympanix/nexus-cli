@@ -402,6 +402,184 @@ func TestDownloadLogging(t *testing.T) {
 	}
 }
 
+// TestDownloadFlatten tests that download with flatten option removes base path
+func TestDownloadFlatten(t *testing.T) {
+	testContent := "test content"
+	basePath := "/test-folder"
+	subPath := "/subdir"
+	fileName := "/file.txt"
+
+	var serverURL string
+
+	// Test two files:
+	// 1. /test-folder/file.txt -> should become file.txt
+	// 2. /test-folder/subdir/file.txt -> should become subdir/file.txt
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := searchResponse{
+				Items: []Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
+						Path:        basePath + fileName,
+						ID:          "test-id-1",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: Checksum{
+							SHA1: "abc123",
+						},
+					},
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + basePath + subPath + fileName,
+						Path:        basePath + subPath + fileName,
+						ID:          "test-id-2",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: Checksum{
+							SHA1: "def456",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent))
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Flatten:           true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-flatten-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Check that file.txt exists directly in destDir (not in test-folder/)
+	file1 := filepath.Join(destDir, "file.txt")
+	if _, err := os.Stat(file1); os.IsNotExist(err) {
+		t.Errorf("Expected file at %s, but it does not exist", file1)
+	}
+
+	// Check that subdir/file.txt exists (subdirectory preserved)
+	file2 := filepath.Join(destDir, "subdir", "file.txt")
+	if _, err := os.Stat(file2); os.IsNotExist(err) {
+		t.Errorf("Expected file at %s, but it does not exist", file2)
+	}
+
+	// Verify that test-folder directory was NOT created
+	oldPath := filepath.Join(destDir, "test-folder")
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Errorf("Expected test-folder directory to NOT exist at %s, but it does", oldPath)
+	}
+}
+
+// TestDownloadNoFlatten tests that download without flatten preserves full path
+func TestDownloadNoFlatten(t *testing.T) {
+	testContent := "test content"
+	testPath := "/test-folder/file.txt"
+
+	var serverURL string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := searchResponse{
+				Items: []Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + testPath,
+						Path:        testPath,
+						ID:          "test-id",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: Checksum{
+							SHA1: "abc123",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent))
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Flatten:           false, // Default behavior
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-no-flatten-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Check that full path is preserved (test-folder/file.txt)
+	expectedFile := filepath.Join(destDir, "test-folder", "file.txt")
+	content, err := os.ReadFile(expectedFile)
+	if err != nil {
+		t.Fatalf("Expected file at %s, but got error: %v", expectedFile, err)
+	}
+
+	if string(content) != testContent {
+		t.Errorf("Expected content '%s', got '%s'", testContent, string(content))
+	}
+}
+
 // TestUploadURLConstruction tests that upload URLs are properly constructed
 func TestUploadURLConstruction(t *testing.T) {
 	tests := []struct {

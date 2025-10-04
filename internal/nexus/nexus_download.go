@@ -26,6 +26,7 @@ type DownloadOptions struct {
 	SkipChecksum      bool
 	Logger            Logger
 	QuietMode         bool
+	Flatten           bool
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -114,9 +115,22 @@ func listAssets(repository, src string, config *Config) ([]Asset, error) {
 	return assets, nil
 }
 
-func downloadAssetUnified(asset Asset, destDir string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
+func downloadAssetUnified(asset Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
+	
+	// If flatten is enabled, strip the base path from the asset path
+	if opts.Flatten && basePath != "" {
+		// Normalize basePath to ensure it has a leading slash for comparison
+		normalizedBasePath := "/" + strings.TrimLeft(basePath, "/")
+		assetPath := "/" + path
+		
+		// If the asset path starts with the base path, remove it
+		if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
+			path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
+		}
+	}
+	
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
@@ -225,7 +239,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset Asset) {
-			downloadAssetUnified(asset, destDir, &wg, errCh, bar, skipCh, config, opts)
+			downloadAssetUnified(asset, destDir, src, &wg, errCh, bar, skipCh, config, opts)
 		}(asset)
 	}
 	wg.Wait()
