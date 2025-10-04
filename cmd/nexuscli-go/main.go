@@ -79,6 +79,10 @@ func main() {
 		Long:  "Download a folder from Nexus RAW\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
+			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
+			flattenPath, _ = cmd.Flags().GetBool("flatten")
+			deleteExtra, _ = cmd.Flags().GetBool("delete")
+			compressDownload, _ = cmd.Flags().GetBool("compress")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
@@ -98,10 +102,10 @@ func main() {
 		},
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
-	downloadCmd.Flags().BoolVarP(&skipChecksumValidation, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
-	downloadCmd.Flags().BoolVarP(&flattenPath, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
-	downloadCmd.Flags().BoolVarP(&deleteExtra, "delete", "", false, "Remove local files from the destination folder that are not present in Nexus")
-	downloadCmd.Flags().BoolVarP(&compressDownload, "compress", "z", false, "Download and extract a compressed tar.gz archive")
+	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
+	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed tar.gz archive")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",

@@ -20,13 +20,13 @@ import (
 
 // DownloadOptions holds options for download operations
 type DownloadOptions struct {
-ChecksumAlgorithm string
-SkipChecksum      bool
-Logger            Logger
-QuietMode         bool
-Flatten           bool
-DeleteExtra       bool
-Compress          bool // Enable decompression (tar.gz)
+	ChecksumAlgorithm string
+	SkipChecksum      bool
+	Logger            Logger
+	QuietMode         bool
+	Flatten           bool
+	DeleteExtra       bool
+	Compress          bool // Enable decompression (tar.gz)
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -118,93 +118,93 @@ errCh <- err
 }
 
 func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) bool {
-parts := strings.SplitN(srcArg, "/", 2)
-if len(parts) != 2 {
-opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
-return false
-}
-repository, src := parts[0], parts[1]
+	parts := strings.SplitN(srcArg, "/", 2)
+	if len(parts) != 2 {
+		opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
+		return false
+	}
+	repository, src := parts[0], parts[1]
 
-// If compression is enabled, look for a tar.gz archive
-if opts.Compress {
-return downloadFolderCompressed(repository, src, destDir, config, opts)
-}
+	// If compression is enabled, look for a tar.gz archive
+	if opts.Compress {
+		return downloadFolderCompressed(repository, src, destDir, config, opts)
+	}
 
-// Original uncompressed download logic
-assets, err := listAssets(repository, src, config)
-if err != nil {
-opts.Logger.Println("Error listing assets:", err)
-return false
-}
-if len(assets) == 0 {
-opts.Logger.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
-return false
-}
+	// Original uncompressed download logic
+	assets, err := listAssets(repository, src, config)
+	if err != nil {
+		opts.Logger.Println("Error listing assets:", err)
+		return false
+	}
+	if len(assets) == 0 {
+		opts.Logger.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
+		return false
+	}
+	
+	// Build a map of remote asset paths for delete-extra functionality
+	remoteAssetPaths := make(map[string]bool)
+	for _, asset := range assets {
+		path := strings.TrimLeft(asset.Path, "/")
+		
+		// If flatten is enabled, strip the base path from the asset path
+		if opts.Flatten && src != "" {
+			normalizedBasePath := "/" + strings.TrimLeft(src, "/")
+			assetPath := "/" + path
+			
+			if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
+				path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
+			}
+		}
+		
+		remoteAssetPaths[filepath.Join(destDir, path)] = true
+	}
+	
+	// Calculate total bytes to download using fileSize from search API
+	totalBytes := int64(0)
+	for _, asset := range assets {
+		totalBytes += asset.FileSize
+	}
 
-// Build a map of remote asset paths for delete-extra functionality
-remoteAssetPaths := make(map[string]bool)
-for _, asset := range assets {
-path := strings.TrimLeft(asset.Path, "/")
+	bar := newProgressBar(totalBytes, "Downloading bytes", opts.QuietMode)
 
-// If flatten is enabled, strip the base path from the asset path
-if opts.Flatten && src != "" {
-normalizedBasePath := "/" + strings.TrimLeft(src, "/")
-assetPath := "/" + path
-
-if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
-path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
-}
-}
-
-remoteAssetPaths[filepath.Join(destDir, path)] = true
-}
-
-// Calculate total bytes to download using fileSize from search API
-totalBytes := int64(0)
-for _, asset := range assets {
-totalBytes += asset.FileSize
-}
-
-bar := newProgressBar(totalBytes, "Downloading bytes", opts.QuietMode)
-
-var wg sync.WaitGroup
-errCh := make(chan error, len(assets))
-skipCh := make(chan bool, len(assets))
-for _, asset := range assets {
-wg.Add(1)
-go func(asset nexusapi.Asset) {
-downloadAsset(asset, destDir, src, &wg, errCh, bar, skipCh, config, opts)
-}(asset)
-}
-wg.Wait()
-close(errCh)
-close(skipCh)
-nErrors := 0
-for err := range errCh {
-opts.Logger.Println("Error downloading asset:", err)
-nErrors++
-}
-nSkipped := 0
-for range skipCh {
-nSkipped++
-}
-nDownloaded := len(assets) - nErrors - nSkipped
-bar.Finish()
-
-// Delete extra files if requested
-var nDeleted int
-if opts.DeleteExtra {
-nDeleted = deleteExtraFiles(destDir, remoteAssetPaths, opts)
-}
-
-if nDeleted > 0 {
-opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n", 
-nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
-} else {
-opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
-nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
-}
-return nErrors == 0
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(assets))
+	skipCh := make(chan bool, len(assets))
+	for _, asset := range assets {
+		wg.Add(1)
+		go func(asset nexusapi.Asset) {
+			downloadAsset(asset, destDir, src, &wg, errCh, bar, skipCh, config, opts)
+		}(asset)
+	}
+	wg.Wait()
+	close(errCh)
+	close(skipCh)
+	nErrors := 0
+	for err := range errCh {
+		opts.Logger.Println("Error downloading asset:", err)
+		nErrors++
+	}
+	nSkipped := 0
+	for range skipCh {
+		nSkipped++
+	}
+	nDownloaded := len(assets) - nErrors - nSkipped
+	bar.Finish()
+	
+	// Delete extra files if requested
+	var nDeleted int
+	if opts.DeleteExtra {
+		nDeleted = deleteExtraFiles(destDir, remoteAssetPaths, opts)
+	}
+	
+	if nDeleted > 0 {
+		opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n", 
+			nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
+	} else {
+		opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
+			nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
+	}
+	return nErrors == 0
 }
 
 // downloadFolderCompressed downloads and extracts a tar.gz archive
@@ -399,6 +399,74 @@ os.Remove(path)
 
 return nil
 })
+}
+
+// deleteExtraFiles removes local files that are not present in the remote asset map
+func deleteExtraFiles(destDir string, remoteAssetPaths map[string]bool, opts *DownloadOptions) int {
+	nDeleted := 0
+	
+	// Walk through all files in the destination directory
+	err := filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+		
+		// Check if this file exists in remote assets
+		if !remoteAssetPaths[path] {
+			opts.Logger.Printf("Deleting extra file: %s\n", path)
+			if err := os.Remove(path); err != nil {
+				opts.Logger.Printf("Failed to delete file %s: %v\n", path, err)
+			} else {
+				nDeleted++
+			}
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		opts.Logger.Printf("Error walking directory: %v\n", err)
+	}
+	
+	// Clean up empty directories
+	cleanupEmptyDirectories(destDir, opts)
+	
+	return nDeleted
+}
+
+// cleanupEmptyDirectories removes empty directories from the destination
+func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
+	// Walk in reverse order to remove nested empty directories first
+	filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		
+		// Skip the root destination directory itself
+		if path == destDir {
+			return nil
+		}
+		
+		if info.IsDir() {
+			// Check if directory is empty
+			entries, err := os.ReadDir(path)
+			if err != nil {
+				return nil
+			}
+			
+			if len(entries) == 0 {
+				opts.Logger.Printf("Removing empty directory: %s\n", path)
+				os.Remove(path)
+			}
+		}
+		
+		return nil
+	})
 }
 
 func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {

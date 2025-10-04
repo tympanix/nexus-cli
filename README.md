@@ -175,6 +175,7 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
+- `--delete` - Remove local files from the destination folder that are not present in Nexus
 - `--compress` or `-z` - Download and extract a compressed tar.gz archive
 
 **About the `--flatten` flag:**
@@ -223,6 +224,15 @@ nexuscli-go download my-repo/path ./local-folder
 
 # With flatten: files are saved without the base path (subdir/file.txt)
 nexuscli-go download --flatten my-repo/path ./local-folder
+```
+
+Download with delete flag:
+```bash
+# Downloads files from Nexus and removes local files that are not present in Nexus
+nexuscli-go download --delete my-repo/path ./local-folder
+
+# Can be combined with other flags
+nexuscli-go download --flatten --delete my-repo/path ./local-folder
 ```
 
 Upload and download with compression:
