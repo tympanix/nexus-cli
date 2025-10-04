@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 // CreateTarGz creates a tar.gz archive containing all files from srcDir.
@@ -79,7 +81,87 @@ func ExtractTarGz(reader io.Reader, destDir string) error {
 	}
 	defer gzipReader.Close()
 
-	tarReader := tar.NewReader(gzipReader)
+	return extractTar(gzipReader, destDir)
+}
+
+// CreateTarZst creates a tar.zst archive containing all files from srcDir.
+// The archive is written to the provided writer on-the-fly.
+// Files are stored in the archive with paths relative to srcDir.
+func CreateTarZst(srcDir string, writer io.Writer) error {
+	zstdWriter, err := zstd.NewWriter(writer)
+	if err != nil {
+		return fmt.Errorf("failed to create zstd writer: %w", err)
+	}
+	defer zstdWriter.Close()
+
+	tarWriter := tar.NewWriter(zstdWriter)
+	defer tarWriter.Close()
+
+	// Collect all files
+	files, err := collectFiles(srcDir)
+	if err != nil {
+		return fmt.Errorf("failed to collect files: %w", err)
+	}
+
+	for _, filePath := range files {
+		// Get file info
+		info, err := os.Stat(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+		}
+
+		// Get relative path for archive
+		relPath, err := filepath.Rel(srcDir, filePath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
+		}
+		// Normalize to forward slashes for consistency
+		relPath = filepath.ToSlash(relPath)
+
+		// Create tar header
+		header := &tar.Header{
+			Name:    relPath,
+			Size:    info.Size(),
+			Mode:    int64(info.Mode()),
+			ModTime: info.ModTime(),
+		}
+
+		// Write header
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write tar header for %s: %w", relPath, err)
+		}
+
+		// Write file content
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", filePath, err)
+		}
+
+		if _, err := io.Copy(tarWriter, file); err != nil {
+			file.Close()
+			return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
+		}
+		file.Close()
+	}
+
+	return nil
+}
+
+// ExtractTarZst extracts a tar.zst archive from the provided reader to destDir.
+// Files are extracted on-the-fly as they are read from the archive.
+func ExtractTarZst(reader io.Reader, destDir string) error {
+	zstdReader, err := zstd.NewReader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to create zstd reader: %w", err)
+	}
+	defer zstdReader.Close()
+
+	return extractTar(zstdReader, destDir)
+}
+
+// extractTar is a helper function that extracts tar content from any decompressed reader.
+func extractTar(reader io.Reader, destDir string) error {
+	tarReader := tar.NewReader(reader)
 
 	for {
 		header, err := tarReader.Next()

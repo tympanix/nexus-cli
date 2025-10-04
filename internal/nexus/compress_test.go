@@ -226,3 +226,170 @@ func TestExtractTarGzWithProgress(t *testing.T) {
 
 	t.Logf("Read %d bytes during extraction", bytesRead)
 }
+
+func TestCreateTarZst(t *testing.T) {
+	// Create a temporary directory with test files
+	testDir, err := os.MkdirTemp("", "test-compress-zst-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create test files
+	testFiles := map[string]string{
+		"file1.txt":        "Content of file 1",
+		"file2.txt":        "Content of file 2",
+		"subdir/file3.txt": "Nested file content",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// Create tar.zst archive
+	var buf bytes.Buffer
+	err = CreateTarZst(testDir, &buf)
+	if err != nil {
+		t.Fatalf("Failed to create tar.zst: %v", err)
+	}
+
+	// Verify archive is not empty
+	if buf.Len() == 0 {
+		t.Fatal("Archive is empty")
+	}
+
+	// Verify it's zstd compressed (starts with zstd magic bytes 0x28 0xB5 0x2F 0xFD)
+	data := buf.Bytes()
+	if len(data) < 4 {
+		t.Fatal("Archive too small to contain magic bytes")
+	}
+	if data[0] != 0x28 || data[1] != 0xB5 || data[2] != 0x2F || data[3] != 0xFD {
+		t.Errorf("Invalid zstd magic bytes: got %x %x %x %x", data[0], data[1], data[2], data[3])
+	}
+}
+
+func TestExtractTarZst(t *testing.T) {
+	// Create a temporary directory with test files
+	srcDir, err := os.MkdirTemp("", "test-compress-zst-src-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	// Create test files
+	testFiles := map[string]string{
+		"file1.txt":        "Content of file 1",
+		"file2.txt":        "Content of file 2",
+		"subdir/file3.txt": "Nested file content",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// Create tar.zst archive
+	var buf bytes.Buffer
+	err = CreateTarZst(srcDir, &buf)
+	if err != nil {
+		t.Fatalf("Failed to create tar.zst: %v", err)
+	}
+
+	// Extract to a new directory
+	destDir, err := os.MkdirTemp("", "test-extract-zst-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Extract archive
+	err = ExtractTarZst(&buf, destDir)
+	if err != nil {
+		t.Fatalf("Failed to extract tar.zst: %v", err)
+	}
+
+	// Verify extracted files
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+func TestRoundTripCompressionZst(t *testing.T) {
+	// Create a temporary directory with test files
+	srcDir, err := os.MkdirTemp("", "test-roundtrip-zst-src-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	// Create test files with various content
+	testFiles := map[string]string{
+		"file1.txt":          "Content of file 1",
+		"file2.txt":          "Content of file 2",
+		"subdir/file3.txt":   "Nested file content",
+		"subdir/file4.bin":   string([]byte{0x00, 0x01, 0x02, 0xff}),
+		"deep/nest/file5.md": "# Deep nested file\nSome markdown content",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// Create tar.zst archive
+	var buf bytes.Buffer
+	if err := CreateTarZst(srcDir, &buf); err != nil {
+		t.Fatalf("Failed to create tar.zst: %v", err)
+	}
+
+	// Extract to a new directory
+	destDir, err := os.MkdirTemp("", "test-roundtrip-zst-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	if err := ExtractTarZst(&buf, destDir); err != nil {
+		t.Fatalf("Failed to extract tar.zst: %v", err)
+	}
+
+	// Verify all files
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}

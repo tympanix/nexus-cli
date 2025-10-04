@@ -50,6 +50,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "Suppress all output")
 
 	var uploadCompress bool
+	var uploadCompressionFormat string
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
@@ -61,18 +62,29 @@ func main() {
 				QuietMode: quietMode,
 				Compress:  uploadCompress,
 			}
+			// Parse compression format if provided
+			if uploadCompressionFormat != "" {
+				format, err := nexus.ParseCompressionFormat(uploadCompressionFormat)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				opts.CompressionFormat = format
+			}
 			src := args[0]
 			dest := args[1]
 			nexus.UploadMain(src, dest, config, opts)
 		},
 	}
-	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed tar.gz archive")
+	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
+	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
 	var flattenPath bool
 	var deleteExtra bool
 	var compressDownload bool
+	var downloadCompressionFormat string
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -92,6 +104,15 @@ func main() {
 				QuietMode:         quietMode,
 				Compress:          compressDownload,
 			}
+			// Parse compression format if provided
+			if downloadCompressionFormat != "" {
+				format, err := nexus.ParseCompressionFormat(downloadCompressionFormat)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				opts.CompressionFormat = format
+			}
 			src := args[0]
 			dest := args[1]
 			if err := opts.SetChecksumAlgorithm(checksumAlg); err != nil {
@@ -105,7 +126,8 @@ func main() {
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
 	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
-	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed tar.gz archive")
+	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed archive")
+	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",

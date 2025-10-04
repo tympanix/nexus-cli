@@ -26,7 +26,8 @@ type DownloadOptions struct {
 	QuietMode         bool
 	Flatten           bool
 	DeleteExtra       bool
-	Compress          bool // Enable decompression (tar.gz)
+	Compress          bool              // Enable decompression (tar.gz or tar.zst)
+	CompressionFormat CompressionFormat // Compression format to use (gzip or zstd)
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -125,9 +126,9 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 	repository, src := parts[0], parts[1]
 	
-	// Check if src ends with .tar.gz for explicit archive name
+	// Check if src ends with .tar.gz or .tar.zst for explicit archive name
 	explicitArchiveName := ""
-	if opts.Compress && strings.HasSuffix(src, ".tar.gz") {
+	if opts.Compress && (strings.HasSuffix(src, ".tar.gz") || strings.HasSuffix(src, ".tar.zst")) {
 		// Extract the archive name from the path
 		lastSlash := strings.LastIndex(src, "/")
 		if lastSlash >= 0 {
@@ -140,7 +141,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		}
 	}
 
-	// If compression is enabled, look for a tar.gz archive
+	// If compression is enabled, look for a compressed archive
 	if opts.Compress {
 		return downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir, config, opts)
 	}
@@ -222,12 +223,12 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	return nErrors == 0
 }
 
-// downloadFolderCompressed downloads and extracts a tar.gz archive
+// downloadFolderCompressed downloads and extracts a compressed archive
 func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
 	return downloadFolderCompressedWithArchiveName(repository, src, "", destDir, config, opts)
 }
 
-// downloadFolderCompressedWithArchiveName downloads and extracts a tar.gz archive with optional explicit name
+// downloadFolderCompressedWithArchiveName downloads and extracts a compressed archive with optional explicit name
 func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) bool {
 	// Require explicit archive name
 	if explicitArchiveName == "" {
@@ -235,7 +236,13 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	}
 	
 	archiveName := explicitArchiveName
-	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+	
+	// Detect compression format from filename if not explicitly set
+	if opts.CompressionFormat == "" {
+		opts.CompressionFormat = DetectCompressionFromFilename(archiveName)
+	}
+	
+	opts.Logger.Printf("Looking for compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
 // List assets to find the archive
 assets, err := listAssets(repository, src, config)
@@ -273,7 +280,7 @@ errChan := make(chan error, 1)
 
 // Extract in a goroutine
 go func() {
-if err := ExtractTarGz(pr, destDir); err != nil {
+if err := opts.CompressionFormat.ExtractArchive(pr, destDir); err != nil {
 errChan <- fmt.Errorf("failed to extract archive: %w", err)
 } else {
 errChan <- nil
