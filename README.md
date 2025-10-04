@@ -159,19 +159,12 @@ When the `--compress` flag is used, all files in the source directory are compre
 - Reducing network overhead
 - Storing files as a single artifact in Nexus
 
-You can specify the archive name in two ways:
+**Important:** You must specify the `.tar.gz` filename as part of the destination path:
 
-1. **Auto-generated name (default):** The archive name is based on the repository and subdirectory (e.g., `my-repo-path.tar.gz`)
-   ```bash
-   nexuscli-go upload --compress ./files my-repo/path
-   # Creates and uploads: my-repo-path.tar.gz
-   ```
-
-2. **Explicit archive name:** Specify the `.tar.gz` filename as part of the destination path
-   ```bash
-   nexuscli-go upload --compress ./files my-repo/path/custom-name.tar.gz
-   # Creates and uploads: custom-name.tar.gz to my-repo/path/
-   ```
+```bash
+nexuscli-go upload --compress ./files my-repo/path/custom-name.tar.gz
+# Creates and uploads: custom-name.tar.gz to my-repo/path/
+```
 
 ### Download
 
@@ -202,19 +195,12 @@ When the `--compress` flag is used with download, the CLI looks for a tar.gz arc
 - Extracting archives on-the-fly without storing the compressed file locally
 - Faster downloads when dealing with many small files
 
-You can specify the archive name in two ways:
+**Important:** You must specify the `.tar.gz` filename as part of the source path:
 
-1. **Auto-generated name (default):** The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz`
-   ```bash
-   nexuscli-go download --compress my-repo/path ./local-folder
-   # Downloads and extracts: my-repo-path.tar.gz
-   ```
-
-2. **Explicit archive name:** Specify the `.tar.gz` filename as part of the source path
-   ```bash
-   nexuscli-go download --compress my-repo/path/custom-name.tar.gz ./local-folder
-   # Downloads and extracts: custom-name.tar.gz from my-repo/path/
-   ```
+```bash
+nexuscli-go download --compress my-repo/path/custom-name.tar.gz ./local-folder
+# Downloads and extracts: custom-name.tar.gz from my-repo/path/
+```
 
 **Examples:**
 
