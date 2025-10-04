@@ -156,6 +156,7 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
+- `--delete-extra` or `-d` - Remove local files from the destination folder that are not present in Nexus
 
 **About the `--flatten` flag:**
 
@@ -188,6 +189,15 @@ nexuscli-go download my-repo/path ./local-folder
 
 # With flatten: files are saved without the base path (subdir/file.txt)
 nexuscli-go download --flatten my-repo/path ./local-folder
+```
+
+Download with delete-extra flag:
+```bash
+# Downloads files from Nexus and removes local files that are not present in Nexus
+nexuscli-go download --delete-extra my-repo/path ./local-folder
+
+# Can be combined with other flags
+nexuscli-go download --flatten --delete-extra my-repo/path ./local-folder
 ```
 
 Using Docker with CLI flags:
