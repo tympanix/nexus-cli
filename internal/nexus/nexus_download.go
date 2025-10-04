@@ -25,6 +25,7 @@ type DownloadOptions struct {
 	Logger            Logger
 	QuietMode         bool
 	Flatten           bool
+	Compress          bool // Enable decompression (tar.gz)
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -122,6 +123,13 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		return false
 	}
 	repository, src := parts[0], parts[1]
+
+	// If compression is enabled, look for a tar.gz archive
+	if opts.Compress {
+		return downloadFolderCompressed(repository, src, destDir, config, opts)
+	}
+
+	// Original uncompressed download logic
 	assets, err := listAssets(repository, src, config)
 	if err != nil {
 		opts.Logger.Println("Error listing assets:", err)
@@ -165,6 +173,77 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
 		nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
 	return nErrors == 0
+}
+
+// downloadFolderCompressed downloads and extracts a tar.gz archive
+func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
+	// Generate expected archive name
+	archiveName := GenerateArchiveName(repository, src)
+	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+
+	// List assets to find the archive
+	assets, err := listAssets(repository, src, config)
+	if err != nil {
+		opts.Logger.Println("Error listing assets:", err)
+		return false
+	}
+
+	// Find the archive file
+	var archiveAsset *nexusapi.Asset
+	for _, asset := range assets {
+		if strings.HasSuffix(asset.Path, archiveName) {
+			archiveAsset = &asset
+			break
+		}
+	}
+
+	if archiveAsset == nil {
+		opts.Logger.Printf("Archive '%s' not found in '%s' in repository '%s'\n", archiveName, src, repository)
+		opts.Logger.Println("Available assets:")
+		for _, asset := range assets {
+			opts.Logger.Printf("  - %s\n", asset.Path)
+		}
+		return false
+	}
+
+	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", opts.QuietMode)
+
+	// Download and extract archive
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	
+	// Create a pipe for streaming decompression
+	pr, pw := io.Pipe()
+	errChan := make(chan error, 1)
+
+	// Extract in a goroutine
+	go func() {
+		if err := ExtractTarGz(pr, destDir); err != nil {
+			errChan <- fmt.Errorf("failed to extract archive: %w", err)
+		} else {
+			errChan <- nil
+		}
+	}()
+
+	// Download with progress tracking
+	progressWriter := io.MultiWriter(pw, bar)
+	err = client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
+	pw.Close()
+
+	if err != nil {
+		opts.Logger.Printf("Failed to download archive: %v\n", err)
+		return false
+	}
+
+	// Wait for extraction to complete
+	if extractErr := <-errChan; extractErr != nil {
+		opts.Logger.Printf("Failed to extract archive: %v\n", extractErr)
+		return false
+	}
+
+	bar.Finish()
+	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n", 
+		archiveName, src, repository, destDir)
+	return true
 }
 
 // getExpectedChecksum returns the expected checksum value for the selected algorithm
