@@ -26,7 +26,8 @@ type DownloadOptions struct {
 	QuietMode         bool
 	Flatten           bool
 	DeleteExtra       bool
-	Compress          bool // Enable decompression (tar.gz)
+	Compress          bool   // Enable decompression
+	CompressionType   string // Compression type: "gzip" or "zstd" (default: "gzip")
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -207,75 +208,87 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	return nErrors == 0
 }
 
-// downloadFolderCompressed downloads and extracts a tar.gz archive
+// downloadFolderCompressed downloads and extracts a compressed archive
 func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
-// Generate expected archive name
-archiveName := GenerateArchiveName(repository, src)
-opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+	// Default to gzip if not specified
+	compressionType := opts.CompressionType
+	if compressionType == "" {
+		compressionType = "gzip"
+	}
 
-// List assets to find the archive
-assets, err := listAssets(repository, src, config)
-if err != nil {
-opts.Logger.Println("Error listing assets:", err)
-return false
-}
+	// Generate expected archive name
+	archiveName := GenerateArchiveName(repository, src, compressionType)
+	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
 
-// Find the archive file
-var archiveAsset *nexusapi.Asset
-for _, asset := range assets {
-if strings.HasSuffix(asset.Path, archiveName) {
-archiveAsset = &asset
-break
-}
-}
+	// List assets to find the archive
+	assets, err := listAssets(repository, src, config)
+	if err != nil {
+		opts.Logger.Println("Error listing assets:", err)
+		return false
+	}
 
-if archiveAsset == nil {
-opts.Logger.Printf("Archive '%s' not found in '%s' in repository '%s'\n", archiveName, src, repository)
-opts.Logger.Println("Available assets:")
-for _, asset := range assets {
-opts.Logger.Printf("  - %s\n", asset.Path)
-}
-return false
-}
+	// Find the archive file
+	var archiveAsset *nexusapi.Asset
+	for _, asset := range assets {
+		if strings.HasSuffix(asset.Path, archiveName) {
+			archiveAsset = &asset
+			break
+		}
+	}
 
-bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", opts.QuietMode)
+	if archiveAsset == nil {
+		opts.Logger.Printf("Archive '%s' not found in '%s' in repository '%s'\n", archiveName, src, repository)
+		opts.Logger.Println("Available assets:")
+		for _, asset := range assets {
+			opts.Logger.Printf("  - %s\n", asset.Path)
+		}
+		return false
+	}
 
-// Download and extract archive
-client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", opts.QuietMode)
 
-// Create a pipe for streaming decompression
-pr, pw := io.Pipe()
-errChan := make(chan error, 1)
+	// Download and extract archive
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 
-// Extract in a goroutine
-go func() {
-if err := ExtractTarGz(pr, destDir); err != nil {
-errChan <- fmt.Errorf("failed to extract archive: %w", err)
-} else {
-errChan <- nil
-}
-}()
+	// Create a pipe for streaming decompression
+	pr, pw := io.Pipe()
+	errChan := make(chan error, 1)
 
-// Download with progress tracking
-progressWriter := io.MultiWriter(pw, bar)
-err = client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
-pw.Close()
+	// Extract in a goroutine
+	go func() {
+		var extractErr error
+		if compressionType == "zstd" {
+			extractErr = ExtractTarZstd(pr, destDir)
+		} else {
+			extractErr = ExtractTarGz(pr, destDir)
+		}
+		if extractErr != nil {
+			errChan <- fmt.Errorf("failed to extract archive: %w", extractErr)
+		} else {
+			errChan <- nil
+		}
+	}()
 
-if err != nil {
-opts.Logger.Printf("Failed to download archive: %v\n", err)
-return false
-}
+	// Download with progress tracking
+	progressWriter := io.MultiWriter(pw, bar)
+	err = client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
+	pw.Close()
 
-// Wait for extraction to complete
-if extractErr := <-errChan; extractErr != nil {
-opts.Logger.Printf("Failed to extract archive: %v\n", extractErr)
-return false
-}
+	if err != nil {
+		opts.Logger.Printf("Failed to download archive: %v\n", err)
+		return false
+	}
 
-bar.Finish()
-opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
-archiveName, src, repository, destDir)
-return true
+	// Wait for extraction to complete
+	if extractErr := <-errChan; extractErr != nil {
+		opts.Logger.Printf("Failed to extract archive: %v\n", extractErr)
+		return false
+	}
+
+	bar.Finish()
+	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
+		archiveName, src, repository, destDir)
+	return true
 }
 
 // getExpectedChecksum returns the expected checksum value for the selected algorithm

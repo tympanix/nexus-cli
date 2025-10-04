@@ -13,9 +13,10 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
-	Logger    Logger
-	QuietMode bool
-	Compress  bool // Enable compression (tar.gz)
+	Logger          Logger
+	QuietMode       bool
+	Compress        bool   // Enable compression
+	CompressionType string // Compression type: "gzip" or "zstd" (default: "gzip")
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -117,8 +118,14 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 		totalBytes += info.Size()
 	}
 
+	// Default to gzip if not specified
+	compressionType := opts.CompressionType
+	if compressionType == "" {
+		compressionType = "gzip"
+	}
+
 	// Generate archive name
-	archiveName := GenerateArchiveName(repository, subdir)
+	archiveName := GenerateArchiveName(repository, subdir, compressionType)
 	opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
 
 	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
@@ -138,10 +145,16 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 			return
 		}
 
-		// Create tar.gz archive with progress tracking
+		// Create archive with progress tracking
 		progressWriter := io.MultiWriter(part, bar)
-		if err := CreateTarGz(src, progressWriter); err != nil {
-			errChan <- fmt.Errorf("failed to create archive: %w", err)
+		var createErr error
+		if compressionType == "zstd" {
+			createErr = CreateTarZstd(src, progressWriter)
+		} else {
+			createErr = CreateTarGz(src, progressWriter)
+		}
+		if createErr != nil {
+			errChan <- fmt.Errorf("failed to create archive: %w", createErr)
 			return
 		}
 
