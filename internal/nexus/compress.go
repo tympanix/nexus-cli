@@ -125,21 +125,3 @@ func ExtractTarGz(reader io.Reader, destDir string) error {
 
 	return nil
 }
-
-// GenerateArchiveName generates a name for the compressed archive based on repository and subdir.
-// Format: <repository>-<subdir>.tar.gz or <repository>.tar.gz if subdir is empty
-func GenerateArchiveName(repository, subdir string) string {
-	// Sanitize repository and subdir to create a valid filename
-	sanitize := func(s string) string {
-		// Replace slashes and other problematic characters
-		s = strings.ReplaceAll(s, "/", "-")
-		s = strings.ReplaceAll(s, "\\", "-")
-		s = strings.ReplaceAll(s, " ", "_")
-		return s
-	}
-
-	if subdir == "" {
-		return fmt.Sprintf("%s.tar.gz", sanitize(repository))
-	}
-	return fmt.Sprintf("%s-%s.tar.gz", sanitize(repository), sanitize(subdir))
-}

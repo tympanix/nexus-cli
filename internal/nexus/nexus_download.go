@@ -229,15 +229,13 @@ func downloadFolderCompressed(repository, src, destDir string, config *Config, o
 
 // downloadFolderCompressedWithArchiveName downloads and extracts a tar.gz archive with optional explicit name
 func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) bool {
-// Generate or use explicit archive name
-var archiveName string
-if explicitArchiveName != "" {
-	archiveName = explicitArchiveName
+	// Require explicit archive name
+	if explicitArchiveName == "" {
+		return false
+	}
+	
+	archiveName := explicitArchiveName
 	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
-} else {
-	archiveName = GenerateArchiveName(repository, src)
-	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
-}
 
 // List assets to find the archive
 assets, err := listAssets(repository, src, config)

@@ -75,8 +75,8 @@ func TestCompressedUpload(t *testing.T) {
 		Compress:  true,
 	}
 
-	// Upload compressed
-	err = uploadFiles(testDir, "test-repo", "test-folder", config, opts)
+	// Upload compressed with explicit archive name
+	err = uploadFilesWithArchiveName(testDir, "test-repo", "test-folder", "test-repo-test-folder.tar.gz", config, opts)
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
@@ -157,6 +157,51 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 		t.Errorf("Expected archive name %q, got %q", expectedName, receivedArchiveName)
 	}
 }
+
+// TestCompressedUploadWithoutExplicitName tests that upload fails when compress is used without explicit archive name
+func TestCompressedUploadWithoutExplicitName(t *testing.T) {
+	// Create test files
+	testDir, err := os.MkdirTemp("", "test-compress-upload-noname-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	config := &Config{
+		NexusURL: "http://localhost:8081",
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:    NewLogger(io.Discard),
+		QuietMode: true,
+		Compress:  true,
+	}
+
+	// Upload without explicit archive name should fail
+	err = uploadFilesWithArchiveName(testDir, "test-repo", "test-folder", "", config, opts)
+	if err == nil {
+		t.Fatal("Expected error when uploading with compress but no explicit archive name")
+	}
+
+	expectedErrorMsg := "when using --compress, you must specify the .tar.gz filename"
+	if !strings.Contains(err.Error(), expectedErrorMsg) {
+		t.Errorf("Expected error message to contain %q, got %q", expectedErrorMsg, err.Error())
+	}
+}
+
 
 // TestCompressedDownload tests downloading and extracting a compressed archive
 func TestCompressedDownload(t *testing.T) {
@@ -264,8 +309,8 @@ func TestCompressedDownload(t *testing.T) {
 		Compress:          true,
 	}
 
-	// Download and extract
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	// Download and extract with explicit archive name
+	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, opts)
 	if !success {
 		t.Fatal("Download failed")
 	}
@@ -405,6 +450,37 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	}
 }
 
+// TestCompressedDownloadWithoutExplicitName tests that download fails when compress is used without explicit archive name
+func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
+	config := &Config{
+		NexusURL: "http://localhost:8081",
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create download directory
+	destDir, err := os.MkdirTemp("", "test-compress-dl-noname-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+	}
+
+	// Download without explicit archive name should fail (return false)
+	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", "", destDir, config, opts)
+	if success {
+		t.Fatal("Expected download to fail when using compress without explicit archive name")
+	}
+}
+
+
 // TestCompressedRoundTrip tests the full upload-download cycle with compression
 func TestCompressedRoundTrip(t *testing.T) {
 	// This test simulates uploading files as compressed archive,
@@ -506,7 +582,8 @@ func TestCompressedRoundTrip(t *testing.T) {
 		Compress:  true,
 	}
 
-	err = uploadFiles(srcDir, "test-repo", "test-folder", config, uploadOpts)
+	// Upload compressed with explicit archive name
+	err = uploadFilesWithArchiveName(srcDir, "test-repo", "test-folder", archiveName, config, uploadOpts)
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
@@ -530,7 +607,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 		Compress:          true,
 	}
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, downloadOpts)
+	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
 	if !success {
 		t.Fatal("Download failed")
 	}

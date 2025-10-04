@@ -122,15 +122,13 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		totalBytes += info.Size()
 	}
 
-	// Generate archive name
-	var archiveName string
-	if explicitArchiveName != "" {
-		archiveName = explicitArchiveName
-		opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
-	} else {
-		archiveName = GenerateArchiveName(repository, subdir)
-		opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
+	// Require explicit archive name
+	if explicitArchiveName == "" {
+		return fmt.Errorf("when using --compress, you must specify the .tar.gz filename in the destination path (e.g., repo/path/archive.tar.gz)")
 	}
+	
+	archiveName := explicitArchiveName
+	opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
 
 	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
 
