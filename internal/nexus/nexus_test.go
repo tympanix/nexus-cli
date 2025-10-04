@@ -427,10 +427,7 @@ func TestDownloadFlatten(t *testing.T) {
 	// 2. /test-folder/subdir/file.txt -> should become subdir/file.txt
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
+			assets := nexusapi.SearchResponse{
 				Items: []nexusapi.Asset{
 					{
 						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
@@ -525,10 +522,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
+			assets := nexusapi.SearchResponse{
 				Items: []nexusapi.Asset{
 					{
 						DownloadURL: serverURL + "/repository/test-repo" + testPath,

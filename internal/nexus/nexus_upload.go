@@ -15,6 +15,7 @@ import (
 type UploadOptions struct {
 	Logger    Logger
 	QuietMode bool
+	Compress  bool // Enable compression (tar.gz)
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -32,6 +33,12 @@ func collectFiles(src string) ([]string, error) {
 }
 
 func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOptions) error {
+	// If compression is enabled, use compressed upload
+	if opts.Compress {
+		return uploadFilesCompressed(src, repository, subdir, config, opts)
+	}
+
+	// Original uncompressed upload logic
 	filePaths, err := collectFiles(src)
 	if err != nil {
 		return err
@@ -75,7 +82,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	contentType := nexusapi.GetFormDataContentType(writer)
-	
+
 	err = client.UploadComponent(repository, pr, contentType)
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
@@ -86,6 +93,83 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	}
 	bar.Finish()
 	opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
+	return nil
+}
+
+// uploadFilesCompressed creates a tar.gz archive and uploads it as a single file
+func uploadFilesCompressed(src, repository, subdir string, config *Config, opts *UploadOptions) error {
+	filePaths, err := collectFiles(src)
+	if err != nil {
+		return err
+	}
+
+	if len(filePaths) == 0 {
+		return fmt.Errorf("no files to upload in %s", src)
+	}
+
+	// Calculate total bytes for progress
+	totalBytes := int64(0)
+	for _, filePath := range filePaths {
+		info, err := os.Stat(filePath)
+		if err != nil {
+			return err
+		}
+		totalBytes += info.Size()
+	}
+
+	// Generate archive name
+	archiveName := GenerateArchiveName(repository, subdir)
+	opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
+
+	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
+
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+
+	// Create archive and upload in a goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+
+		// Create form file for the archive
+		part, err := writer.CreateFormFile("raw.asset1", archiveName)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		// Create tar.gz archive with progress tracking
+		progressWriter := io.MultiWriter(part, bar)
+		if err := CreateTarGz(src, progressWriter); err != nil {
+			errChan <- fmt.Errorf("failed to create archive: %w", err)
+			return
+		}
+
+		// Set the filename field - archive goes to subdir if specified
+		if subdir != "" {
+			_ = writer.WriteField("raw.asset1.filename", archiveName)
+			_ = writer.WriteField("raw.directory", subdir)
+		} else {
+			_ = writer.WriteField("raw.asset1.filename", archiveName)
+		}
+
+		writer.Close()
+		errChan <- nil
+	}()
+
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	contentType := nexusapi.GetFormDataContentType(writer)
+
+	err = client.UploadComponent(repository, pr, contentType)
+	if goroutineErr := <-errChan; goroutineErr != nil {
+		return goroutineErr
+	}
+	if err != nil {
+		opts.Logger.Printf("Failed to upload archive: %v\n", err)
+		return err
+	}
+	bar.Finish()
+	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil
 }
 
