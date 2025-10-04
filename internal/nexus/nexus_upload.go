@@ -1,4 +1,4 @@
-package main
+package nexus
 
 import (
 	"fmt"
@@ -130,7 +130,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	return fmt.Errorf("upload failed with status %d", resp.StatusCode)
 }
 
-func uploadMain(src, dest string, config *Config, opts *UploadOptions) {
+func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 	repository := dest
 	subdir := ""
 	if strings.Contains(dest, "/") {

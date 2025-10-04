@@ -1,4 +1,4 @@
-module nexuscli-go
+module github.com/tympanix/nexus-cli
 
 go 1.23.0
 
