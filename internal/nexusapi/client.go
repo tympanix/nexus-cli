@@ -7,6 +7,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 )
 
 // Client represents a Nexus API client
@@ -154,4 +156,47 @@ func (c *Client) DownloadAsset(downloadURL string, writer io.Writer) error {
 // GetFormDataContentType returns the content type for a multipart form writer
 func GetFormDataContentType(writer *multipart.Writer) string {
 	return writer.FormDataContentType()
+}
+
+// FileUpload represents a file to be uploaded
+type FileUpload struct {
+	FilePath     string // Absolute path to the file
+	RelativePath string // Relative path to use in Nexus (with forward slashes)
+}
+
+// BuildRawUploadForm builds a multipart form for uploading files to a Nexus RAW repository
+// It writes the form data to the provided writer and returns any error encountered
+func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer) error {
+	for idx, file := range files {
+		f, err := os.Open(file.FilePath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		
+		// Create form file with Nexus RAW format: raw.asset1, raw.asset2, etc.
+		part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(file.FilePath))
+		if err != nil {
+			return err
+		}
+		
+		// Copy file content to form, optionally through progress writer
+		var reader io.Reader = f
+		if progressWriter != nil {
+			reader = io.TeeReader(f, progressWriter)
+		}
+		if _, err := io.Copy(part, reader); err != nil {
+			return err
+		}
+		
+		// Add filename field with relative path
+		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), file.RelativePath)
+	}
+	
+	// Add directory field if subdirectory is specified
+	if subdir != "" {
+		_ = writer.WriteField("raw.directory", subdir)
+	}
+	
+	return nil
 }
