@@ -146,36 +146,36 @@ You can authenticate with Nexus using environment variables or CLI flags:
 ### Upload
 
 ```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress <archive.tar.gz>] <directory> <repository[/subdir]>
 ```
 
 **Upload options:**
-- `--compress` or `-z` - Create and upload files as a compressed tar.gz archive
+- `--compress <path>` or `-z <path>` - Create and upload files as a compressed tar.gz archive at the specified path
 
 **About the `--compress` flag:**
 
-When the `--compress` flag is used, all files in the source directory are compressed into a single tar.gz archive before uploading. The archive is named based on the repository and subdirectory (e.g., `my-repo-path.tar.gz`). This is useful for:
+When the `--compress` flag is used with an explicit path, all files in the source directory are compressed into a single tar.gz archive before uploading. You must specify the full path to the archive file (e.g., `my-archive.tar.gz` or `path/to/archive.tar.gz`). This is useful for:
 - Uploading many small files more efficiently
 - Reducing network overhead
 - Storing files as a single artifact in Nexus
 
 **Example:**
 ```bash
-nexuscli-go upload --compress ./files my-repo/path
-# Creates and uploads: my-repo-path.tar.gz
+nexuscli-go upload --compress my-archive.tar.gz ./files my-repo/path
+# Creates and uploads: my-archive.tar.gz to my-repo/path/
 ```
 
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress <archive.tar.gz>] <repository/folder> <directory>
 ```
 
 **Download options:**
 - `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
-- `--compress` or `-z` - Download and extract a compressed tar.gz archive
+- `--compress <path>` or `-z <path>` - Download and extract a compressed tar.gz archive at the specified path
 
 **About the `--flatten` flag:**
 
@@ -188,17 +188,15 @@ With the `--flatten` flag enabled, the base path specified in the source argumen
 
 **About the `--compress` flag:**
 
-When the `--compress` flag is used with download, the CLI looks for a tar.gz archive in the specified path and extracts it to the destination directory. This is useful for:
+When the `--compress` flag is used with download, you must specify the explicit path to the tar.gz archive file to download. The CLI looks for this archive in the specified path and extracts it to the destination directory. This is useful for:
 - Downloading files that were uploaded with compression
 - Extracting archives on-the-fly without storing the compressed file locally
 - Faster downloads when dealing with many small files
 
-The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz`
-
 **Example:**
 ```bash
-nexuscli-go download --compress my-repo/path ./local-folder
-# Downloads and extracts: my-repo-path.tar.gz
+nexuscli-go download --compress my-archive.tar.gz my-repo/path ./local-folder
+# Downloads and extracts: my-archive.tar.gz from my-repo/path/
 ```
 
 **Examples:**
@@ -228,10 +226,10 @@ nexuscli-go download --flatten my-repo/path ./local-folder
 Upload and download with compression:
 ```bash
 # Upload files as a compressed archive
-nexuscli-go upload --compress ./files my-repo/artifacts
+nexuscli-go upload --compress artifacts.tar.gz ./files my-repo/artifacts
 
 # Download and extract the compressed archive
-nexuscli-go download --compress my-repo/artifacts ./local-folder
+nexuscli-go download --compress artifacts.tar.gz my-repo/artifacts ./local-folder
 ```
 
 Using Docker with CLI flags:
