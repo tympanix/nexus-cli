@@ -57,6 +57,17 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 
 	bar := newProgressBar(totalBytes, "Uploading bytes", opts.QuietMode)
 
+	// Prepare file upload information
+	files := make([]nexusapi.FileUpload, len(filePaths))
+	for i, filePath := range filePaths {
+		relPath, _ := filepath.Rel(src, filePath)
+		relPath = filepath.ToSlash(relPath)
+		files[i] = nexusapi.FileUpload{
+			FilePath:     filePath,
+			RelativePath: relPath,
+		}
+	}
+
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
 
@@ -64,32 +75,9 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	errChan := make(chan error, 1)
 	go func() {
 		defer pw.Close()
-		for idx, filePath := range filePaths {
-			relPath, _ := filepath.Rel(src, filePath)
-			relPath = filepath.ToSlash(relPath)
-			f, err := os.Open(filePath)
-			if err != nil {
-				errChan <- err
-				return
-			}
-			defer f.Close()
-			part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(filePath))
-			if err != nil {
-				errChan <- err
-				return
-			}
-			reader := io.TeeReader(f, bar)
-			if _, err := io.Copy(part, reader); err != nil {
-				errChan <- err
-				return
-			}
-			_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), relPath)
-		}
-		if subdir != "" {
-			_ = writer.WriteField("raw.directory", subdir)
-		}
+		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar)
 		writer.Close()
-		errChan <- nil
+		errChan <- err
 	}()
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)

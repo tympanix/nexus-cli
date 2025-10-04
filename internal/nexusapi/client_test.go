@@ -5,8 +5,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"mime/multipart"
 )
 
 // TestNewClient tests creating a new Nexus API client
@@ -269,3 +271,79 @@ func TestDownloadAssetError(t *testing.T) {
 		t.Errorf("Expected error to contain status code 404, got: %v", err)
 	}
 }
+
+// TestBuildRawUploadForm tests building multipart form for RAW repository upload
+func TestBuildRawUploadForm(t *testing.T) {
+	// Create test files
+	tempDir := t.TempDir()
+	file1Path := tempDir + "/file1.txt"
+	file2Path := tempDir + "/subdir/file2.txt"
+	
+	// Create subdirectory
+	err := os.MkdirAll(tempDir+"/subdir", 0755)
+	if err != nil {
+		t.Fatalf("Failed to create subdirectory: %v", err)
+	}
+	
+	// Create test files
+	err = os.WriteFile(file1Path, []byte("content1"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create file1: %v", err)
+	}
+	err = os.WriteFile(file2Path, []byte("content2"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create file2: %v", err)
+	}
+	
+	// Prepare file uploads
+	files := []FileUpload{
+		{FilePath: file1Path, RelativePath: "file1.txt"},
+		{FilePath: file2Path, RelativePath: "subdir/file2.txt"},
+	}
+	
+	// Build form
+	var buf strings.Builder
+	writer := multipart.NewWriter(&buf)
+	
+	err = BuildRawUploadForm(writer, files, "test-subdir", nil)
+	if err != nil {
+		t.Fatalf("BuildRawUploadForm failed: %v", err)
+	}
+	writer.Close()
+	
+	// Parse the form
+	formData := buf.String()
+	
+	// Verify form contains expected fields
+	if !strings.Contains(formData, "raw.asset1") {
+		t.Error("Expected form to contain 'raw.asset1'")
+	}
+	if !strings.Contains(formData, "raw.asset2") {
+		t.Error("Expected form to contain 'raw.asset2'")
+	}
+	if !strings.Contains(formData, "raw.asset1.filename") {
+		t.Error("Expected form to contain 'raw.asset1.filename'")
+	}
+	if !strings.Contains(formData, "raw.asset2.filename") {
+		t.Error("Expected form to contain 'raw.asset2.filename'")
+	}
+	if !strings.Contains(formData, "file1.txt") {
+		t.Error("Expected form to contain 'file1.txt'")
+	}
+	if !strings.Contains(formData, "subdir/file2.txt") {
+		t.Error("Expected form to contain 'subdir/file2.txt'")
+	}
+	if !strings.Contains(formData, "raw.directory") {
+		t.Error("Expected form to contain 'raw.directory'")
+	}
+	if !strings.Contains(formData, "test-subdir") {
+		t.Error("Expected form to contain 'test-subdir'")
+	}
+	if !strings.Contains(formData, "content1") {
+		t.Error("Expected form to contain 'content1'")
+	}
+	if !strings.Contains(formData, "content2") {
+		t.Error("Expected form to contain 'content2'")
+	}
+}
+
