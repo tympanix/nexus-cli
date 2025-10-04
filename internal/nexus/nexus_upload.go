@@ -161,6 +161,7 @@ func uploadCompressed(src, repository, subdir string, filePaths []string, config
 	}
 	
 	if resp.StatusCode == 204 {
+		bar.Finish()
 		opts.Logger.Printf("Uploaded %d files from %s as compressed archive %s\n", len(filePaths), src, archiveName)
 		return nil
 	}
@@ -269,6 +270,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return goroutineErr
 	}
 	if resp.StatusCode == 204 {
+		bar.Finish()
 		opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
 		return nil
 	}

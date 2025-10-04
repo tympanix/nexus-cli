@@ -244,6 +244,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		nSkipped++
 	}
 	nDownloaded := len(assets) - nErrors - nSkipped
+	bar.Finish()
 	opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n", 
 		nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
 	return nErrors == 0
