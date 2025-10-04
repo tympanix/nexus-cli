@@ -56,7 +56,7 @@ func TestListAssets(t *testing.T) {
 		}
 		
 		// Return mock response
-		response := searchResponse{
+		response := SearchResponse{
 			Items: []Asset{
 				{
 					ID:       "asset1",
@@ -99,10 +99,10 @@ func TestListAssetsWithPagination(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		
-		var response searchResponse
+		var response SearchResponse
 		if callCount == 1 {
 			// First page
-			response = searchResponse{
+			response = SearchResponse{
 				Items: []Asset{
 					{ID: "asset1", Path: "/path/file1.txt"},
 				},
@@ -114,7 +114,7 @@ func TestListAssetsWithPagination(t *testing.T) {
 			if continuationToken != "token123" {
 				t.Errorf("Expected continuation token 'token123', got '%s'", continuationToken)
 			}
-			response = searchResponse{
+			response = SearchResponse{
 				Items: []Asset{
 					{ID: "asset2", Path: "/path/file2.txt"},
 				},

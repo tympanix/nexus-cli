@@ -54,7 +54,8 @@ type Asset struct {
 	Raw            json.RawMessage `json:"raw"`
 }
 
-type searchResponse struct {
+// SearchResponse represents the response from the search API
+type SearchResponse struct {
 	Items             []Asset `json:"items"`
 	ContinuationToken string  `json:"continuationToken"`
 }
@@ -90,7 +91,7 @@ func (c *Client) ListAssets(repository, path string) ([]Asset, error) {
 		if resp.StatusCode != 200 {
 			return nil, fmt.Errorf("Failed to list assets: %d", resp.StatusCode)
 		}
-		var sr searchResponse
+		var sr SearchResponse
 		if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
 			return nil, err
 		}
