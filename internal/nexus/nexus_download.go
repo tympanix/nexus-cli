@@ -1,6 +1,8 @@
 package nexus
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,6 +28,7 @@ type DownloadOptions struct {
 	SkipChecksum      bool
 	Logger            Logger
 	QuietMode         bool
+	Compress          bool
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -301,8 +304,194 @@ func NewSHA1() hash.Hash {
 	return sha1.New()
 }
 
+// extractTarGz extracts a tar.gz archive to the destination directory
+func extractTarGz(reader io.Reader, destDir string, bar *progressbar.ProgressBar, opts *DownloadOptions) error {
+	gzr, err := gzip.NewReader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzr.Close()
+	
+	tr := tar.NewReader(gzr)
+	
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+		
+		// Construct the destination path
+		destPath := filepath.Join(destDir, header.Name)
+		
+		// Ensure parent directory exists
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+		
+		// Extract file
+		if header.Typeflag == tar.TypeReg {
+			outFile, err := os.Create(destPath)
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", destPath, err)
+			}
+			
+			var reader io.Reader = tr
+			if bar != nil {
+				reader = io.TeeReader(tr, bar)
+			}
+			
+			if _, err := io.Copy(outFile, reader); err != nil {
+				outFile.Close()
+				return fmt.Errorf("failed to write file %s: %w", destPath, err)
+			}
+			outFile.Close()
+			
+			// Set file permissions
+			if err := os.Chmod(destPath, os.FileMode(header.Mode)); err != nil {
+				opts.Logger.Printf("Warning: failed to set permissions on %s: %v\n", destPath, err)
+			}
+		}
+	}
+	
+	return nil
+}
+
+// downloadCompressed downloads and extracts a compressed tar.gz archive
+func downloadCompressed(srcArg, destDir string, config *Config, opts *DownloadOptions) bool {
+	parts := strings.SplitN(srcArg, "/", 2)
+	if len(parts) != 2 {
+		opts.Logger.Println("Error: The src argument must be in the form 'repository/file.tar.gz'.")
+		return false
+	}
+	repository, archivePath := parts[0], parts[1]
+	
+	// Ensure the path ends with .tar.gz
+	if !strings.HasSuffix(archivePath, ".tar.gz") {
+		opts.Logger.Println("Error: When using --compress, the source must be a .tar.gz file.")
+		return false
+	}
+	
+	// Get the parent directory of the archive for listing
+	archiveDir := filepath.Dir(archivePath)
+	if archiveDir == "." {
+		archiveDir = ""
+	}
+	
+	// List assets to find the archive
+	var assets []Asset
+	var err error
+	if archiveDir != "" {
+		assets, err = listAssets(repository, archiveDir, config)
+	} else {
+		// For files in the root, we need a different approach
+		// Use the repository root search
+		baseURL, err := url.Parse(config.NexusURL)
+		if err != nil {
+			opts.Logger.Println("Error: invalid Nexus URL:", err)
+			return false
+		}
+		baseURL.Path = "/service/rest/v1/search/assets"
+		query := baseURL.Query()
+		query.Set("repository", repository)
+		query.Set("format", "raw")
+		query.Set("direction", "asc")
+		query.Set("sort", "name")
+		baseURL.RawQuery = query.Encode()
+
+		req, _ := http.NewRequest("GET", baseURL.String(), nil)
+		req.SetBasicAuth(config.Username, config.Password)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			opts.Logger.Println("Error listing assets:", err)
+			return false
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			opts.Logger.Printf("Error: Failed to list assets: %d\n", resp.StatusCode)
+			return false
+		}
+		var sr searchResponse
+		if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+			opts.Logger.Println("Error decoding response:", err)
+			return false
+		}
+		assets = sr.Items
+	}
+	
+	if err != nil {
+		opts.Logger.Println("Error listing assets:", err)
+		return false
+	}
+	
+	// Find the matching archive
+	var archiveAsset *Asset
+	for _, asset := range assets {
+		if strings.HasSuffix(asset.Path, archivePath) || asset.Path == "/"+archivePath {
+			archiveAsset = &asset
+			break
+		}
+	}
+	
+	if archiveAsset == nil {
+		opts.Logger.Printf("Error: Archive '%s' not found in repository '%s'\n", archivePath, repository)
+		return false
+	}
+	
+	// Create progress bar
+	showProgress := isatty() && !opts.QuietMode
+	progressWriter := io.Writer(os.Stdout)
+	if !showProgress {
+		progressWriter = io.Discard
+	}
+	bar := progressbar.NewOptions64(archiveAsset.FileSize,
+		progressbar.OptionSetWriter(progressWriter),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetDescription("Downloading and extracting"),
+		progressbar.OptionFullWidth(),
+	)
+	
+	// Download the archive
+	req, err := http.NewRequest("GET", archiveAsset.DownloadURL, nil)
+	if err != nil {
+		opts.Logger.Println("Error creating request:", err)
+		return false
+	}
+	req.SetBasicAuth(config.Username, config.Password)
+	
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		opts.Logger.Println("Error downloading archive:", err)
+		return false
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != 200 {
+		opts.Logger.Printf("Error: Failed to download archive: %d\n", resp.StatusCode)
+		return false
+	}
+	
+	// Extract the archive on-the-fly
+	reader := io.TeeReader(resp.Body, bar)
+	if err := extractTarGz(reader, destDir, nil, opts); err != nil {
+		opts.Logger.Printf("Error extracting archive: %v\n", err)
+		return false
+	}
+	
+	opts.Logger.Printf("Successfully extracted archive '%s' to '%s'\n", archivePath, destDir)
+	return true
+}
+
+
 func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
-	success := downloadFolder(src, dest, config, opts)
+	var success bool
+	if opts.Compress {
+		success = downloadCompressed(src, dest, config, opts)
+	} else {
+		success = downloadFolder(src, dest, config, opts)
+	}
 	if !success {
 		os.Exit(66)
 	}

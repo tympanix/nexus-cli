@@ -470,3 +470,138 @@ func TestUploadURLConstruction(t *testing.T) {
 		})
 	}
 }
+
+// TestUploadCompressed tests uploading files as a compressed tar.gz archive
+func TestUploadCompressed(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-compress-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create test files
+	testFile1 := filepath.Join(testDir, "file1.txt")
+	testFile2 := filepath.Join(testDir, "subdir", "file2.txt")
+	os.MkdirAll(filepath.Dir(testFile2), 0755)
+	os.WriteFile(testFile1, []byte("content1"), 0644)
+	os.WriteFile(testFile2, []byte("content2"), 0644)
+
+	receivedFilename := ""
+	receivedRepo := ""
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedRepo = r.URL.Query().Get("repository")
+		
+		err := r.ParseMultipartForm(32 << 20)
+		if err != nil {
+			t.Errorf("Failed to parse multipart form: %v", err)
+			http.Error(w, "Failed to parse form", http.StatusBadRequest)
+			return
+		}
+
+		file, header, err := r.FormFile("raw.asset1")
+		if err != nil {
+			t.Errorf("Failed to get uploaded file: %v", err)
+			http.Error(w, "No file uploaded", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		receivedFilename = header.Filename
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:    NewLogger(io.Discard),
+		QuietMode: true,
+		Compress:  true,
+	}
+
+	err = uploadFiles(testDir, "test-repo", "", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	expectedFilename := filepath.Base(testDir) + ".tar.gz"
+	if receivedFilename != expectedFilename {
+		t.Errorf("Expected filename '%s', got '%s'", expectedFilename, receivedFilename)
+	}
+
+	if receivedRepo != "test-repo" {
+		t.Errorf("Expected repository 'test-repo', got '%s'", receivedRepo)
+	}
+}
+
+// TestCompressionExtraction tests the tar.gz extraction functionality
+func TestCompressionExtraction(t *testing.T) {
+	// Create a test tar.gz archive
+	srcDir, err := os.MkdirTemp("", "test-src-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	// Create test files
+	testFile1 := filepath.Join(srcDir, "file1.txt")
+	testFile2 := filepath.Join(srcDir, "subdir", "file2.txt")
+	os.MkdirAll(filepath.Dir(testFile2), 0755)
+	os.WriteFile(testFile1, []byte("content1"), 0644)
+	os.WriteFile(testFile2, []byte("content2"), 0644)
+
+	// Collect files and create archive
+	files, err := collectFiles(srcDir)
+	if err != nil {
+		t.Fatalf("Failed to collect files: %v", err)
+	}
+
+	// Create destination directory
+	destDir, err := os.MkdirTemp("", "test-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Create the tar.gz archive and extract it
+	archiveReader, err := createTarGz(srcDir, files, nil)
+	if err != nil {
+		t.Fatalf("Failed to create tar.gz: %v", err)
+	}
+
+	opts := &DownloadOptions{
+		Logger:    NewLogger(io.Discard),
+		QuietMode: true,
+	}
+
+	err = extractTarGz(archiveReader, destDir, nil, opts)
+	if err != nil {
+		t.Fatalf("Failed to extract tar.gz: %v", err)
+	}
+
+	// Verify extracted files
+	extractedFile1 := filepath.Join(destDir, "file1.txt")
+	content1, err := os.ReadFile(extractedFile1)
+	if err != nil {
+		t.Fatalf("Failed to read extracted file1: %v", err)
+	}
+	if string(content1) != "content1" {
+		t.Errorf("Expected content1, got '%s'", string(content1))
+	}
+
+	extractedFile2 := filepath.Join(destDir, "subdir", "file2.txt")
+	content2, err := os.ReadFile(extractedFile2)
+	if err != nil {
+		t.Fatalf("Failed to read extracted file2: %v", err)
+	}
+	if string(content2) != "content2" {
+		t.Errorf("Expected content2, got '%s'", string(content2))
+	}
+}
+

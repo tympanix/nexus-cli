@@ -53,15 +53,18 @@ func main() {
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
+			compress, _ := cmd.Flags().GetBool("compress")
 			opts := &nexus.UploadOptions{
 				Logger:    logger,
 				QuietMode: quietMode,
+				Compress:  compress,
 			}
 			src := args[0]
 			dest := args[1]
 			nexus.UploadMain(src, dest, config, opts)
 		},
 	}
+	uploadCmd.Flags().BoolP("compress", "z", false, "Compress files into a tar.gz archive before uploading")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
@@ -72,11 +75,13 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
+			compress, _ := cmd.Flags().GetBool("compress")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
 				Logger:            logger,
 				QuietMode:         quietMode,
+				Compress:          compress,
 			}
 			src := args[0]
 			dest := args[1]
@@ -89,6 +94,7 @@ func main() {
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract compressed tar.gz archive")
 
 	rootCmd.AddCommand(uploadCmd)
 	rootCmd.AddCommand(downloadCmd)
