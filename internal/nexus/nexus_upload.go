@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
@@ -49,18 +48,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		totalBytes += info.Size()
 	}
 
-	// Create progress bar - write to io.Discard when disabled
-	showProgress := isatty() && !opts.QuietMode
-	progressWriter := io.Writer(os.Stdout)
-	if !showProgress {
-		progressWriter = io.Discard
-	}
-	bar := progressbar.NewOptions64(totalBytes,
-		progressbar.OptionSetWriter(progressWriter),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionSetDescription("Uploading bytes"),
-		progressbar.OptionFullWidth(),
-	)
+	bar := newProgressBar(totalBytes, "Uploading bytes", opts.QuietMode)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)

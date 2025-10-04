@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22 AS builder
+FROM golang:1.25.1 AS builder
 
 WORKDIR /build
 
@@ -10,8 +10,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary with static linking
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o nexuscli-go ./cmd/nexuscli-go
+# Build the binary with static linking and version injection
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags "-extldflags \"-static\" -X main.version=${VERSION}" -o nexuscli-go ./cmd/nexuscli-go
 
 # Final stage - use scratch for minimal image
 FROM scratch
