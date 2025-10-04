@@ -154,16 +154,24 @@ nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--comp
 
 **About the `--compress` flag:**
 
-When the `--compress` flag is used, all files in the source directory are compressed into a single tar.gz archive before uploading. The archive is named based on the repository and subdirectory (e.g., `my-repo-path.tar.gz`). This is useful for:
+When the `--compress` flag is used, all files in the source directory are compressed into a single tar.gz archive before uploading. This is useful for:
 - Uploading many small files more efficiently
 - Reducing network overhead
 - Storing files as a single artifact in Nexus
 
-**Example:**
-```bash
-nexuscli-go upload --compress ./files my-repo/path
-# Creates and uploads: my-repo-path.tar.gz
-```
+You can specify the archive name in two ways:
+
+1. **Auto-generated name (default):** The archive name is based on the repository and subdirectory (e.g., `my-repo-path.tar.gz`)
+   ```bash
+   nexuscli-go upload --compress ./files my-repo/path
+   # Creates and uploads: my-repo-path.tar.gz
+   ```
+
+2. **Explicit archive name:** Specify the `.tar.gz` filename as part of the destination path
+   ```bash
+   nexuscli-go upload --compress ./files my-repo/path/custom-name.tar.gz
+   # Creates and uploads: custom-name.tar.gz to my-repo/path/
+   ```
 
 ### Download
 
@@ -194,13 +202,19 @@ When the `--compress` flag is used with download, the CLI looks for a tar.gz arc
 - Extracting archives on-the-fly without storing the compressed file locally
 - Faster downloads when dealing with many small files
 
-The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz`
+You can specify the archive name in two ways:
 
-**Example:**
-```bash
-nexuscli-go download --compress my-repo/path ./local-folder
-# Downloads and extracts: my-repo-path.tar.gz
-```
+1. **Auto-generated name (default):** The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz`
+   ```bash
+   nexuscli-go download --compress my-repo/path ./local-folder
+   # Downloads and extracts: my-repo-path.tar.gz
+   ```
+
+2. **Explicit archive name:** Specify the `.tar.gz` filename as part of the source path
+   ```bash
+   nexuscli-go download --compress my-repo/path/custom-name.tar.gz ./local-folder
+   # Downloads and extracts: custom-name.tar.gz from my-repo/path/
+   ```
 
 **Examples:**
 
@@ -237,11 +251,21 @@ nexuscli-go download --flatten --delete my-repo/path ./local-folder
 
 Upload and download with compression:
 ```bash
-# Upload files as a compressed archive
+# Upload files as a compressed archive (auto-generated name)
 nexuscli-go upload --compress ./files my-repo/artifacts
+# Creates: my-repo-artifacts.tar.gz
 
-# Download and extract the compressed archive
+# Upload with explicit archive name
+nexuscli-go upload --compress ./files my-repo/artifacts/backup-2024.tar.gz
+# Creates: backup-2024.tar.gz in my-repo/artifacts/
+
+# Download and extract the compressed archive (auto-generated name)
 nexuscli-go download --compress my-repo/artifacts ./local-folder
+# Downloads: my-repo-artifacts.tar.gz
+
+# Download and extract with explicit archive name
+nexuscli-go download --compress my-repo/artifacts/backup-2024.tar.gz ./local-folder
+# Downloads: backup-2024.tar.gz from my-repo/artifacts/
 ```
 
 Using Docker with CLI flags:

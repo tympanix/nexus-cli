@@ -91,6 +91,73 @@ func TestCompressedUpload(t *testing.T) {
 	}
 }
 
+// TestCompressedUploadWithExplicitName tests uploading with an explicit archive name
+func TestCompressedUploadWithExplicitName(t *testing.T) {
+	// Create test files
+	testDir, err := os.MkdirTemp("", "test-compress-upload-explicit-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+		"file2.txt": "Content 2",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create mock server
+	receivedArchiveName := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && strings.Contains(r.URL.Path, "/service/rest/v1/components") {
+			// Parse multipart form
+			if err := r.ParseMultipartForm(10 << 20); err != nil {
+				t.Errorf("Failed to parse form: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// Check if archive was uploaded
+			if file, header, err := r.FormFile("raw.asset1"); err == nil {
+				receivedArchiveName = header.Filename
+				file.Close()
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:    NewLogger(io.Discard),
+		QuietMode: true,
+		Compress:  true,
+	}
+
+	// Upload with explicit archive name via uploadFilesWithArchiveName
+	err = uploadFilesWithArchiveName(testDir, "test-repo", "test-folder", "custom-archive.tar.gz", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	expectedName := "custom-archive.tar.gz"
+	if receivedArchiveName != expectedName {
+		t.Errorf("Expected archive name %q, got %q", expectedName, receivedArchiveName)
+	}
+}
+
 // TestCompressedDownload tests downloading and extracting a compressed archive
 func TestCompressedDownload(t *testing.T) {
 	// Create test files for the archive
@@ -199,6 +266,127 @@ func TestCompressedDownload(t *testing.T) {
 
 	// Download and extract
 	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Verify extracted files
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+// TestCompressedDownloadWithExplicitName tests downloading with an explicit archive name
+func TestCompressedDownloadWithExplicitName(t *testing.T) {
+	// Create test files for the archive
+	srcDir, err := os.MkdirTemp("", "test-compress-dl-explicit-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+		"file2.txt": "Content 2",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create archive file
+	archiveFile, err := os.CreateTemp("", "test-archive-*.tar.gz")
+	if err != nil {
+		t.Fatalf("Failed to create archive file: %v", err)
+	}
+	archivePath := archiveFile.Name()
+	defer os.Remove(archivePath)
+
+	if err := CreateTarGz(srcDir, archiveFile); err != nil {
+		t.Fatalf("Failed to create archive: %v", err)
+	}
+	archiveFile.Close()
+
+	// Read archive content for serving
+	archiveContent, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("Failed to read archive: %v", err)
+	}
+
+	var serverURL string
+	customArchiveName := "my-custom-name.tar.gz"
+
+	// Create mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			// Return asset list with the custom archive
+			assets := nexusapi.SearchResponse{
+				Items: []nexusapi.Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo/test-folder/" + customArchiveName,
+						Path:        "/test-folder/" + customArchiveName,
+						ID:          "test-id",
+						Repository:  "test-repo",
+						FileSize:    int64(len(archiveContent)),
+						Checksum: nexusapi.Checksum{
+							SHA1: "abc123",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
+
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			// Serve the archive
+			w.Header().Set("Content-Type", "application/gzip")
+			w.WriteHeader(http.StatusOK)
+			w.Write(archiveContent)
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create download directory
+	destDir, err := os.MkdirTemp("", "test-compress-dl-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+	}
+
+	// Download with explicit archive name via downloadFolderCompressedWithArchiveName
+	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", customArchiveName, destDir, config, opts)
 	if !success {
 		t.Fatal("Download failed")
 	}

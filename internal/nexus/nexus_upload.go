@@ -98,6 +98,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 
 // uploadFilesCompressed creates a tar.gz archive and uploads it as a single file
 func uploadFilesCompressed(src, repository, subdir string, config *Config, opts *UploadOptions) error {
+	return uploadFilesCompressedWithArchiveName(src, repository, subdir, "", config, opts)
+}
+
+// uploadFilesCompressedWithArchiveName creates a tar.gz archive and uploads it as a single file with optional explicit name
+func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName string, config *Config, opts *UploadOptions) error {
 	filePaths, err := collectFiles(src)
 	if err != nil {
 		return err
@@ -118,8 +123,14 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 	}
 
 	// Generate archive name
-	archiveName := GenerateArchiveName(repository, subdir)
-	opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
+	var archiveName string
+	if explicitArchiveName != "" {
+		archiveName = explicitArchiveName
+		opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
+	} else {
+		archiveName = GenerateArchiveName(repository, subdir)
+		opts.Logger.Printf("Creating compressed archive: %s\n", archiveName)
+	}
 
 	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
 
@@ -176,14 +187,45 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 	repository := dest
 	subdir := ""
+	explicitArchiveName := ""
+	
 	if strings.Contains(dest, "/") {
 		parts := strings.SplitN(dest, "/", 2)
 		repository = parts[0]
 		subdir = parts[1]
+		
+		// If compress is enabled and dest ends with .tar.gz, treat it as explicit archive name
+		if opts.Compress && strings.HasSuffix(subdir, ".tar.gz") {
+			// Extract the archive name from the path
+			lastSlash := strings.LastIndex(subdir, "/")
+			if lastSlash >= 0 {
+				explicitArchiveName = subdir[lastSlash+1:]
+				subdir = subdir[:lastSlash]
+			} else {
+				// The entire subdir is the archive name
+				explicitArchiveName = subdir
+				subdir = ""
+			}
+		}
+	} else if opts.Compress && strings.HasSuffix(dest, ".tar.gz") {
+		// Repository name ends with .tar.gz, treat it as explicit archive name
+		explicitArchiveName = dest
+		repository = ""
+		subdir = ""
 	}
-	err := uploadFiles(src, repository, subdir, config, opts)
+	
+	err := uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
 	if err != nil {
 		fmt.Println("Upload error:", err)
 		os.Exit(1)
 	}
+}
+
+func uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName string, config *Config, opts *UploadOptions) error {
+	// If compression is enabled, use compressed upload
+	if opts.Compress {
+		return uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
+	}
+	
+	return uploadFiles(src, repository, subdir, config, opts)
 }

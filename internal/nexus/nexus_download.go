@@ -124,10 +124,25 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		return false
 	}
 	repository, src := parts[0], parts[1]
+	
+	// Check if src ends with .tar.gz for explicit archive name
+	explicitArchiveName := ""
+	if opts.Compress && strings.HasSuffix(src, ".tar.gz") {
+		// Extract the archive name from the path
+		lastSlash := strings.LastIndex(src, "/")
+		if lastSlash >= 0 {
+			explicitArchiveName = src[lastSlash+1:]
+			src = src[:lastSlash]
+		} else {
+			// The entire src is the archive name
+			explicitArchiveName = src
+			src = ""
+		}
+	}
 
 	// If compression is enabled, look for a tar.gz archive
 	if opts.Compress {
-		return downloadFolderCompressed(repository, src, destDir, config, opts)
+		return downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir, config, opts)
 	}
 
 	// Original uncompressed download logic
@@ -209,9 +224,20 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 
 // downloadFolderCompressed downloads and extracts a tar.gz archive
 func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
-// Generate expected archive name
-archiveName := GenerateArchiveName(repository, src)
-opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+	return downloadFolderCompressedWithArchiveName(repository, src, "", destDir, config, opts)
+}
+
+// downloadFolderCompressedWithArchiveName downloads and extracts a tar.gz archive with optional explicit name
+func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) bool {
+// Generate or use explicit archive name
+var archiveName string
+if explicitArchiveName != "" {
+	archiveName = explicitArchiveName
+	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+} else {
+	archiveName = GenerateArchiveName(repository, src)
+	opts.Logger.Printf("Looking for compressed archive: %s\n", archiveName)
+}
 
 // List assets to find the archive
 assets, err := listAssets(repository, src, config)
