@@ -9,6 +9,8 @@ import (
 	"github.com/tympanix/nexus-cli/internal/nexus"
 )
 
+var version = "dev"
+
 func main() {
 	// Create config from environment variables
 	config := nexus.NewConfig()
@@ -90,8 +92,18 @@ func main() {
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number",
+		Long:  "Print the version number of nexuscli-go",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("nexuscli-go version %s\n", version)
+		},
+	}
+
 	rootCmd.AddCommand(uploadCmd)
 	rootCmd.AddCommand(downloadCmd)
+	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

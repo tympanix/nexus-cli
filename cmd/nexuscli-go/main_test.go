@@ -179,3 +179,29 @@ func TestCLIFlagsOverrideEnvVars(t *testing.T) {
 		})
 	}
 }
+
+func TestVersionCommand(t *testing.T) {
+	// Build the binary with a custom version
+	buildCmd := exec.Command("go", "build", "-ldflags", "-X main.version=test-version", "-o", "nexuscli-go-test-version")
+	buildCmd.Dir = "."
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
+	defer os.Remove("./nexuscli-go-test-version")
+
+	// Run version command
+	cmd := exec.Command("./nexuscli-go-test-version", "version")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Command failed: %v, output: %s", err, stdout.String())
+	}
+
+	output := stdout.String()
+	expected := "nexuscli-go version test-version"
+	if !strings.Contains(output, expected) {
+		t.Errorf("Expected output to contain '%s', got: %s", expected, output)
+	}
+}
