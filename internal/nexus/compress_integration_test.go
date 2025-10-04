@@ -40,27 +40,7 @@ func TestCompressedUpload(t *testing.T) {
 	}
 
 	// Create mock server
-	receivedArchive := false
-	receivedArchiveName := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && strings.Contains(r.URL.Path, "/service/rest/v1/components") {
-			// Parse multipart form
-			if err := r.ParseMultipartForm(10 << 20); err != nil {
-				t.Errorf("Failed to parse form: %v", err)
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			// Check if archive was uploaded
-			if file, header, err := r.FormFile("raw.asset1"); err == nil {
-				receivedArchive = true
-				receivedArchiveName = header.Filename
-				file.Close()
-			}
-
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
+	server := newMockNexusServer()
 	defer server.Close()
 
 	config := &Config{
@@ -81,13 +61,17 @@ func TestCompressedUpload(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	if !receivedArchive {
-		t.Error("Archive was not uploaded")
+	server.mu.RLock()
+	uploadedArchives := server.UploadedArchives
+	server.mu.RUnlock()
+
+	if len(uploadedArchives) == 0 {
+		t.Fatal("Archive was not uploaded")
 	}
 
 	expectedName := "test-repo-test-folder.tar.gz"
-	if receivedArchiveName != expectedName {
-		t.Errorf("Expected archive name %q, got %q", expectedName, receivedArchiveName)
+	if uploadedArchives[0].Filename != expectedName {
+		t.Errorf("Expected archive name %q, got %q", expectedName, uploadedArchives[0].Filename)
 	}
 }
 
@@ -113,25 +97,7 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 	}
 
 	// Create mock server
-	receivedArchiveName := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && strings.Contains(r.URL.Path, "/service/rest/v1/components") {
-			// Parse multipart form
-			if err := r.ParseMultipartForm(10 << 20); err != nil {
-				t.Errorf("Failed to parse form: %v", err)
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			// Check if archive was uploaded
-			if file, header, err := r.FormFile("raw.asset1"); err == nil {
-				receivedArchiveName = header.Filename
-				file.Close()
-			}
-
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
+	server := newMockNexusServer()
 	defer server.Close()
 
 	config := &Config{
@@ -152,9 +118,17 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
+	server.mu.RLock()
+	uploadedArchives := server.UploadedArchives
+	server.mu.RUnlock()
+
+	if len(uploadedArchives) == 0 {
+		t.Fatal("No archive was uploaded")
+	}
+
 	expectedName := "custom-archive.tar.gz"
-	if receivedArchiveName != expectedName {
-		t.Errorf("Expected archive name %q, got %q", expectedName, receivedArchiveName)
+	if uploadedArchives[0].Filename != expectedName {
+		t.Errorf("Expected archive name %q, got %q", expectedName, uploadedArchives[0].Filename)
 	}
 }
 
