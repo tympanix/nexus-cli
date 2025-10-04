@@ -55,19 +55,23 @@ func main() {
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
+			compress, _ := cmd.Flags().GetBool("compress")
 			opts := &nexus.UploadOptions{
 				Logger:    logger,
 				QuietMode: quietMode,
+				Compress:  compress,
 			}
 			src := args[0]
 			dest := args[1]
 			nexus.UploadMain(src, dest, config, opts)
 		},
 	}
+	uploadCmd.Flags().BoolP("compress", "z", false, "Create and upload files as a compressed tar.gz archive")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
 	var flattenPath bool
+	var compressDownload bool
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -76,12 +80,14 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
 			flattenPath, _ = cmd.Flags().GetBool("flatten")
+			compressDownload, _ = cmd.Flags().GetBool("compress")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
 				Flatten:           flattenPath,
 				Logger:            logger,
 				QuietMode:         quietMode,
+				Compress:          compressDownload,
 			}
 			src := args[0]
 			dest := args[1]
@@ -95,6 +101,7 @@ func main() {
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed tar.gz archive")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
