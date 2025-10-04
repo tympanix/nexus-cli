@@ -71,6 +71,7 @@ func main() {
 	var checksumAlg string
 	var skipChecksumValidation bool
 	var flattenPath bool
+	var deleteExtra bool
 	var compressDownload bool
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
@@ -82,6 +83,7 @@ func main() {
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
 				Flatten:           flattenPath,
+				DeleteExtra:       deleteExtra,
 				Logger:            logger,
 				QuietMode:         quietMode,
 				Compress:          compressDownload,
@@ -98,6 +100,7 @@ func main() {
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolVarP(&skipChecksumValidation, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 	downloadCmd.Flags().BoolVarP(&flattenPath, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+	downloadCmd.Flags().BoolVarP(&deleteExtra, "delete", "", false, "Remove local files from the destination folder that are not present in Nexus")
 	downloadCmd.Flags().BoolVarP(&compressDownload, "compress", "z", false, "Download and extract a compressed tar.gz archive")
 
 	var versionCmd = &cobra.Command{
