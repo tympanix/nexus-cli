@@ -127,8 +127,22 @@ nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] <direct
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] <repository/folder> <directory>
 ```
+
+**Download options:**
+- `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
+- `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
+- `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
+
+**About the `--flatten` flag:**
+
+By default, when downloading from `repository/path/to/folder`, the entire path structure is preserved locally. For example:
+- File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/path/to/folder/file.txt` locally
+
+With the `--flatten` flag enabled, the base path specified in the source argument is stripped:
+- File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/file.txt` locally
+- File at `/path/to/folder/subdir/file.txt` in Nexus → saved to `<dest>/subdir/file.txt` locally (subdirectories beyond the base path are preserved)
 
 **Examples:**
 
@@ -143,6 +157,15 @@ nexuscli-go upload ./files my-repo/path
 Using CLI flags:
 ```bash
 nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword ./files my-repo/path
+```
+
+Download with flatten flag:
+```bash
+# Without flatten: files are saved with full path structure (my-repo/path/subdir/file.txt)
+nexuscli-go download my-repo/path ./local-folder
+
+# With flatten: files are saved without the base path (subdir/file.txt)
+nexuscli-go download --flatten my-repo/path ./local-folder
 ```
 
 Using Docker with CLI flags:
