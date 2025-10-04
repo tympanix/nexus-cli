@@ -220,18 +220,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		totalBytes += asset.FileSize
 	}
 
-	// Create progress bar - write to io.Discard when disabled
-	showProgress := isatty() && !opts.QuietMode
-	progressWriter := io.Writer(os.Stdout)
-	if !showProgress {
-		progressWriter = io.Discard
-	}
-	bar := progressbar.NewOptions64(totalBytes,
-		progressbar.OptionSetWriter(progressWriter),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionSetDescription("Downloading bytes"),
-		progressbar.OptionFullWidth(),
-	)
+	bar := newProgressBar(totalBytes, "Downloading bytes", opts.QuietMode)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))

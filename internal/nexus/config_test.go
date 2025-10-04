@@ -69,3 +69,41 @@ func TestGetenvFunction(t *testing.T) {
 		t.Errorf("Expected 'fallback', got '%s'", result)
 	}
 }
+
+// TestNewProgressBar tests the newProgressBar function
+func TestNewProgressBar(t *testing.T) {
+	tests := []struct {
+		name        string
+		totalBytes  int64
+		description string
+		quietMode   bool
+	}{
+		{
+			name:        "normal mode with upload",
+			totalBytes:  1024,
+			description: "Uploading bytes",
+			quietMode:   false,
+		},
+		{
+			name:        "normal mode with download",
+			totalBytes:  2048,
+			description: "Downloading bytes",
+			quietMode:   false,
+		},
+		{
+			name:        "quiet mode",
+			totalBytes:  512,
+			description: "Testing bytes",
+			quietMode:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bar := newProgressBar(tt.totalBytes, tt.description, tt.quietMode)
+			if bar == nil {
+				t.Errorf("newProgressBar returned nil")
+			}
+		})
+	}
+}
