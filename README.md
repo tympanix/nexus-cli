@@ -5,7 +5,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
 - Download all files from a Nexus RAW folder recursively
-- Compression support: upload/download files as tar.gz archives
+- Compression support: upload/download files as compressed archives (gzip or zstd)
 - Parallel downloads for speed
 - Small container image size using multi-stage build with scratch base
 
@@ -146,29 +146,39 @@ You can authenticate with Nexus using environment variables or CLI flags:
 ### Upload
 
 ```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compression-type <type>] <directory> <repository[/subdir]>
 ```
 
 **Upload options:**
-- `--compress` or `-z` - Create and upload files as a compressed tar.gz archive
+- `--compress` or `-z` - Create and upload files as a compressed archive
+- `--compression-type <type>` - Compression type to use: `gzip` or `zstd` (default: `gzip`)
 
 **About the `--compress` flag:**
 
-When the `--compress` flag is used, all files in the source directory are compressed into a single tar.gz archive before uploading. The archive is named based on the repository and subdirectory (e.g., `my-repo-path.tar.gz`). This is useful for:
+When the `--compress` flag is used, all files in the source directory are compressed into a single archive before uploading. The archive is named based on the repository and subdirectory (e.g., `my-repo-path.tar.gz` for gzip or `my-repo-path.tar.zst` for zstd). This is useful for:
 - Uploading many small files more efficiently
 - Reducing network overhead
 - Storing files as a single artifact in Nexus
 
-**Example:**
+**Compression types:**
+- `gzip` - Standard gzip compression (tar.gz format) - widely compatible
+- `zstd` - Zstandard compression (tar.zst format) - faster and better compression ratio
+
+**Examples:**
 ```bash
+# Upload with gzip compression (default)
 nexuscli-go upload --compress ./files my-repo/path
 # Creates and uploads: my-repo-path.tar.gz
+
+# Upload with zstd compression
+nexuscli-go upload --compress --compression-type zstd ./files my-repo/path
+# Creates and uploads: my-repo-path.tar.zst
 ```
 
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compression-type <type>] <repository/folder> <directory>
 ```
 
 **Download options:**
@@ -176,7 +186,8 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
 - `--delete` - Remove local files from the destination folder that are not present in Nexus
-- `--compress` or `-z` - Download and extract a compressed tar.gz archive
+- `--compress` or `-z` - Download and extract a compressed archive
+- `--compression-type <type>` - Compression type to use: `gzip` or `zstd` (default: `gzip`)
 
 **About the `--flatten` flag:**
 
@@ -189,17 +200,22 @@ With the `--flatten` flag enabled, the base path specified in the source argumen
 
 **About the `--compress` flag:**
 
-When the `--compress` flag is used with download, the CLI looks for a tar.gz archive in the specified path and extracts it to the destination directory. This is useful for:
+When the `--compress` flag is used with download, the CLI looks for a compressed archive in the specified path and extracts it to the destination directory. This is useful for:
 - Downloading files that were uploaded with compression
 - Extracting archives on-the-fly without storing the compressed file locally
 - Faster downloads when dealing with many small files
 
-The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz`
+The archive name is expected to follow the pattern: `<repository>-<subdir>.tar.gz` (for gzip) or `<repository>-<subdir>.tar.zst` (for zstd)
 
-**Example:**
+**Examples:**
 ```bash
+# Download and extract gzip archive (default)
 nexuscli-go download --compress my-repo/path ./local-folder
 # Downloads and extracts: my-repo-path.tar.gz
+
+# Download and extract zstd archive
+nexuscli-go download --compress --compression-type zstd my-repo/path ./local-folder
+# Downloads and extracts: my-repo-path.tar.zst
 ```
 
 **Examples:**
@@ -237,11 +253,17 @@ nexuscli-go download --flatten --delete my-repo/path ./local-folder
 
 Upload and download with compression:
 ```bash
-# Upload files as a compressed archive
+# Upload files as a gzip compressed archive (default)
 nexuscli-go upload --compress ./files my-repo/artifacts
 
-# Download and extract the compressed archive
+# Upload files as a zstd compressed archive
+nexuscli-go upload --compress --compression-type zstd ./files my-repo/artifacts
+
+# Download and extract the gzip compressed archive (default)
 nexuscli-go download --compress my-repo/artifacts ./local-folder
+
+# Download and extract the zstd compressed archive
+nexuscli-go download --compress --compression-type zstd my-repo/artifacts ./local-folder
 ```
 
 Using Docker with CLI flags:
