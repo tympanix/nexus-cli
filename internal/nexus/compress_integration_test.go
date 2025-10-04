@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/testutil"
 )
 
 // TestCompressedUpload tests uploading files as a compressed archive
@@ -42,12 +41,15 @@ func TestCompressedUpload(t *testing.T) {
 	// Create mock server
 	receivedArchive := false
 	receivedArchiveName := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && strings.Contains(r.URL.Path, "/service/rest/v1/components") {
+	
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
+
+	mockServer.AddHandler(&testutil.UploadHandler{
+		OnUpload: func(r *http.Request, t *testing.T) {
 			// Parse multipart form
 			if err := r.ParseMultipartForm(10 << 20); err != nil {
 				t.Errorf("Failed to parse form: %v", err)
-				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
@@ -57,14 +59,11 @@ func TestCompressedUpload(t *testing.T) {
 				receivedArchiveName = header.Filename
 				file.Close()
 			}
-
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	defer server.Close()
+		},
+	})
 
 	config := &Config{
-		NexusURL: server.URL,
+		NexusURL: mockServer.URL(),
 		Username: "test",
 		Password: "test",
 	}
@@ -136,48 +135,35 @@ func TestCompressedDownload(t *testing.T) {
 		t.Fatalf("Failed to read archive: %v", err)
 	}
 
-	var serverURL string
 	archiveName := "test-repo-test-folder.tar.gz"
 
 	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			// Return asset list with the archive
-			assets := nexusapi.SearchResponse{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo/test-folder/" + archiveName,
-						Path:        "/test-folder/" + archiveName,
-						ID:          "test-id",
-						Repository:  "test-repo",
-						FileSize:    int64(len(archiveContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
+
+	mockServer.AddHandler(&testutil.AssetListHandler{
+		Assets: []testutil.Asset{
+			{
+				DownloadURL: mockServer.URL() + "/repository/test-repo/test-folder/" + archiveName,
+				Path:        "/test-folder/" + archiveName,
+				ID:          "test-id",
+				Repository:  "test-repo",
+				FileSize:    int64(len(archiveContent)),
+				Checksum: testutil.Checksum{
+					SHA1: "abc123",
 				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
+			},
+		},
+	})
 
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			// Serve the archive
-			w.Header().Set("Content-Type", "application/gzip")
-			w.WriteHeader(http.StatusOK)
-			w.Write(archiveContent)
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	mockServer.AddHandler(&testutil.DownloadHandler{
+		PathPrefix:  "/repository/test-repo",
+		Content:     archiveContent,
+		ContentType: "application/gzip",
+	})
 
 	config := &Config{
-		NexusURL: server.URL,
+		NexusURL: mockServer.URL(),
 		Username: "test",
 		Password: "test",
 	}
@@ -248,16 +234,18 @@ func TestCompressedRoundTrip(t *testing.T) {
 	}
 
 	var uploadedArchiveContent []byte
-	var serverURL string
 	archiveName := "test-repo-test-folder.tar.gz"
 
 	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && strings.Contains(r.URL.Path, "/service/rest/v1/components") {
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
+
+	// Add upload handler that captures the archive
+	mockServer.AddHandler(&testutil.UploadHandler{
+		OnUpload: func(r *http.Request, t *testing.T) {
 			// Parse multipart form and capture the archive
 			if err := r.ParseMultipartForm(10 << 20); err != nil {
 				t.Errorf("Failed to parse form: %v", err)
-				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
@@ -265,22 +253,24 @@ func TestCompressedRoundTrip(t *testing.T) {
 				uploadedArchiveContent, _ = io.ReadAll(file)
 				file.Close()
 			}
+		},
+	})
 
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			// Return asset list with the archive
-			assets := nexusapi.SearchResponse{
-				Items: []nexusapi.Asset{
+	// Add dynamic handler for asset listing that uses captured content
+	mockServer.AddHandler(&testutil.DynamicHandler{
+		MatchFunc: func(r *http.Request) bool {
+			return strings.Contains(r.URL.Path, "/service/rest/v1/search/assets")
+		},
+		HandleFunc: func(w http.ResponseWriter, r *http.Request, t *testing.T) {
+			assets := testutil.SearchResponse{
+				Items: []testutil.Asset{
 					{
-						DownloadURL: serverURL + "/repository/test-repo/test-folder/" + archiveName,
+						DownloadURL: mockServer.URL() + "/repository/test-repo/test-folder/" + archiveName,
 						Path:        "/test-folder/" + archiveName,
 						ID:          "test-id",
 						Repository:  "test-repo",
 						FileSize:    int64(len(uploadedArchiveContent)),
-						Checksum: nexusapi.Checksum{
+						Checksum: testutil.Checksum{
 							SHA1: "abc123",
 						},
 					},
@@ -289,24 +279,23 @@ func TestCompressedRoundTrip(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(assets)
-			return
-		}
+		},
+	})
 
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			// Serve the archive
+	// Add download handler that serves the uploaded archive
+	mockServer.AddHandler(&testutil.DynamicHandler{
+		MatchFunc: func(r *http.Request) bool {
+			return strings.Contains(r.URL.Path, "/repository/test-repo")
+		},
+		HandleFunc: func(w http.ResponseWriter, r *http.Request, t *testing.T) {
 			w.Header().Set("Content-Type", "application/gzip")
 			w.WriteHeader(http.StatusOK)
 			w.Write(uploadedArchiveContent)
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	serverURL = server.URL
+		},
+	})
 
 	config := &Config{
-		NexusURL: server.URL,
+		NexusURL: mockServer.URL(),
 		Username: "test",
 		Password: "test",
 	}

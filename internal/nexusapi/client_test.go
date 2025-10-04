@@ -1,14 +1,14 @@
 package nexusapi
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"mime/multipart"
+
+	"github.com/tympanix/nexus-cli/internal/testutil"
 )
 
 // TestNewClient tests creating a new Nexus API client
@@ -31,55 +31,29 @@ func TestNewClient(t *testing.T) {
 
 // TestListAssets tests listing assets from Nexus
 func TestListAssets(t *testing.T) {
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify request
-		if r.URL.Path != "/service/rest/v1/search/assets" {
-			t.Errorf("Unexpected path: %s", r.URL.Path)
-		}
+	// Create mock server with asset list handler
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
 
-		repo := r.URL.Query().Get("repository")
-		if repo != "test-repo" {
-			t.Errorf("Expected repository 'test-repo', got '%s'", repo)
-		}
-
-		query := r.URL.Query().Get("q")
-		if query != "/test-path/*" {
-			t.Errorf("Expected query '/test-path/*', got '%s'", query)
-		}
-
-		// Check authentication
-		username, password, ok := r.BasicAuth()
-		if !ok {
-			t.Error("Expected basic auth to be set")
-		}
-		if username != "testuser" || password != "testpass" {
-			t.Errorf("Expected auth 'testuser:testpass', got '%s:%s'", username, password)
-		}
-
-		// Return mock response
-		response := SearchResponse{
-			Items: []Asset{
-				{
-					ID:       "asset1",
-					Path:     "/test-path/file1.txt",
-					FileSize: 100,
-				},
-				{
-					ID:       "asset2",
-					Path:     "/test-path/file2.txt",
-					FileSize: 200,
-				},
+	mockServer.AddHandler(&testutil.AssetListHandler{
+		Assets: []testutil.Asset{
+			{
+				ID:       "asset1",
+				Path:     "/test-path/file1.txt",
+				FileSize: 100,
 			},
-			ContinuationToken: "",
-		}
+			{
+				ID:       "asset2",
+				Path:     "/test-path/file2.txt",
+				FileSize: 200,
+			},
+		},
+		ValidateAuth:  true,
+		ExpectedRepo:  "test-repo",
+		ExpectedQuery: "/test-path/*",
+	})
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client := NewClient(server.URL, "testuser", "testpass")
+	client := NewClient(mockServer.URL(), "testuser", "testpass")
 	assets, err := client.ListAssets("test-repo", "test-path")
 
 	if err != nil {
@@ -97,39 +71,28 @@ func TestListAssets(t *testing.T) {
 
 // TestListAssetsWithPagination tests listing assets with continuation tokens
 func TestListAssetsWithPagination(t *testing.T) {
-	callCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount++
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
 
-		var response SearchResponse
-		if callCount == 1 {
-			// First page
-			response = SearchResponse{
-				Items: []Asset{
+	mockServer.AddHandler(&testutil.PaginatedAssetListHandler{
+		Pages: []testutil.SearchResponse{
+			{
+				Items: []testutil.Asset{
 					{ID: "asset1", Path: "/path/file1.txt"},
 				},
 				ContinuationToken: "token123",
-			}
-		} else {
-			// Second page
-			continuationToken := r.URL.Query().Get("continuationToken")
-			if continuationToken != "token123" {
-				t.Errorf("Expected continuation token 'token123', got '%s'", continuationToken)
-			}
-			response = SearchResponse{
-				Items: []Asset{
+			},
+			{
+				Items: []testutil.Asset{
 					{ID: "asset2", Path: "/path/file2.txt"},
 				},
 				ContinuationToken: "",
-			}
-		}
+			},
+		},
+		ValidateAuth: true,
+	})
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client := NewClient(server.URL, "user", "pass")
+	client := NewClient(mockServer.URL(), "user", "pass")
 	assets, err := client.ListAssets("repo", "path")
 
 	if err != nil {
@@ -139,10 +102,6 @@ func TestListAssetsWithPagination(t *testing.T) {
 	if len(assets) != 2 {
 		t.Errorf("Expected 2 assets, got %d", len(assets))
 	}
-
-	if callCount != 2 {
-		t.Errorf("Expected 2 API calls, got %d", callCount)
-	}
 }
 
 // TestUploadComponent tests uploading a component
@@ -150,36 +109,20 @@ func TestUploadComponent(t *testing.T) {
 	receivedBody := ""
 	receivedContentType := ""
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			t.Errorf("Expected POST request, got %s", r.Method)
-		}
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
 
-		if r.URL.Path != "/service/rest/v1/components" {
-			t.Errorf("Unexpected path: %s", r.URL.Path)
-		}
+	mockServer.AddHandler(&testutil.UploadHandler{
+		ValidateAuth: true,
+		ExpectedRepo: "test-repo",
+		OnUpload: func(r *http.Request, t *testing.T) {
+			receivedContentType = r.Header.Get("Content-Type")
+			body, _ := io.ReadAll(r.Body)
+			receivedBody = string(body)
+		},
+	})
 
-		repo := r.URL.Query().Get("repository")
-		if repo != "test-repo" {
-			t.Errorf("Expected repository 'test-repo', got '%s'", repo)
-		}
-
-		receivedContentType = r.Header.Get("Content-Type")
-
-		body, _ := io.ReadAll(r.Body)
-		receivedBody = string(body)
-
-		// Check authentication
-		username, password, ok := r.BasicAuth()
-		if !ok || username != "testuser" || password != "testpass" {
-			t.Errorf("Expected auth 'testuser:testpass', got '%s:%s' (ok=%v)", username, password, ok)
-		}
-
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-
-	client := NewClient(server.URL, "testuser", "testpass")
+	client := NewClient(mockServer.URL(), "testuser", "testpass")
 	body := strings.NewReader("test content")
 	err := client.UploadComponent("test-repo", body, "multipart/form-data")
 
@@ -198,13 +141,14 @@ func TestUploadComponent(t *testing.T) {
 
 // TestUploadComponentError tests upload error handling
 func TestUploadComponentError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Bad request"))
-	}))
-	defer server.Close()
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
 
-	client := NewClient(server.URL, "user", "pass")
+	mockServer.AddHandler(&testutil.UploadHandler{
+		StatusCode: http.StatusBadRequest,
+	})
+
+	client := NewClient(mockServer.URL(), "user", "pass")
 	body := strings.NewReader("test")
 	err := client.UploadComponent("repo", body, "text/plain")
 
@@ -221,26 +165,19 @@ func TestUploadComponentError(t *testing.T) {
 func TestDownloadAsset(t *testing.T) {
 	testContent := "downloaded content"
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			t.Errorf("Expected GET request, got %s", r.Method)
-		}
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
 
-		// Check authentication
-		username, password, ok := r.BasicAuth()
-		if !ok || username != "testuser" || password != "testpass" {
-			t.Errorf("Expected auth 'testuser:testpass', got '%s:%s' (ok=%v)", username, password, ok)
-		}
+	mockServer.AddHandler(&testutil.DownloadHandler{
+		PathPrefix:   "/test-asset",
+		Content:      []byte(testContent),
+		ValidateAuth: true,
+	})
 
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(testContent))
-	}))
-	defer server.Close()
-
-	client := NewClient(server.URL, "testuser", "testpass")
+	client := NewClient(mockServer.URL(), "testuser", "testpass")
 
 	var buf strings.Builder
-	err := client.DownloadAsset(server.URL+"/test-asset", &buf)
+	err := client.DownloadAsset(mockServer.URL()+"/test-asset", &buf)
 
 	if err != nil {
 		t.Fatalf("DownloadAsset failed: %v", err)
@@ -253,15 +190,18 @@ func TestDownloadAsset(t *testing.T) {
 
 // TestDownloadAssetError tests download error handling
 func TestDownloadAssetError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer server.Close()
+	mockServer := testutil.NewMockNexusServer(t)
+	defer mockServer.Close()
 
-	client := NewClient(server.URL, "user", "pass")
+	mockServer.AddHandler(&testutil.DownloadHandler{
+		PathPrefix: "/missing",
+		StatusCode: http.StatusNotFound,
+	})
+
+	client := NewClient(mockServer.URL(), "user", "pass")
 
 	var buf strings.Builder
-	err := client.DownloadAsset(server.URL+"/missing", &buf)
+	err := client.DownloadAsset(mockServer.URL()+"/missing", &buf)
 
 	if err == nil {
 		t.Fatal("Expected error, got nil")
