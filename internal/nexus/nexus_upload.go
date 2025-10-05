@@ -16,8 +16,8 @@ import (
 type UploadOptions struct {
 	Logger            Logger
 	QuietMode         bool
-	Compress          bool              // Enable compression (tar.gz or tar.zst)
-	CompressionFormat CompressionFormat // Compression format to use (gzip or zstd)
+  Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
+	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 }
 
@@ -262,8 +262,8 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 		repository = parts[0]
 		subdir = parts[1]
 
-		// If compress is enabled and dest ends with .tar.gz or .tar.zst, treat it as explicit archive name
-		if opts.Compress && (strings.HasSuffix(subdir, ".tar.gz") || strings.HasSuffix(subdir, ".tar.zst")) {
+		// If compress is enabled and dest ends with .tar.gz or .tar.zst or .zip, treat it as explicit archive name
+		if opts.Compress && (strings.HasSuffix(subdir, ".tar.gz") || strings.HasSuffix(subdir, ".tar.zst") || strings.HasSuffix(subdir, ".zip")) {
 			// Extract the archive name from the path
 			lastSlash := strings.LastIndex(subdir, "/")
 			if lastSlash >= 0 {
@@ -279,8 +279,8 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 				opts.CompressionFormat = DetectCompressionFromFilename(explicitArchiveName)
 			}
 		}
-	} else if opts.Compress && (strings.HasSuffix(dest, ".tar.gz") || strings.HasSuffix(dest, ".tar.zst")) {
-		// Repository name ends with .tar.gz or .tar.zst, treat it as explicit archive name
+	} else if opts.Compress && (strings.HasSuffix(dest, ".tar.gz") || strings.HasSuffix(dest, ".tar.zst") || strings.HasSuffix(dest, ".zip")) {
+		// Repository name ends with .tar.gz or .tar.zst or .zip, treat it as explicit archive name
 		explicitArchiveName = dest
 		repository = ""
 		subdir = ""

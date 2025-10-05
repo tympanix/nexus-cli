@@ -26,8 +26,8 @@ type DownloadOptions struct {
 	QuietMode         bool
 	Flatten           bool
 	DeleteExtra       bool
-	Compress          bool              // Enable decompression (tar.gz or tar.zst)
-	CompressionFormat CompressionFormat // Compression format to use (gzip or zstd)
+	Compress          bool              // Enable decompression (tar.gz, tar.zst, or zip)
+	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -126,9 +126,9 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 	repository, src := parts[0], parts[1]
 
-	// Check if src ends with .tar.gz or .tar.zst for explicit archive name
+	// Check if src ends with .tar.gz, .tar.zst, or .zip for explicit archive name
 	explicitArchiveName := ""
-	if opts.Compress && (strings.HasSuffix(src, ".tar.gz") || strings.HasSuffix(src, ".tar.zst")) {
+	if opts.Compress && (strings.HasSuffix(src, ".tar.gz") || strings.HasSuffix(src, ".tar.zst") || strings.HasSuffix(src, ".zip")) {
 		// Extract the archive name from the path
 		lastSlash := strings.LastIndex(src, "/")
 		if lastSlash >= 0 {
