@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
