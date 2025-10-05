@@ -520,3 +520,13 @@ go test -v -run TestEndToEndUploadDownload -timeout 15m ./internal/nexus
 ```
 
 **Note:** The e2e test is automatically skipped when running `go test -short` or `make test-short`.
+
+## Documentation
+
+Additional documentation is available in the `docs/` directory:
+
+- **[Package Structure Analysis](docs/package-structure-analysis.md)** - Comprehensive analysis of the `internal/nexus` package structure with recommendations for improvement
+- **[Package Structure Summary](docs/package-structure-summary.md)** - Executive summary of the package structure analysis
+- **[Checksum Validation Refactoring](docs/refactoring-checksum-validation.md)** - Details on the checksum validation refactoring using SOLID principles
+- **[Compression Archives Refactoring](docs/refactoring-compression-archives.md)** - Documentation of the compression and archive functionality refactoring
+- **[Testing Guide](docs/testing.md)** - Guide to testing the Nexus CLI
