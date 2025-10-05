@@ -54,7 +54,7 @@ func newProgressBar(totalBytes int64, description string, currentFile, totalFile
 		progressbar.OptionSetWriter(writer),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowBytes(true),
-		progressbar.OptionSetWidth(15),
+		progressbar.OptionFullWidth(),
 		progressbar.OptionSetDescription(descWithCount),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "[green]=[reset]",
