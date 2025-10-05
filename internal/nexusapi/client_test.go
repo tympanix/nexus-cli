@@ -107,7 +107,9 @@ func TestUploadComponent(t *testing.T) {
 
 // TestUploadComponentError tests upload error handling
 func TestUploadComponentError(t *testing.T) {
-	// For error testing, we'll use a raw httptest server to control the error response
+	// For error testing, we use a raw httptest server and close it immediately
+	// to simulate connection errors. This is a valid use case for httptest.NewServer
+	// rather than the mock server, as we need to test connection failure behavior.
 	server := httptest.NewServer(nil)
 	server.Config.Handler = nil
 	// Close the server immediately to simulate connection error
