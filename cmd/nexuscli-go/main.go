@@ -58,18 +58,22 @@ func main() {
 	var uploadCompressionFormat string
 	var uploadGlobPattern string
 	var uploadKeyFrom string
+	var uploadChecksumAlg string
+	var uploadSkipChecksum bool
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
+			uploadSkipChecksum, _ = cmd.Flags().GetBool("skip-checksum")
 			opts := &nexus.UploadOptions{
-				Logger:      logger,
-				QuietMode:   quietMode,
-				Compress:    uploadCompress,
-				GlobPattern: uploadGlobPattern,
-				KeyFromFile: uploadKeyFrom,
+				Logger:       logger,
+				QuietMode:    quietMode,
+				Compress:     uploadCompress,
+				GlobPattern:  uploadGlobPattern,
+				KeyFromFile:  uploadKeyFrom,
+				SkipChecksum: uploadSkipChecksum,
 			}
 			// Parse compression format if provided
 			if uploadCompressionFormat != "" {
@@ -82,6 +86,12 @@ func main() {
 			}
 			src := args[0]
 			dest := args[1]
+			if !uploadSkipChecksum && uploadChecksumAlg != "" {
+				if err := opts.SetChecksumAlgorithm(uploadChecksumAlg); err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
 			nexus.UploadMain(src, dest, config, opts)
 		},
 	}
@@ -89,6 +99,8 @@ func main() {
 	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
 	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
+	uploadCmd.Flags().StringVarP(&uploadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
+	uploadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
