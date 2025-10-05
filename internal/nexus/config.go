@@ -130,12 +130,12 @@ func (cw *cappingWriter) Write(p []byte) (int, error) {
 	}
 
 	// Update the underlying writer with the capped amount
+	// Ignore errors from the progress bar - we don't want progress bar failures
+	// to cause the actual upload to fail
 	if toReport > 0 {
 		reportBytes := make([]byte, toReport)
 		copy(reportBytes, p[:toReport])
-		if _, err := cw.writer.Write(reportBytes); err != nil {
-			return n, err
-		}
+		cw.writer.Write(reportBytes)
 	}
 
 	cw.bytesWritten += toReport

@@ -2,6 +2,7 @@ package nexus
 
 import (
 	"crypto/rand"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,6 +10,38 @@ import (
 
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
+
+// errorWriter is a writer that always returns an error after a certain number of writes
+type errorWriter struct {
+	maxWrites    int
+	currentWrite int
+}
+
+func (ew *errorWriter) Write(p []byte) (int, error) {
+	ew.currentWrite++
+	if ew.currentWrite > ew.maxWrites {
+		return 0, errors.New("simulated write error")
+	}
+	return len(p), nil
+}
+
+// TestCappingWriterIgnoresErrors tests that cappingWriter ignores errors from the underlying writer
+func TestCappingWriterIgnoresErrors(t *testing.T) {
+	// Create an error writer that fails after 2 writes
+	errWriter := &errorWriter{maxWrites: 2}
+	cw := newCappingWriter(errWriter, 1000)
+
+	// Write should succeed even though the underlying writer will fail
+	for i := 0; i < 10; i++ {
+		n, err := cw.Write(make([]byte, 100))
+		if err != nil {
+			t.Fatalf("cappingWriter.Write() returned error: %v", err)
+		}
+		if n != 100 {
+			t.Fatalf("cappingWriter.Write() returned n=%d, expected 100", n)
+		}
+	}
+}
 
 // TestCompressedUploadPipeClosed tests that compressed upload doesn't cause "io: read/write on closed pipe" error
 // This test reproduces the bug introduced in PR #72
