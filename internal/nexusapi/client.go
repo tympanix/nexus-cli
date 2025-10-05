@@ -165,10 +165,21 @@ type FileUpload struct {
 	RelativePath string // Relative path to use in Nexus (with forward slashes)
 }
 
+// FileProcessCallback is called before processing each file during upload
+// idx is the 0-based index of the file being processed, total is the total number of files
+type FileProcessCallback func(idx, total int)
+
 // BuildRawUploadForm builds a multipart form for uploading files to a Nexus RAW repository
 // It writes the form data to the provided writer and returns any error encountered
-func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer) error {
+// If onFileStart is provided, it will be called before processing each file with the index and total count
+// If onFileComplete is provided, it will be called after processing each file with the index and total count
+func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer, onFileStart, onFileComplete FileProcessCallback) error {
 	for idx, file := range files {
+		// Notify callback that we're starting to process this file
+		if onFileStart != nil {
+			onFileStart(idx, len(files))
+		}
+
 		f, err := os.Open(file.FilePath)
 		if err != nil {
 			return err
@@ -192,6 +203,11 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 
 		// Add filename field with relative path
 		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), file.RelativePath)
+
+		// Notify callback that we've completed processing this file
+		if onFileComplete != nil {
+			onFileComplete(idx, len(files))
+		}
 	}
 
 	// Add directory field if subdirectory is specified
