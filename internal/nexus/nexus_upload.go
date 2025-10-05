@@ -243,8 +243,6 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		opts.Logger.Printf("Failed to upload files: %v\n", err)
 		return err
 	}
-	// Update description one final time to ensure correct count is shown
-	bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", len(filesToUpload), len(filesToUpload)))
 	bar.Finish()
 	if isatty() && !opts.QuietMode {
 		fmt.Println()
