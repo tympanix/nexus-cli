@@ -27,57 +27,7 @@ func CreateTarGzWithGlob(srcDir string, writer io.Writer, globPattern string) er
 	gzipWriter := gzip.NewWriter(writer)
 	defer gzipWriter.Close()
 
-	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
-
-	// Collect all files with optional glob filtering
-	files, err := collectFilesWithGlob(srcDir, globPattern)
-	if err != nil {
-		return fmt.Errorf("failed to collect files: %w", err)
-	}
-
-	for _, filePath := range files {
-		// Get file info
-		info, err := os.Stat(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
-		}
-
-		// Get relative path for archive
-		relPath, err := filepath.Rel(srcDir, filePath)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
-		}
-		// Normalize to forward slashes for consistency
-		relPath = filepath.ToSlash(relPath)
-
-		// Create tar header
-		header := &tar.Header{
-			Name:    relPath,
-			Size:    info.Size(),
-			Mode:    int64(info.Mode()),
-			ModTime: info.ModTime(),
-		}
-
-		// Write header
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header for %s: %w", relPath, err)
-		}
-
-		// Write file content
-		file, err := os.Open(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to open file %s: %w", filePath, err)
-		}
-
-		if _, err := io.Copy(tarWriter, file); err != nil {
-			file.Close()
-			return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
-		}
-		file.Close()
-	}
-
-	return nil
+	return createTarArchive(srcDir, gzipWriter, globPattern)
 }
 
 // ExtractTarGz extracts a tar.gz archive from the provided reader to destDir.
@@ -109,57 +59,7 @@ func CreateTarZstWithGlob(srcDir string, writer io.Writer, globPattern string) e
 	}
 	defer zstdWriter.Close()
 
-	tarWriter := tar.NewWriter(zstdWriter)
-	defer tarWriter.Close()
-
-	// Collect all files with optional glob filtering
-	files, err := collectFilesWithGlob(srcDir, globPattern)
-	if err != nil {
-		return fmt.Errorf("failed to collect files: %w", err)
-	}
-
-	for _, filePath := range files {
-		// Get file info
-		info, err := os.Stat(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
-		}
-
-		// Get relative path for archive
-		relPath, err := filepath.Rel(srcDir, filePath)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
-		}
-		// Normalize to forward slashes for consistency
-		relPath = filepath.ToSlash(relPath)
-
-		// Create tar header
-		header := &tar.Header{
-			Name:    relPath,
-			Size:    info.Size(),
-			Mode:    int64(info.Mode()),
-			ModTime: info.ModTime(),
-		}
-
-		// Write header
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header for %s: %w", relPath, err)
-		}
-
-		// Write file content
-		file, err := os.Open(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to open file %s: %w", filePath, err)
-		}
-
-		if _, err := io.Copy(tarWriter, file); err != nil {
-			file.Close()
-			return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
-		}
-		file.Close()
-	}
-
-	return nil
+	return createTarArchive(srcDir, zstdWriter, globPattern)
 }
 
 // ExtractTarZst extracts a tar.zst archive from the provided reader to destDir.
@@ -223,6 +123,63 @@ func extractTar(reader io.Reader, destDir string) error {
 	return nil
 }
 
+// createTarArchive is a helper function that creates a tar archive from files.
+// It writes to any io.Writer (which may be a compression writer).
+func createTarArchive(srcDir string, writer io.Writer, globPattern string) error {
+	tarWriter := tar.NewWriter(writer)
+	defer tarWriter.Close()
+
+	files, err := collectFilesWithGlob(srcDir, globPattern)
+	if err != nil {
+		return fmt.Errorf("failed to collect files: %w", err)
+	}
+
+	for _, filePath := range files {
+		if err := addFileToTar(tarWriter, srcDir, filePath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// addFileToTar adds a single file to a tar archive
+func addFileToTar(tarWriter *tar.Writer, srcDir string, filePath string) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+	}
+
+	relPath, err := filepath.Rel(srcDir, filePath)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
+	}
+	relPath = filepath.ToSlash(relPath)
+
+	header := &tar.Header{
+		Name:    relPath,
+		Size:    info.Size(),
+		Mode:    int64(info.Mode()),
+		ModTime: info.ModTime(),
+	}
+
+	if err := tarWriter.WriteHeader(header); err != nil {
+		return fmt.Errorf("failed to write tar header for %s: %w", relPath, err)
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(tarWriter, file); err != nil {
+		return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
+	}
+
+	return nil
+}
+
 // CreateZip creates a zip archive containing all files from srcDir.
 // The archive is written to the provided writer on-the-fly.
 // Files are stored in the archive with paths relative to srcDir.
@@ -243,39 +200,47 @@ func CreateZipWithGlob(srcDir string, writer io.Writer, globPattern string) erro
 	}
 
 	for _, filePath := range files {
-		info, err := os.Stat(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+		if err := addFileToZip(zipWriter, srcDir, filePath); err != nil {
+			return err
 		}
+	}
 
-		relPath, err := filepath.Rel(srcDir, filePath)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
-		}
-		relPath = filepath.ToSlash(relPath)
+	return nil
+}
 
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return fmt.Errorf("failed to create zip header for %s: %w", relPath, err)
-		}
-		header.Name = relPath
-		header.Method = zip.Deflate
+// addFileToZip adds a single file to a zip archive
+func addFileToZip(zipWriter *zip.Writer, srcDir string, filePath string) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+	}
 
-		headerWriter, err := zipWriter.CreateHeader(header)
-		if err != nil {
-			return fmt.Errorf("failed to create header for %s: %w", relPath, err)
-		}
+	relPath, err := filepath.Rel(srcDir, filePath)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
+	}
+	relPath = filepath.ToSlash(relPath)
 
-		file, err := os.Open(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to open file %s: %w", filePath, err)
-		}
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return fmt.Errorf("failed to create zip header for %s: %w", relPath, err)
+	}
+	header.Name = relPath
+	header.Method = zip.Deflate
 
-		if _, err := io.Copy(headerWriter, file); err != nil {
-			file.Close()
-			return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
-		}
-		file.Close()
+	headerWriter, err := zipWriter.CreateHeader(header)
+	if err != nil {
+		return fmt.Errorf("failed to create header for %s: %w", relPath, err)
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(headerWriter, file); err != nil {
+		return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
 	}
 
 	return nil
@@ -295,45 +260,48 @@ func ExtractZip(reader io.Reader, destDir string) error {
 	}
 
 	for _, file := range zipReader.File {
-		targetPath := filepath.Join(destDir, file.Name)
-
-		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)) {
-			return fmt.Errorf("illegal file path in archive: %s", file.Name)
+		if err := extractZipFile(file, destDir); err != nil {
+			return err
 		}
+	}
 
-		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(targetPath, file.Mode()); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
-			}
-			continue
-		}
+	return nil
+}
 
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
-		}
+// extractZipFile extracts a single file from a zip archive
+func extractZipFile(file *zip.File, destDir string) error {
+	targetPath := filepath.Join(destDir, file.Name)
 
-		fileReader, err := file.Open()
-		if err != nil {
-			return fmt.Errorf("failed to open file %s in archive: %w", file.Name, err)
-		}
+	if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)) {
+		return fmt.Errorf("illegal file path in archive: %s", file.Name)
+	}
 
-		outFile, err := os.Create(targetPath)
-		if err != nil {
-			fileReader.Close()
-			return fmt.Errorf("failed to create file %s: %w", targetPath, err)
-		}
+	if file.FileInfo().IsDir() {
+		return os.MkdirAll(targetPath, file.Mode())
+	}
 
-		if _, err := io.Copy(outFile, fileReader); err != nil {
-			outFile.Close()
-			fileReader.Close()
-			return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
-		}
-		outFile.Close()
-		fileReader.Close()
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
+	}
 
-		if err := os.Chmod(targetPath, file.Mode()); err != nil {
-			return fmt.Errorf("failed to set permissions on %s: %w", targetPath, err)
-		}
+	fileReader, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open file %s in archive: %w", file.Name, err)
+	}
+	defer fileReader.Close()
+
+	outFile, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", targetPath, err)
+	}
+	defer outFile.Close()
+
+	if _, err := io.Copy(outFile, fileReader); err != nil {
+		return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
+	}
+
+	if err := os.Chmod(targetPath, file.Mode()); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", targetPath, err)
 	}
 
 	return nil

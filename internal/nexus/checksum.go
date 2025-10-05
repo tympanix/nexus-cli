@@ -91,8 +91,7 @@ func NewChecksumValidator(algorithm string) (ChecksumValidator, error) {
 
 func computeChecksum(filePath string, algorithm string) (string, error) {
 	var h hash.Hash
-	alg := strings.ToLower(algorithm)
-	switch alg {
+	switch strings.ToLower(algorithm) {
 	case "sha1":
 		h = sha1.New()
 	case "sha256":
@@ -102,7 +101,7 @@ func computeChecksum(filePath string, algorithm string) (string, error) {
 	case "md5":
 		h = md5.New()
 	default:
-		return "", fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
+		return "", fmt.Errorf("unsupported checksum algorithm '%s'", algorithm)
 	}
 
 	file, err := os.Open(filePath)

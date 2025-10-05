@@ -1,6 +1,8 @@
 package nexus
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"io"
 	"os"
@@ -534,4 +536,95 @@ func TestRoundTripCompressionZip(t *testing.T) {
 			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
 		}
 	}
+}
+
+func TestCreateTarArchiveHelper(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-helper-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+		"file2.txt": "Content 2",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := createTarArchive(testDir, &buf, ""); err != nil {
+		t.Fatalf("createTarArchive failed: %v", err)
+	}
+
+	if buf.Len() == 0 {
+		t.Fatal("Archive is empty")
+	}
+}
+
+func TestAddFileToTarHelper(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-add-tar-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	content := "test content"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	tw := newTestTarWriter(&buf)
+
+	if err := addFileToTar(tw, testDir, testFile); err != nil {
+		t.Fatalf("addFileToTar failed: %v", err)
+	}
+
+	tw.Close()
+
+	if buf.Len() == 0 {
+		t.Fatal("No data written to tar")
+	}
+}
+
+func TestAddFileToZipHelper(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-add-zip-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	content := "test content"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	zw := newTestZipWriter(&buf)
+
+	if err := addFileToZip(zw, testDir, testFile); err != nil {
+		t.Fatalf("addFileToZip failed: %v", err)
+	}
+
+	zw.Close()
+
+	if buf.Len() == 0 {
+		t.Fatal("No data written to zip")
+	}
+}
+
+func newTestTarWriter(w io.Writer) *tar.Writer {
+	return tar.NewWriter(w)
+}
+
+func newTestZipWriter(w io.Writer) *zip.Writer {
+	return zip.NewWriter(w)
 }
