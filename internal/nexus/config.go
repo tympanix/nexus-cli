@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"sync/atomic"
 
 	"github.com/k0kubun/go-ansi"
@@ -74,6 +75,7 @@ type progressBarWithCount struct {
 	current     *int32
 	total       int
 	description string
+	mu          sync.Mutex // Protects bar.Describe() calls
 }
 
 func (p *progressBarWithCount) Write(b []byte) (int, error) {
@@ -86,7 +88,9 @@ func (p *progressBarWithCount) Add64(n int64) error {
 
 func (p *progressBarWithCount) incrementFile() {
 	newCount := atomic.AddInt32(p.current, 1)
+	p.mu.Lock()
 	p.bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", newCount, p.total, p.description))
+	p.mu.Unlock()
 }
 
 func (p *progressBarWithCount) Finish() error {
