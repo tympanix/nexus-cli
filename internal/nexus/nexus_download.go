@@ -43,6 +43,15 @@ func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error
 	return client.ListAssets(repository, src)
 }
 
+func listAssetsOrLog(repository, src string, config *Config, opts *DownloadOptions) ([]nexusapi.Asset, bool) {
+	assets, err := listAssets(repository, src, config)
+	if err != nil {
+		opts.Logger.Println("Error listing assets:", err)
+		return nil, false
+	}
+	return assets, true
+}
+
 func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
@@ -139,9 +148,8 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	}
 
 	// Original uncompressed download logic
-	assets, err := listAssets(repository, src, config)
-	if err != nil {
-		opts.Logger.Println("Error listing assets:", err)
+	assets, ok := listAssetsOrLog(repository, src, config, opts)
+	if !ok {
 		return false
 	}
 	if len(assets) == 0 {
@@ -237,9 +245,8 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	opts.Logger.VerbosePrintf("Looking for compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
 	// List assets to find the archive
-	assets, err := listAssets(repository, src, config)
-	if err != nil {
-		opts.Logger.Println("Error listing assets:", err)
+	assets, ok := listAssetsOrLog(repository, src, config, opts)
+	if !ok {
 		return false
 	}
 
@@ -281,7 +288,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 
 	// Download with progress tracking
 	progressWriter := io.MultiWriter(pw, bar)
-	err = client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
+	err := client.DownloadAsset(archiveAsset.DownloadURL, progressWriter)
 	pw.Close()
 
 	if err != nil {

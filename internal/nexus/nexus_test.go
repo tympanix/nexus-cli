@@ -752,3 +752,71 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 		t.Errorf("Extra file 2 should have been deleted at %s", extraFile2)
 	}
 }
+
+// TestListAssetsOrLog tests the listAssetsOrLog helper function
+func TestListAssetsOrLog(t *testing.T) {
+	t.Run("success case", func(t *testing.T) {
+		server := nexusapi.NewMockNexusServer()
+		defer server.Close()
+
+		// Add test asset
+		server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+			DownloadURL: server.URL + "/repository/test-repo/test-folder/file.txt",
+			Path:        "/test-folder/file.txt",
+			ID:          "test-id",
+			Repository:  "test-repo",
+			FileSize:    100,
+			Checksum: nexusapi.Checksum{
+				SHA1: "abc123",
+			},
+		})
+
+		config := &Config{
+			NexusURL: server.URL,
+			Username: "test",
+			Password: "test",
+		}
+
+		opts := &DownloadOptions{
+			Logger:    NewLogger(io.Discard),
+			QuietMode: true,
+		}
+
+		assets, ok := listAssetsOrLog("test-repo", "test-folder", config, opts)
+		if !ok {
+			t.Fatal("listAssetsOrLog should return true on success")
+		}
+		if len(assets) != 1 {
+			t.Errorf("Expected 1 asset, got %d", len(assets))
+		}
+	})
+
+	t.Run("error case", func(t *testing.T) {
+		// Use invalid URL to trigger error
+		config := &Config{
+			NexusURL: "http://invalid-url-that-does-not-exist:99999",
+			Username: "test",
+			Password: "test",
+		}
+
+		var logBuf strings.Builder
+		opts := &DownloadOptions{
+			Logger:    NewLogger(&logBuf),
+			QuietMode: false,
+		}
+
+		assets, ok := listAssetsOrLog("test-repo", "test-folder", config, opts)
+		if ok {
+			t.Fatal("listAssetsOrLog should return false on error")
+		}
+		if assets != nil {
+			t.Errorf("Expected nil assets on error, got %v", assets)
+		}
+
+		// Check that error was logged
+		logOutput := logBuf.String()
+		if !strings.Contains(logOutput, "Error listing assets:") {
+			t.Errorf("Expected error log message, got: %s", logOutput)
+		}
+	})
+}
