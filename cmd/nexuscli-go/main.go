@@ -79,7 +79,7 @@ func main() {
 		},
 	}
 	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
-	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
+	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern to filter files (e.g., '**/*.go', '*.txt')")
 
 	var checksumAlg string
@@ -130,7 +130,7 @@ func main() {
 	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
 	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
 	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed archive")
-	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
+	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
