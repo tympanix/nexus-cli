@@ -366,9 +366,12 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 	explicitArchiveName := ""
 
 	if strings.Contains(processedDest, "/") {
-		parts := strings.SplitN(processedDest, "/", 2)
-		repository = parts[0]
-		subdir = parts[1]
+		var ok bool
+		repository, subdir, ok = ParseRepositoryPath(processedDest)
+		if !ok {
+			fmt.Println("Error: The dest argument must be in the form 'repository' or 'repository/folder'.")
+			os.Exit(1)
+		}
 
 		// If compress is enabled and dest ends with .tar.gz or .tar.zst or .zip, treat it as explicit archive name
 		if opts.Compress && (strings.HasSuffix(subdir, ".tar.gz") || strings.HasSuffix(subdir, ".tar.zst") || strings.HasSuffix(subdir, ".zip")) {
