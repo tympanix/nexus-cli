@@ -16,6 +16,7 @@ func main() {
 	config := nexus.NewConfig()
 	var logger nexus.Logger
 	var quietMode bool
+	var verboseMode bool
 
 	var rootCmd = &cobra.Command{
 		Use:   "nexuscli-go",
@@ -26,6 +27,7 @@ func main() {
 			cliUsername, _ := cmd.Flags().GetString("username")
 			cliPassword, _ := cmd.Flags().GetString("password")
 			quietMode, _ = cmd.Flags().GetBool("quiet")
+			verboseMode, _ = cmd.Flags().GetBool("verbose")
 			if cliURL != "" {
 				config.NexusURL = cliURL
 			}
@@ -38,6 +40,8 @@ func main() {
 			// Configure logger based on quiet mode
 			if quietMode {
 				logger = nexus.NewLogger(io.Discard)
+			} else if verboseMode {
+				logger = nexus.NewVerboseLogger(os.Stdout)
 			} else {
 				logger = nexus.NewLogger(os.Stdout)
 			}
@@ -48,6 +52,7 @@ func main() {
 	rootCmd.PersistentFlags().String("username", "", "Username for Nexus authentication (defaults to NEXUS_USER env var or 'admin')")
 	rootCmd.PersistentFlags().String("password", "", "Password for Nexus authentication (defaults to NEXUS_PASS env var or 'admin')")
 	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "Suppress all output")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 
 	var uploadCompress bool
 	var uploadCompressionFormat string
@@ -81,8 +86,8 @@ func main() {
 		},
 	}
 	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
-	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
-	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern to filter files (e.g., '**/*.go', '*.txt')")
+	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
 	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
 
 	var checksumAlg string
@@ -135,7 +140,7 @@ func main() {
 	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
 	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
 	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed archive")
-	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
+	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	downloadCmd.Flags().StringVar(&downloadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
 
 	var versionCmd = &cobra.Command{
