@@ -16,6 +16,8 @@ func TestParseCompressionFormat(t *testing.T) {
 		{"zstd", CompressionZstd, false},
 		{"zst", CompressionZstd, false},
 		{"ZSTD", CompressionZstd, false},
+		{"zip", CompressionZip, false},
+		{"ZIP", CompressionZip, false},
 		{"invalid", "", true},
 		{"", "", true},
 	}
@@ -46,6 +48,7 @@ func TestCompressionFormatExtension(t *testing.T) {
 	}{
 		{CompressionGzip, ".tar.gz"},
 		{CompressionZstd, ".tar.zst"},
+		{CompressionZip, ".zip"},
 	}
 
 	for _, tt := range tests {
@@ -67,6 +70,8 @@ func TestDetectCompressionFromFilename(t *testing.T) {
 		{"backup-2024.tar.gz", CompressionGzip},
 		{"archive.tar.zst", CompressionZstd},
 		{"backup-2024.tar.zst", CompressionZstd},
+		{"archive.zip", CompressionZip},
+		{"backup-2024.zip", CompressionZip},
 		{"file.txt", CompressionGzip}, // default
 		{"", CompressionGzip},         // default
 	}

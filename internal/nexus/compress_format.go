@@ -12,6 +12,7 @@ type CompressionFormat string
 const (
 	CompressionGzip CompressionFormat = "gzip"
 	CompressionZstd CompressionFormat = "zstd"
+	CompressionZip  CompressionFormat = "zip"
 )
 
 // String returns the string representation of the compression format
@@ -26,6 +27,8 @@ func (f CompressionFormat) Extension() string {
 		return ".tar.gz"
 	case CompressionZstd:
 		return ".tar.zst"
+	case CompressionZip:
+		return ".zip"
 	default:
 		return ".tar.gz"
 	}
@@ -38,6 +41,8 @@ func (f CompressionFormat) CreateArchive(srcDir string, writer io.Writer) error 
 		return CreateTarGz(srcDir, writer)
 	case CompressionZstd:
 		return CreateTarZst(srcDir, writer)
+	case CompressionZip:
+		return CreateZip(srcDir, writer)
 	default:
 		return fmt.Errorf("unsupported compression format: %s", f)
 	}
@@ -50,6 +55,8 @@ func (f CompressionFormat) ExtractArchive(reader io.Reader, destDir string) erro
 		return ExtractTarGz(reader, destDir)
 	case CompressionZstd:
 		return ExtractTarZst(reader, destDir)
+	case CompressionZip:
+		return ExtractZip(reader, destDir)
 	default:
 		return fmt.Errorf("unsupported compression format: %s", f)
 	}
@@ -62,8 +69,10 @@ func ParseCompressionFormat(s string) (CompressionFormat, error) {
 		return CompressionGzip, nil
 	case "zstd", "zst":
 		return CompressionZstd, nil
+	case "zip":
+		return CompressionZip, nil
 	default:
-		return "", fmt.Errorf("unsupported compression format '%s': must be one of: gzip, zstd", s)
+		return "", fmt.Errorf("unsupported compression format '%s': must be one of: gzip, zstd, zip", s)
 	}
 }
 
@@ -71,6 +80,9 @@ func ParseCompressionFormat(s string) (CompressionFormat, error) {
 func DetectCompressionFromFilename(filename string) CompressionFormat {
 	if strings.HasSuffix(filename, ".tar.zst") {
 		return CompressionZstd
+	}
+	if strings.HasSuffix(filename, ".zip") {
+		return CompressionZip
 	}
 	// Default to gzip for .tar.gz or any other case
 	return CompressionGzip
