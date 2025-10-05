@@ -66,7 +66,6 @@ func main() {
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			uploadSkipChecksum, _ = cmd.Flags().GetBool("skip-checksum")
 			opts := &nexus.UploadOptions{
 				Logger:       logger,
 				QuietMode:    quietMode,
@@ -100,7 +99,7 @@ func main() {
 	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
 	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
 	uploadCmd.Flags().StringVarP(&uploadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
-	uploadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
+	uploadCmd.Flags().BoolVarP(&uploadSkipChecksum, "skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
@@ -115,10 +114,6 @@ func main() {
 		Long:  "Download a folder from Nexus RAW\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
-			flattenPath, _ = cmd.Flags().GetBool("flatten")
-			deleteExtra, _ = cmd.Flags().GetBool("delete")
-			compressDownload, _ = cmd.Flags().GetBool("compress")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
@@ -148,10 +143,10 @@ func main() {
 		},
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
-	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
-	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
-	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
-	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed archive")
+	downloadCmd.Flags().BoolVarP(&skipChecksumValidation, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolVarP(&flattenPath, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+	downloadCmd.Flags().BoolVar(&deleteExtra, "delete", false, "Remove local files from the destination folder that are not present in Nexus")
+	downloadCmd.Flags().BoolVarP(&compressDownload, "compress", "z", false, "Download and extract a compressed archive")
 	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	downloadCmd.Flags().StringVar(&downloadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
 
