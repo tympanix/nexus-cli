@@ -147,13 +147,14 @@ You can authenticate with Nexus using environment variables or CLI flags:
 ### Upload
 
 ```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] [--key-from <file>] <directory> <repository[/subdir]>
 ```
 
 **Upload options:**
 - `--compress` or `-z` - Create and upload files as a compressed archive
 - `--compress-format <format>` - Compression format to use: `gzip` (default) or `zstd`
 - `--glob <pattern>` or `-g <pattern>` - Glob pattern to filter files (e.g., `**/*.go`, `*.txt`)
+- `--key-from <file>` - Path to file to compute hash from for `{key}` template in dest
 
 **About the `--glob` flag:**
 
@@ -212,10 +213,37 @@ nexuscli-go upload --compress ./files my-repo/path/archive.tar.zst
 # Automatically uses zstd compression based on .tar.zst extension
 ```
 
+**About the `--key-from` flag:**
+
+The `--key-from` flag enables content-based caching by computing a hash from a specified file and using it in the destination path. This is particularly useful for:
+- Caching build artifacts based on dependency files (e.g., `package-lock.json`, `go.sum`)
+- Versioning uploads automatically based on file content
+- Avoiding overwrites of existing cached artifacts
+
+When using `--key-from`, you must include the `{key}` template placeholder in your destination path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value.
+
+**Examples:**
+
+```bash
+# Upload node_modules with hash from package-lock.json
+nexuscli-go upload --key-from package-lock.json ./node_modules my-repo/cache-{key}
+# Uploads to: my-repo/cache-<sha256-hash>/
+
+# Upload with compression and key-based naming
+nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
+# Creates: cache-<sha256-hash>.tar.gz in my-repo/
+
+# Upload with key in subdirectory
+nexuscli-go upload --key-from go.sum ./vendor my-repo/go-deps/{key}/vendor
+# Uploads to: my-repo/go-deps/<sha256-hash>/vendor/
+```
+
+**Important:** The `{key}` placeholder is required when `--key-from` is specified. If the template is missing, the CLI will exit with an error.
+
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compress-format <format>] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder> <directory>
 ```
 
 **Download options:**
@@ -225,6 +253,7 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--delete` - Remove local files from the destination folder that are not present in Nexus
 - `--compress` or `-z` - Download and extract a compressed archive
 - `--compress-format <format>` - Compression format to use: `gzip` (default) or `zstd`
+- `--key-from <file>` - Path to file to compute hash from for `{key}` template in src
 
 **About the `--flatten` flag:**
 
@@ -313,7 +342,41 @@ nexuscli-go download --compress my-repo/artifacts/backup.tar.gz ./local-folder
 # Download and extract zstd archive (auto-detected)
 nexuscli-go download --compress my-repo/artifacts/backup.tar.zst ./local-folder
 # Downloads and extracts: backup.tar.zst from my-repo/artifacts/
-# Format is automatically detected from the .tar.zst extension
+# Format is auto-detected from the .tar.zst extension
+```
+
+**About the `--key-from` flag:**
+
+The `--key-from` flag enables content-based cache retrieval by computing a hash from a specified file and using it in the source path. This allows you to download cached artifacts that were uploaded with the same key-based naming.
+
+When using `--key-from`, you must include the `{key}` template placeholder in your source path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value to locate the correct artifact.
+
+**Examples:**
+
+```bash
+# Download node_modules using hash from package-lock.json
+nexuscli-go download --key-from package-lock.json my-repo/cache-{key} ./node_modules
+# Downloads from: my-repo/cache-<sha256-hash>/
+
+# Download compressed archive with key-based naming
+nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
+# Downloads and extracts: cache-<sha256-hash>.tar.gz from my-repo/
+
+# Download with key in subdirectory path
+nexuscli-go download --key-from go.sum my-repo/go-deps/{key}/vendor ./vendor
+# Downloads from: my-repo/go-deps/<sha256-hash>/vendor/
+```
+
+**Important:** The `{key}` placeholder is required when `--key-from` is specified. If the template is missing, the CLI will exit with an error.
+
+**Typical workflow for caching:**
+
+```bash
+# Upload cached dependencies
+nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
+
+# Later, download the same cached dependencies (if package-lock.json hasn't changed)
+nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
 ```
 
 Using Docker with CLI flags:
