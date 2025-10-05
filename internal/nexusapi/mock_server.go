@@ -114,7 +114,7 @@ func (m *MockNexusServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 			}
 
 			m.mu.Lock()
-			if strings.HasSuffix(header.Filename, ".tar.gz") {
+			if strings.HasSuffix(header.Filename, ".tar.gz") || strings.HasSuffix(header.Filename, ".tar.zst") {
 				// This is an archive upload
 				m.UploadedArchives = append(m.UploadedArchives, UploadedArchive{
 					Filename:   header.Filename,
