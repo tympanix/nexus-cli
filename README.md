@@ -4,7 +4,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
-- Filter files using advanced glob patterns (e.g., `**/*.go`, `src/**/*.test.js`)
+- Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.go,!**/*_test.go`)
 - Download all files from a Nexus RAW folder recursively
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
@@ -153,11 +153,16 @@ nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--comp
 **Upload options:**
 - `--compress` or `-z` - Create and upload files as a compressed archive
 - `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
-- `--glob <pattern>` or `-g <pattern>` - Glob pattern to filter files (e.g., `**/*.go`, `*.txt`)
+- `--glob <pattern>` or `-g <pattern>` - Glob pattern(s) to filter files (supports multiple patterns and negation)
 
 **About the `--glob` flag:**
 
 The `--glob` flag allows you to filter which files are uploaded using glob patterns. This works for both regular uploads and compressed uploads. The pattern is matched against file paths relative to the source directory.
+
+**Multiple patterns and negation:**
+- Use commas to specify multiple patterns: `"**/*.go,**/*.md"`
+- Use `!` prefix for negative matches (exclusions): `"**/*.go,!**/*_test.go"`
+- Patterns are evaluated left-to-right: positive patterns include files, negative patterns exclude them
 
 **Supported glob patterns:**
 - `*` - Matches any characters except `/` (directory separator)
@@ -178,11 +183,26 @@ nexuscli-go upload --glob "**/*.go" ./files my-repo
 # Upload all files from a specific subdirectory
 nexuscli-go upload --glob "src/**" ./files my-repo
 
-# Upload files with multiple extensions
+# Upload files with multiple extensions (comma-separated)
 nexuscli-go upload --glob "**/*.{go,md}" ./files my-repo
+
+# Upload multiple file types using multiple patterns
+nexuscli-go upload --glob "**/*.go,**/*.md,**/*.txt" ./files my-repo
+
+# Upload all .go files except test files (using negation)
+nexuscli-go upload --glob "**/*.go,!**/*_test.go" ./files my-repo
+
+# Upload all files except those in a specific directory
+nexuscli-go upload --glob "!vendor/**,!node_modules/**" ./files my-repo
+
+# Complex pattern: upload source files but exclude tests and vendor
+nexuscli-go upload --glob "**/*.go,**/*.md,!**/*_test.go,!vendor/**" ./files my-repo
 
 # Create compressed archive with only .go files
 nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
+
+# Create compressed archive excluding test files
+nexuscli-go upload --compress --glob "**/*.go,!**/*_test.go" ./files my-repo/archive.tar.gz
 ```
 
 **About the `--compress` flag:**

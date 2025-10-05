@@ -16,9 +16,9 @@ import (
 type UploadOptions struct {
 	Logger            Logger
 	QuietMode         bool
-	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
+  Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
-	GlobPattern       string            // Optional glob pattern to filter files
+	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -27,29 +27,73 @@ func collectFiles(src string) ([]string, error) {
 
 func collectFilesWithGlob(src string, globPattern string) ([]string, error) {
 	var files []string
+
+	// Parse glob patterns - split by comma and separate positive from negative patterns
+	var positivePatterns []string
+	var negativePatterns []string
+
+	if globPattern != "" {
+		patterns := strings.Split(globPattern, ",")
+		for _, pattern := range patterns {
+			pattern = strings.TrimSpace(pattern)
+			if pattern == "" {
+				continue
+			}
+			if strings.HasPrefix(pattern, "!") {
+				// Negative pattern - remove the ! prefix
+				negativePatterns = append(negativePatterns, strings.TrimPrefix(pattern, "!"))
+			} else {
+				// Positive pattern
+				positivePatterns = append(positivePatterns, pattern)
+			}
+		}
+	}
+
 	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			// If glob pattern is provided, filter files
-			if globPattern != "" {
-				relPath, err := filepath.Rel(src, path)
-				if err != nil {
-					return err
-				}
-				// Normalize to forward slashes for consistent matching
-				relPath = filepath.ToSlash(relPath)
+			relPath, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
+			// Normalize to forward slashes for consistent matching
+			relPath = filepath.ToSlash(relPath)
 
-				// Match against the glob pattern
-				matched, err := doublestar.Match(globPattern, relPath)
-				if err != nil {
-					return fmt.Errorf("invalid glob pattern '%s': %w", globPattern, err)
+			// If we have glob patterns, filter files
+			if len(positivePatterns) > 0 || len(negativePatterns) > 0 {
+				// Check positive patterns first (at least one must match if any exist)
+				matchesPositive := len(positivePatterns) == 0 // If no positive patterns, default to true
+				for _, pattern := range positivePatterns {
+					matched, err := doublestar.Match(pattern, relPath)
+					if err != nil {
+						return fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
+					}
+					if matched {
+						matchesPositive = true
+						break
+					}
 				}
-				if !matched {
+
+				// If no positive match, skip this file
+				if !matchesPositive {
 					return nil
 				}
+
+				// Check negative patterns (none should match)
+				for _, pattern := range negativePatterns {
+					matched, err := doublestar.Match(pattern, relPath)
+					if err != nil {
+						return fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
+					}
+					if matched {
+						// File matches a negative pattern, exclude it
+						return nil
+					}
+				}
 			}
+
 			files = append(files, path)
 		}
 		return nil
