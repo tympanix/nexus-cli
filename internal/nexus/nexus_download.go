@@ -123,12 +123,11 @@ const (
 )
 
 func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
-	parts := strings.SplitN(srcArg, "/", 2)
-	if len(parts) != 2 {
+	repository, src, ok := ParseRepositoryPath(srcArg)
+	if !ok {
 		opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
 		return DownloadError
 	}
-	repository, src := parts[0], parts[1]
 
 	// Check if src ends with .tar.gz, .tar.zst, or .zip for explicit archive name
 	explicitArchiveName := ""

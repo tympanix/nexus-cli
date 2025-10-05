@@ -983,3 +983,86 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 		}
 	}
 }
+
+func TestDownloadWithTrailingSlash(t *testing.T) {
+	testContent := "test content"
+	basePath := "/test-folder"
+	fileName := "/file.txt"
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
+
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        basePath + fileName,
+		ID:          "test-id-1",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+
+	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	destDir1, err := os.MkdirTemp("", "test-download-no-slash-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir1)
+
+	destDir2, err := os.MkdirTemp("", "test-download-slash-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir2)
+
+	status1 := downloadFolder("test-repo/test-folder", destDir1, config, opts)
+	if status1 != DownloadSuccess {
+		t.Fatal("Download without trailing slash failed")
+	}
+
+	status2 := downloadFolder("test-repo/test-folder/", destDir2, config, opts)
+	if status2 != DownloadSuccess {
+		t.Fatal("Download with trailing slash failed")
+	}
+
+	file1 := filepath.Join(destDir1, "test-folder", "file.txt")
+	content1, err := os.ReadFile(file1)
+	if err != nil {
+		t.Fatalf("Expected file at %s, but got error: %v", file1, err)
+	}
+
+	file2 := filepath.Join(destDir2, "test-folder", "file.txt")
+	content2, err := os.ReadFile(file2)
+	if err != nil {
+		t.Fatalf("Expected file at %s, but got error: %v", file2, err)
+	}
+
+	if string(content1) != testContent {
+		t.Errorf("Expected content '%s', got '%s'", testContent, string(content1))
+	}
+
+	if string(content2) != testContent {
+		t.Errorf("Expected content '%s', got '%s'", testContent, string(content2))
+	}
+
+	if string(content1) != string(content2) {
+		t.Error("Content from download with and without trailing slash should be identical")
+	}
+}
