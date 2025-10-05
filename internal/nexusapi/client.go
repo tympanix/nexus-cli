@@ -172,7 +172,8 @@ type FileProcessCallback func(idx, total int)
 // BuildRawUploadForm builds a multipart form for uploading files to a Nexus RAW repository
 // It writes the form data to the provided writer and returns any error encountered
 // If onFileStart is provided, it will be called before processing each file with the index and total count
-func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer, onFileStart FileProcessCallback) error {
+// If onFileComplete is provided, it will be called after processing each file with the index and total count
+func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer, onFileStart, onFileComplete FileProcessCallback) error {
 	for idx, file := range files {
 		// Notify callback that we're starting to process this file
 		if onFileStart != nil {
@@ -202,6 +203,11 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 
 		// Add filename field with relative path
 		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), file.RelativePath)
+
+		// Notify callback that we've completed processing this file
+		if onFileComplete != nil {
+			onFileComplete(idx, len(files))
+		}
 	}
 
 	// Add directory field if subdirectory is specified

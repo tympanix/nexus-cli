@@ -142,11 +142,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	errChan := make(chan error, 1)
 	go func() {
 		defer pw.Close()
-		// Callback to update progress bar description for each file
-		onFileStart := func(idx, total int) {
+		// Callback to update progress bar description when each file completes
+		onFileComplete := func(idx, total int) {
 			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, total))
 		}
-		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, onFileStart)
+		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, nil, onFileComplete)
 		writer.Close()
 		errChan <- err
 	}()
