@@ -22,7 +22,8 @@ type DownloadOptions struct {
 	DeleteExtra       bool
 	Compress          bool              // Enable decompression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
-	checksumValidator ChecksumValidator // Internal validator instance
+	KeyFromFile       string            // Path to file to compute hash from for {key} template
+  checksumValidator ChecksumValidator // Internal validator instance
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -369,7 +370,17 @@ func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
 }
 
 func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
-	success := downloadFolder(src, dest, config, opts)
+	processedSrc, err := processKeyTemplate(src, opts.KeyFromFile)
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
+
+	if opts.KeyFromFile != "" {
+		opts.Logger.Printf("Using key template: %s -> %s\n", src, processedSrc)
+	}
+
+	success := downloadFolder(processedSrc, dest, config, opts)
 	if !success {
 		os.Exit(66)
 	}

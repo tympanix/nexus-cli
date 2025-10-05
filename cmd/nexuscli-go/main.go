@@ -57,6 +57,7 @@ func main() {
 	var uploadCompress bool
 	var uploadCompressionFormat string
 	var uploadGlobPattern string
+	var uploadKeyFrom string
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
@@ -68,6 +69,7 @@ func main() {
 				QuietMode:   quietMode,
 				Compress:    uploadCompress,
 				GlobPattern: uploadGlobPattern,
+				KeyFromFile: uploadKeyFrom,
 			}
 			// Parse compression format if provided
 			if uploadCompressionFormat != "" {
@@ -86,6 +88,7 @@ func main() {
 	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
 	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
+	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
@@ -93,6 +96,7 @@ func main() {
 	var deleteExtra bool
 	var compressDownload bool
 	var downloadCompressionFormat string
+	var downloadKeyFrom string
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -111,6 +115,7 @@ func main() {
 				Logger:            logger,
 				QuietMode:         quietMode,
 				Compress:          compressDownload,
+				KeyFromFile:       downloadKeyFrom,
 			}
 			// Parse compression format if provided
 			if downloadCompressionFormat != "" {
@@ -136,6 +141,7 @@ func main() {
 	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
 	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed archive")
 	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	downloadCmd.Flags().StringVar(&downloadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
