@@ -88,3 +88,30 @@ func NewChecksumValidator(algorithm string) (ChecksumValidator, error) {
 		return nil, fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
 	}
 }
+
+func computeChecksum(filePath string, algorithm string) (string, error) {
+	var h hash.Hash
+	switch strings.ToLower(algorithm) {
+	case "sha1":
+		h = sha1.New()
+	case "sha256":
+		h = sha256.New()
+	case "sha512":
+		h = sha512.New()
+	case "md5":
+		h = md5.New()
+	default:
+		return "", fmt.Errorf("unsupported checksum algorithm '%s'", algorithm)
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(h, file); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
