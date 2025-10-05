@@ -67,6 +67,7 @@ go build -o nexuscli-go ./cmd/nexuscli-go
 
 ### Code Style
 - Follow Go conventions (gofmt, golint)
+- **All code must be formatted using `gofmt` with default settings**
 - Use standard library where possible
 - Error handling should be explicit
 - No explicit comments unless necessary for clarity
@@ -75,8 +76,27 @@ go build -o nexuscli-go ./cmd/nexuscli-go
 
 1. Build: `go build -o nexuscli-go ./cmd/nexuscli-go`
 2. Run: `./nexuscli-go <command> <args>`
+3. Format: `gofmt -w .` (format all Go files before committing)
 
 For production builds, use `make build` from the repository root.
+
+### Code Formatting Requirements
+
+All Go source code **must** be formatted using `gofmt` with default settings before committing:
+
+```bash
+# Format all Go files in the current directory and subdirectories
+gofmt -w .
+
+# Check which files need formatting (should return nothing if all files are formatted)
+gofmt -l .
+```
+
+**Why formatting matters:**
+- Ensures consistent code style across the project
+- Makes code reviews easier by reducing style-related discussions
+- Follows Go community standards and best practices
+- Prevents merge conflicts caused by formatting differences
 
 ## Common Patterns
 
@@ -165,12 +185,13 @@ refactor: simplify checksum validation logic
 ## Making Changes
 
 When making changes to this project:
-1. Test both upload and download functionality
-2. Ensure environment variables work correctly
-3. Verify progress bars display correctly
-4. Handle edge cases (empty directories, missing files, network errors)
-5. Follow the Conventional Commits specification for commit messages
-6. Update README.md if changing usage or behavior
+1. **Format your code with `gofmt -w .` before committing**
+2. Test both upload and download functionality
+3. Ensure environment variables work correctly
+4. Verify progress bars display correctly
+5. Handle edge cases (empty directories, missing files, network errors)
+6. Follow the Conventional Commits specification for commit messages
+7. Update README.md if changing usage or behavior
 
 ## Notes
 

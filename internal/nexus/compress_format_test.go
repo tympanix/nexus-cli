@@ -68,7 +68,7 @@ func TestDetectCompressionFromFilename(t *testing.T) {
 		{"archive.tar.zst", CompressionZstd},
 		{"backup-2024.tar.zst", CompressionZstd},
 		{"file.txt", CompressionGzip}, // default
-		{"", CompressionGzip},          // default
+		{"", CompressionGzip},         // default
 	}
 
 	for _, tt := range tests {

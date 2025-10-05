@@ -594,312 +594,312 @@ func TestUploadURLConstruction(t *testing.T) {
 
 // TestDownloadDeleteExtra tests that download with delete-extra removes local files not in Nexus
 func TestDownloadDeleteExtra(t *testing.T) {
-testContent := "test content"
-basePath := "/test-folder"
-fileName := "/file.txt"
+	testContent := "test content"
+	basePath := "/test-folder"
+	fileName := "/file.txt"
 
-var serverURL string
+	var serverURL string
 
-// Nexus only has one file: /test-folder/file.txt
-server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-assets := struct {
-Items             []nexusapi.Asset `json:"items"`
-ContinuationToken string           `json:"continuationToken"`
-}{
-Items: []nexusapi.Asset{
-{
-DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-Path:        basePath + fileName,
-ID:          "test-id-1",
-Repository:  "test-repo",
-FileSize:    int64(len(testContent)),
-Checksum: nexusapi.Checksum{
-SHA1: "abc123",
-},
-},
-},
-ContinuationToken: "",
-}
-w.Header().Set("Content-Type", "application/json")
-json.NewEncoder(w).Encode(assets)
-return
-}
+	// Nexus only has one file: /test-folder/file.txt
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
+						Path:        basePath + fileName,
+						ID:          "test-id-1",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: nexusapi.Checksum{
+							SHA1: "abc123",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
 
-if strings.Contains(r.URL.Path, "/repository/test-repo") {
-w.Header().Set("Content-Type", "text/plain")
-w.WriteHeader(http.StatusOK)
-w.Write([]byte(testContent))
-return
-}
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent))
+			return
+		}
 
-http.NotFound(w, r)
-}))
-defer server.Close()
-serverURL = server.URL
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
 
-config := &Config{
-NexusURL: server.URL,
-Username: "test",
-Password: "test",
-}
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
 
-// Create destination directory with extra files that should be deleted
-destDir, err := os.MkdirTemp("", "test-download-delete-extra-*")
-if err != nil {
-t.Fatalf("Failed to create temp directory: %v", err)
-}
-defer os.RemoveAll(destDir)
+	// Create destination directory with extra files that should be deleted
+	destDir, err := os.MkdirTemp("", "test-download-delete-extra-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
 
-// Create the directory structure
-testFolderPath := filepath.Join(destDir, "test-folder")
-if err := os.MkdirAll(testFolderPath, 0755); err != nil {
-t.Fatalf("Failed to create test-folder directory: %v", err)
-}
+	// Create the directory structure
+	testFolderPath := filepath.Join(destDir, "test-folder")
+	if err := os.MkdirAll(testFolderPath, 0755); err != nil {
+		t.Fatalf("Failed to create test-folder directory: %v", err)
+	}
 
-// Create extra files that should be deleted
-extraFile1 := filepath.Join(testFolderPath, "extra-file1.txt")
-if err := os.WriteFile(extraFile1, []byte("extra content 1"), 0644); err != nil {
-t.Fatalf("Failed to create extra file 1: %v", err)
-}
+	// Create extra files that should be deleted
+	extraFile1 := filepath.Join(testFolderPath, "extra-file1.txt")
+	if err := os.WriteFile(extraFile1, []byte("extra content 1"), 0644); err != nil {
+		t.Fatalf("Failed to create extra file 1: %v", err)
+	}
 
-extraFile2 := filepath.Join(testFolderPath, "extra-file2.txt")
-if err := os.WriteFile(extraFile2, []byte("extra content 2"), 0644); err != nil {
-t.Fatalf("Failed to create extra file 2: %v", err)
-}
+	extraFile2 := filepath.Join(testFolderPath, "extra-file2.txt")
+	if err := os.WriteFile(extraFile2, []byte("extra content 2"), 0644); err != nil {
+		t.Fatalf("Failed to create extra file 2: %v", err)
+	}
 
-// Verify extra files exist before download
-if _, err := os.Stat(extraFile1); os.IsNotExist(err) {
-t.Fatalf("Extra file 1 should exist before download")
-}
-if _, err := os.Stat(extraFile2); os.IsNotExist(err) {
-t.Fatalf("Extra file 2 should exist before download")
-}
+	// Verify extra files exist before download
+	if _, err := os.Stat(extraFile1); os.IsNotExist(err) {
+		t.Fatalf("Extra file 1 should exist before download")
+	}
+	if _, err := os.Stat(extraFile2); os.IsNotExist(err) {
+		t.Fatalf("Extra file 2 should exist before download")
+	}
 
-// Download with delete-extra enabled
-opts := &DownloadOptions{
-ChecksumAlgorithm: "sha1",
-SkipChecksum:      false,
-Flatten:           false,
-DeleteExtra:       true,
-Logger:            NewLogger(io.Discard),
-QuietMode:         true,
-}
+	// Download with delete-extra enabled
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Flatten:           false,
+		DeleteExtra:       true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
 
-success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-if !success {
-t.Fatal("Download failed")
-}
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
 
-// Check that the downloaded file exists
-expectedFile := filepath.Join(testFolderPath, "file.txt")
-if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
-t.Errorf("Expected file at %s, but it does not exist", expectedFile)
-}
+	// Check that the downloaded file exists
+	expectedFile := filepath.Join(testFolderPath, "file.txt")
+	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
+		t.Errorf("Expected file at %s, but it does not exist", expectedFile)
+	}
 
-// Check that extra files were deleted
-if _, err := os.Stat(extraFile1); !os.IsNotExist(err) {
-t.Errorf("Extra file 1 should have been deleted at %s", extraFile1)
-}
-if _, err := os.Stat(extraFile2); !os.IsNotExist(err) {
-t.Errorf("Extra file 2 should have been deleted at %s", extraFile2)
-}
+	// Check that extra files were deleted
+	if _, err := os.Stat(extraFile1); !os.IsNotExist(err) {
+		t.Errorf("Extra file 1 should have been deleted at %s", extraFile1)
+	}
+	if _, err := os.Stat(extraFile2); !os.IsNotExist(err) {
+		t.Errorf("Extra file 2 should have been deleted at %s", extraFile2)
+	}
 }
 
 // TestDownloadNoDeleteExtra tests that download without delete-extra preserves local files
 func TestDownloadNoDeleteExtra(t *testing.T) {
-testContent := "test content"
-basePath := "/test-folder"
-fileName := "/file.txt"
+	testContent := "test content"
+	basePath := "/test-folder"
+	fileName := "/file.txt"
 
-var serverURL string
+	var serverURL string
 
-// Nexus only has one file: /test-folder/file.txt
-server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-assets := struct {
-Items             []nexusapi.Asset `json:"items"`
-ContinuationToken string           `json:"continuationToken"`
-}{
-Items: []nexusapi.Asset{
-{
-DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-Path:        basePath + fileName,
-ID:          "test-id-1",
-Repository:  "test-repo",
-FileSize:    int64(len(testContent)),
-Checksum: nexusapi.Checksum{
-SHA1: "abc123",
-},
-},
-},
-ContinuationToken: "",
-}
-w.Header().Set("Content-Type", "application/json")
-json.NewEncoder(w).Encode(assets)
-return
-}
+	// Nexus only has one file: /test-folder/file.txt
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
+						Path:        basePath + fileName,
+						ID:          "test-id-1",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: nexusapi.Checksum{
+							SHA1: "abc123",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
 
-if strings.Contains(r.URL.Path, "/repository/test-repo") {
-w.Header().Set("Content-Type", "text/plain")
-w.WriteHeader(http.StatusOK)
-w.Write([]byte(testContent))
-return
-}
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent))
+			return
+		}
 
-http.NotFound(w, r)
-}))
-defer server.Close()
-serverURL = server.URL
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
 
-config := &Config{
-NexusURL: server.URL,
-Username: "test",
-Password: "test",
-}
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
 
-// Create destination directory with extra files that should NOT be deleted
-destDir, err := os.MkdirTemp("", "test-download-no-delete-extra-*")
-if err != nil {
-t.Fatalf("Failed to create temp directory: %v", err)
-}
-defer os.RemoveAll(destDir)
+	// Create destination directory with extra files that should NOT be deleted
+	destDir, err := os.MkdirTemp("", "test-download-no-delete-extra-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
 
-// Create the directory structure
-testFolderPath := filepath.Join(destDir, "test-folder")
-if err := os.MkdirAll(testFolderPath, 0755); err != nil {
-t.Fatalf("Failed to create test-folder directory: %v", err)
-}
+	// Create the directory structure
+	testFolderPath := filepath.Join(destDir, "test-folder")
+	if err := os.MkdirAll(testFolderPath, 0755); err != nil {
+		t.Fatalf("Failed to create test-folder directory: %v", err)
+	}
 
-// Create extra files that should be preserved
-extraFile1 := filepath.Join(testFolderPath, "extra-file1.txt")
-if err := os.WriteFile(extraFile1, []byte("extra content 1"), 0644); err != nil {
-t.Fatalf("Failed to create extra file 1: %v", err)
-}
+	// Create extra files that should be preserved
+	extraFile1 := filepath.Join(testFolderPath, "extra-file1.txt")
+	if err := os.WriteFile(extraFile1, []byte("extra content 1"), 0644); err != nil {
+		t.Fatalf("Failed to create extra file 1: %v", err)
+	}
 
-// Download with delete-extra disabled
-opts := &DownloadOptions{
-ChecksumAlgorithm: "sha1",
-SkipChecksum:      false,
-Flatten:           false,
-DeleteExtra:       false,
-Logger:            NewLogger(io.Discard),
-QuietMode:         true,
-}
+	// Download with delete-extra disabled
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Flatten:           false,
+		DeleteExtra:       false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
 
-success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-if !success {
-t.Fatal("Download failed")
-}
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
 
-// Check that the downloaded file exists
-expectedFile := filepath.Join(testFolderPath, "file.txt")
-if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
-t.Errorf("Expected file at %s, but it does not exist", expectedFile)
-}
+	// Check that the downloaded file exists
+	expectedFile := filepath.Join(testFolderPath, "file.txt")
+	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
+		t.Errorf("Expected file at %s, but it does not exist", expectedFile)
+	}
 
-// Check that extra files were NOT deleted
-if _, err := os.Stat(extraFile1); os.IsNotExist(err) {
-t.Errorf("Extra file 1 should have been preserved at %s", extraFile1)
-}
+	// Check that extra files were NOT deleted
+	if _, err := os.Stat(extraFile1); os.IsNotExist(err) {
+		t.Errorf("Extra file 1 should have been preserved at %s", extraFile1)
+	}
 }
 
 // TestDownloadDeleteExtraWithFlatten tests that delete-extra works correctly with flatten option
 func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
-testContent := "test content"
-basePath := "/test-folder"
-fileName := "/file.txt"
+	testContent := "test content"
+	basePath := "/test-folder"
+	fileName := "/file.txt"
 
-var serverURL string
+	var serverURL string
 
-// Nexus only has one file: /test-folder/file.txt
-server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-assets := struct {
-Items             []nexusapi.Asset `json:"items"`
-ContinuationToken string           `json:"continuationToken"`
-}{
-Items: []nexusapi.Asset{
-{
-DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-Path:        basePath + fileName,
-ID:          "test-id-1",
-Repository:  "test-repo",
-FileSize:    int64(len(testContent)),
-Checksum: nexusapi.Checksum{
-SHA1: "abc123",
-},
-},
-},
-ContinuationToken: "",
-}
-w.Header().Set("Content-Type", "application/json")
-json.NewEncoder(w).Encode(assets)
-return
-}
+	// Nexus only has one file: /test-folder/file.txt
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
+			assets := struct {
+				Items             []nexusapi.Asset `json:"items"`
+				ContinuationToken string           `json:"continuationToken"`
+			}{
+				Items: []nexusapi.Asset{
+					{
+						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
+						Path:        basePath + fileName,
+						ID:          "test-id-1",
+						Repository:  "test-repo",
+						FileSize:    int64(len(testContent)),
+						Checksum: nexusapi.Checksum{
+							SHA1: "abc123",
+						},
+					},
+				},
+				ContinuationToken: "",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(assets)
+			return
+		}
 
-if strings.Contains(r.URL.Path, "/repository/test-repo") {
-w.Header().Set("Content-Type", "text/plain")
-w.WriteHeader(http.StatusOK)
-w.Write([]byte(testContent))
-return
-}
+		if strings.Contains(r.URL.Path, "/repository/test-repo") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(testContent))
+			return
+		}
 
-http.NotFound(w, r)
-}))
-defer server.Close()
-serverURL = server.URL
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	serverURL = server.URL
 
-config := &Config{
-NexusURL: server.URL,
-Username: "test",
-Password: "test",
-}
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
 
-// Create destination directory with extra files that should be deleted
-destDir, err := os.MkdirTemp("", "test-download-delete-extra-flatten-*")
-if err != nil {
-t.Fatalf("Failed to create temp directory: %v", err)
-}
-defer os.RemoveAll(destDir)
+	// Create destination directory with extra files that should be deleted
+	destDir, err := os.MkdirTemp("", "test-download-delete-extra-flatten-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
 
-// Create extra files that should be deleted (in flattened location)
-extraFile1 := filepath.Join(destDir, "extra-file1.txt")
-if err := os.WriteFile(extraFile1, []byte("extra content 1"), 0644); err != nil {
-t.Fatalf("Failed to create extra file 1: %v", err)
-}
+	// Create extra files that should be deleted (in flattened location)
+	extraFile1 := filepath.Join(destDir, "extra-file1.txt")
+	if err := os.WriteFile(extraFile1, []byte("extra content 1"), 0644); err != nil {
+		t.Fatalf("Failed to create extra file 1: %v", err)
+	}
 
-extraFile2 := filepath.Join(destDir, "extra-file2.txt")
-if err := os.WriteFile(extraFile2, []byte("extra content 2"), 0644); err != nil {
-t.Fatalf("Failed to create extra file 2: %v", err)
-}
+	extraFile2 := filepath.Join(destDir, "extra-file2.txt")
+	if err := os.WriteFile(extraFile2, []byte("extra content 2"), 0644); err != nil {
+		t.Fatalf("Failed to create extra file 2: %v", err)
+	}
 
-// Download with both delete-extra and flatten enabled
-opts := &DownloadOptions{
-ChecksumAlgorithm: "sha1",
-SkipChecksum:      false,
-Flatten:           true,
-DeleteExtra:       true,
-Logger:            NewLogger(io.Discard),
-QuietMode:         true,
-}
+	// Download with both delete-extra and flatten enabled
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Flatten:           true,
+		DeleteExtra:       true,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
 
-success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-if !success {
-t.Fatal("Download failed")
-}
+	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if !success {
+		t.Fatal("Download failed")
+	}
 
-// Check that the downloaded file exists (in flattened location)
-expectedFile := filepath.Join(destDir, "file.txt")
-if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
-t.Errorf("Expected file at %s, but it does not exist", expectedFile)
-}
+	// Check that the downloaded file exists (in flattened location)
+	expectedFile := filepath.Join(destDir, "file.txt")
+	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
+		t.Errorf("Expected file at %s, but it does not exist", expectedFile)
+	}
 
-// Check that extra files were deleted
-if _, err := os.Stat(extraFile1); !os.IsNotExist(err) {
-t.Errorf("Extra file 1 should have been deleted at %s", extraFile1)
-}
-if _, err := os.Stat(extraFile2); !os.IsNotExist(err) {
-t.Errorf("Extra file 2 should have been deleted at %s", extraFile2)
-}
+	// Check that extra files were deleted
+	if _, err := os.Stat(extraFile1); !os.IsNotExist(err) {
+		t.Errorf("Extra file 1 should have been deleted at %s", extraFile1)
+	}
+	if _, err := os.Stat(extraFile2); !os.IsNotExist(err) {
+		t.Errorf("Extra file 2 should have been deleted at %s", extraFile2)
+	}
 }

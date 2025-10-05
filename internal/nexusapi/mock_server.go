@@ -22,12 +22,12 @@ type MockNexusServer struct {
 	ContinuationTokens map[string]string
 
 	// Captured data from requests
-	UploadedFiles     []UploadedFile
-	UploadedArchives  []UploadedArchive
-	RequestCount      int
-	LastUploadRepo    string
-	LastListRepo      string
-	LastListPath      string
+	UploadedFiles    []UploadedFile
+	UploadedArchives []UploadedArchive
+	RequestCount     int
+	LastUploadRepo   string
+	LastListRepo     string
+	LastListPath     string
 }
 
 // UploadedFile represents a file that was uploaded to the mock server
