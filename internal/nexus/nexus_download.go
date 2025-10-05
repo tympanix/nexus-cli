@@ -8,12 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
-	"hash"
-
+	"github.com/schollz/progressbar/v3"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
@@ -27,19 +22,20 @@ type DownloadOptions struct {
 	DeleteExtra       bool
 	Compress          bool              // Enable decompression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
+	KeyFromFile       string            // Path to file to compute hash from for {key} template
+	checksumValidator ChecksumValidator // Internal validator instance
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
 // Returns an error if the algorithm is not supported
 func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
-	alg := strings.ToLower(algorithm)
-	switch alg {
-	case "sha1", "sha256", "sha512", "md5":
-		opts.ChecksumAlgorithm = alg
-		return nil
-	default:
-		return fmt.Errorf("unsupported checksum algorithm '%s': must be one of: sha1, sha256, sha512, md5", algorithm)
+	validator, err := NewChecksumValidator(algorithm)
+	if err != nil {
+		return err
 	}
+	opts.ChecksumAlgorithm = validator.Algorithm()
+	opts.checksumValidator = validator
+	return nil
 }
 
 func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error) {
@@ -75,15 +71,12 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 			// When checksum validation is skipped, only check if file exists
 			shouldSkip = true
 			skipReason = "Skipped (file exists): %s\n"
-		} else {
-			// Normal checksum validation
-			expectedChecksum := getExpectedChecksum(asset.Checksum, opts)
-			if expectedChecksum != "" {
-				actualChecksum, err := computeChecksum(localPath, opts.ChecksumAlgorithm)
-				if err == nil && strings.EqualFold(actualChecksum, expectedChecksum) {
-					shouldSkip = true
-					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
-				}
+		} else if opts.checksumValidator != nil {
+			// Use the new ChecksumValidator for validation
+			valid, err := opts.checksumValidator.Validate(localPath, asset.Checksum)
+			if err == nil && valid {
+				shouldSkip = true
+				skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
 			}
 		}
 	}
@@ -319,61 +312,6 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	return true
 }
 
-// getExpectedChecksum returns the expected checksum value for the selected algorithm
-func getExpectedChecksum(checksum nexusapi.Checksum, opts *DownloadOptions) string {
-	switch strings.ToLower(opts.ChecksumAlgorithm) {
-	case "sha1":
-		return checksum.SHA1
-	case "sha256":
-		return checksum.SHA256
-	case "sha512":
-		return checksum.SHA512
-	case "md5":
-		return checksum.MD5
-	default:
-		return checksum.SHA1 // Default to SHA1
-	}
-}
-
-// computeChecksum computes the checksum of a file using the specified algorithm
-func computeChecksum(path string, algorithm string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	var h hash.Hash
-	switch strings.ToLower(algorithm) {
-	case "sha1":
-		h = sha1.New()
-	case "sha256":
-		h = sha256.New()
-	case "sha512":
-		h = sha512.New()
-	case "md5":
-		h = md5.New()
-	default:
-		h = sha1.New() // Default to SHA1
-	}
-
-	if _, err := io.Copy(h, file); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
-}
-
-// computeSHA1 computes the SHA1 checksum of a file at the given path.
-// Deprecated: Use computeChecksum instead
-func computeSHA1(path string) (string, error) {
-	return computeChecksum(path, "sha1")
-}
-
-// NewSHA1 returns a new hash.Hash computing the SHA1 checksum.
-func NewSHA1() hash.Hash {
-	return sha1.New()
-}
-
 // deleteExtraFiles removes local files that are not present in the remote asset map
 func deleteExtraFiles(destDir string, remoteAssetPaths map[string]bool, opts *DownloadOptions) int {
 	nDeleted := 0
@@ -443,7 +381,17 @@ func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
 }
 
 func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
-	success := downloadFolder(src, dest, config, opts)
+	processedSrc, err := processKeyTemplate(src, opts.KeyFromFile)
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
+
+	if opts.KeyFromFile != "" {
+		opts.Logger.Printf("Using key template: %s -> %s\n", src, processedSrc)
+	}
+
+	success := downloadFolder(processedSrc, dest, config, opts)
 	if !success {
 		os.Exit(66)
 	}

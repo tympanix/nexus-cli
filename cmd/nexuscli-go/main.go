@@ -57,6 +57,7 @@ func main() {
 	var uploadCompress bool
 	var uploadCompressionFormat string
 	var uploadGlobPattern string
+	var uploadKeyFrom string
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
@@ -68,6 +69,7 @@ func main() {
 				QuietMode:   quietMode,
 				Compress:    uploadCompress,
 				GlobPattern: uploadGlobPattern,
+				KeyFromFile: uploadKeyFrom,
 			}
 			// Parse compression format if provided
 			if uploadCompressionFormat != "" {
@@ -86,6 +88,7 @@ func main() {
 	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
 	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
+	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
@@ -93,16 +96,13 @@ func main() {
 	var deleteExtra bool
 	var compressDownload bool
 	var downloadCompressionFormat string
+	var downloadKeyFrom string
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
 		Long:  "Download a folder from Nexus RAW\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			skipChecksumValidation, _ = cmd.Flags().GetBool("skip-checksum")
-			flattenPath, _ = cmd.Flags().GetBool("flatten")
-			deleteExtra, _ = cmd.Flags().GetBool("delete")
-			compressDownload, _ = cmd.Flags().GetBool("compress")
 			opts := &nexus.DownloadOptions{
 				ChecksumAlgorithm: "sha1", // default
 				SkipChecksum:      skipChecksumValidation,
@@ -111,6 +111,7 @@ func main() {
 				Logger:            logger,
 				QuietMode:         quietMode,
 				Compress:          compressDownload,
+				KeyFromFile:       downloadKeyFrom,
 			}
 			// Parse compression format if provided
 			if downloadCompressionFormat != "" {
@@ -131,11 +132,12 @@ func main() {
 		},
 	}
 	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
-	downloadCmd.Flags().BoolP("skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
-	downloadCmd.Flags().BoolP("flatten", "f", false, "Download files without preserving the base path specified in the source argument")
-	downloadCmd.Flags().Bool("delete", false, "Remove local files from the destination folder that are not present in Nexus")
-	downloadCmd.Flags().BoolP("compress", "z", false, "Download and extract a compressed archive")
+	downloadCmd.Flags().BoolVarP(&skipChecksumValidation, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolVarP(&flattenPath, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+	downloadCmd.Flags().BoolVar(&deleteExtra, "delete", false, "Remove local files from the destination folder that are not present in Nexus")
+	downloadCmd.Flags().BoolVarP(&compressDownload, "compress", "z", false, "Download and extract a compressed archive")
 	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	downloadCmd.Flags().StringVar(&downloadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
