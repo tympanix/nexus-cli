@@ -242,12 +242,16 @@ func TestKeyFromFlagExists(t *testing.T) {
 				t.Errorf("Expected help output to contain --key-from flag for %s command, got: %s", tt.command, output)
 			}
 		})
-  }
+	}
 }
 
 func TestVerboseFlag(t *testing.T) {
 	// Build the binary first
 	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-verbose")
+	buildCmd.Dir = "."
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
 	defer os.Remove("./nexuscli-go-test-verbose")
 
 	// Test that --verbose flag is available in help
