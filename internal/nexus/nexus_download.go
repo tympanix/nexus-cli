@@ -23,7 +23,7 @@ type DownloadOptions struct {
 	Compress          bool              // Enable decompression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 	KeyFromFile       string            // Path to file to compute hash from for {key} template
-  checksumValidator ChecksumValidator // Internal validator instance
+	checksumValidator ChecksumValidator // Internal validator instance
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
