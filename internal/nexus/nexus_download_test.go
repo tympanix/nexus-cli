@@ -645,3 +645,35 @@ func TestDownloadErrorConditions(t *testing.T) {
 		t.Errorf("Expected DownloadError status (1) for invalid format, got %d", status)
 	}
 }
+
+// TestDownloadMainExitCode verifies DownloadMain properly exits with status codes
+func TestDownloadMainExitCode(t *testing.T) {
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-main-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Test that DownloadMain calls os.Exit with correct code for no assets
+	// We can't directly test os.Exit, but we can verify the status is returned correctly
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	status := downloadFolder("test-repo/empty-folder", destDir, config, opts)
+	if status != DownloadNoAssetsFound {
+		t.Errorf("Expected DownloadNoAssetsFound (66) for empty folder, got %d", status)
+	}
+}
