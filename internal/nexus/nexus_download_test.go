@@ -677,3 +677,309 @@ func TestDownloadMainExitCode(t *testing.T) {
 		t.Errorf("Expected DownloadNoAssetsFound (66) for empty folder, got %d", status)
 	}
 }
+
+// TestDownloadCompressedGzipWithProgressBar tests downloading with gzip decompression and progress bar validation
+func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
+	// Create test files for the archive
+	srcDir, err := os.MkdirTemp("", "test-compress-dl-gzip-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+		"file2.txt": "Content 2",
+		"file3.txt": "Content 3",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create archive file
+	archiveFile, err := os.CreateTemp("", "test-archive-*.tar.gz")
+	if err != nil {
+		t.Fatalf("Failed to create archive file: %v", err)
+	}
+	archivePath := archiveFile.Name()
+	defer os.Remove(archivePath)
+
+	if err := CreateTarGz(srcDir, archiveFile); err != nil {
+		t.Fatalf("Failed to create archive: %v", err)
+	}
+	archiveFile.Close()
+
+	// Read archive content for serving
+	archiveContent, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("Failed to read archive: %v", err)
+	}
+
+	archiveName := "archive.tar.gz"
+
+	// Create mock server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        "/test-folder/" + archiveName,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(archiveContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create download directory
+	destDir, err := os.MkdirTemp("", "test-compress-dl-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
+	}
+
+	// Download and extract with explicit archive name
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatal("Download failed")
+	}
+
+	// Verify extracted files
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+// TestDownloadCompressedZstdWithProgressBar tests downloading with zstd decompression and progress bar validation
+func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
+	// Create test files for the archive
+	srcDir, err := os.MkdirTemp("", "test-compress-dl-zstd-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+		"file2.txt": "Content 2",
+		"file3.txt": "Content 3",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create archive file
+	archiveFile, err := os.CreateTemp("", "test-archive-*.tar.zst")
+	if err != nil {
+		t.Fatalf("Failed to create archive file: %v", err)
+	}
+	archivePath := archiveFile.Name()
+	defer os.Remove(archivePath)
+
+	if err := CreateTarZst(srcDir, archiveFile); err != nil {
+		t.Fatalf("Failed to create archive: %v", err)
+	}
+	archiveFile.Close()
+
+	// Read archive content for serving
+	archiveContent, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("Failed to read archive: %v", err)
+	}
+
+	archiveName := "archive.tar.zst"
+
+	// Create mock server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        "/test-folder/" + archiveName,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(archiveContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create download directory
+	destDir, err := os.MkdirTemp("", "test-compress-dl-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionZstd,
+	}
+
+	// Download and extract with explicit archive name
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatal("Download failed")
+	}
+
+	// Verify extracted files
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+// TestDownloadCompressedZipWithProgressBar tests downloading with zip decompression and progress bar validation
+func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
+	// Create test files for the archive
+	srcDir, err := os.MkdirTemp("", "test-compress-dl-zip-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Content 1",
+		"file2.txt": "Content 2",
+		"file3.txt": "Content 3",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create archive file
+	archiveFile, err := os.CreateTemp("", "test-archive-*.zip")
+	if err != nil {
+		t.Fatalf("Failed to create archive file: %v", err)
+	}
+	archivePath := archiveFile.Name()
+	defer os.Remove(archivePath)
+
+	if err := CreateZip(srcDir, archiveFile); err != nil {
+		t.Fatalf("Failed to create archive: %v", err)
+	}
+	archiveFile.Close()
+
+	// Read archive content for serving
+	archiveContent, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("Failed to read archive: %v", err)
+	}
+
+	archiveName := "archive.zip"
+
+	// Create mock server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        "/test-folder/" + archiveName,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(archiveContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create download directory
+	destDir, err := os.MkdirTemp("", "test-compress-dl-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionZip,
+	}
+
+	// Download and extract with explicit archive name
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatal("Download failed")
+	}
+
+	// Verify extracted files
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
