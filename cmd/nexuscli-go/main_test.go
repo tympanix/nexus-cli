@@ -272,3 +272,63 @@ func TestVerboseFlag(t *testing.T) {
 		t.Errorf("Expected help output to contain verbose flag description, got: %s", output)
 	}
 }
+
+func TestDownloadExitCodes(t *testing.T) {
+	// Build the binary first
+	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-exitcode")
+	buildCmd.Dir = "."
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
+	defer os.Remove("./nexuscli-go-test-exitcode")
+
+	tests := []struct {
+		name         string
+		args         []string
+		expectedExit int
+		description  string
+	}{
+		{
+			name:         "invalid src format",
+			args:         []string{"download", "invalid-format", "/tmp/dest"},
+			expectedExit: 1,
+			description:  "Invalid src argument should exit with code 1",
+		},
+		{
+			name:         "missing arguments",
+			args:         []string{"download"},
+			expectedExit: 1,
+			description:  "Missing arguments should exit with code 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := exec.Command("./nexuscli-go-test-exitcode", tt.args...)
+			cmd.Env = append(os.Environ(),
+				"NEXUS_URL=http://fake-nexus:8081",
+				"NEXUS_USER=test",
+				"NEXUS_PASS=test",
+			)
+
+			var stdout bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stdout
+
+			err := cmd.Run()
+			if err == nil && tt.expectedExit != 0 {
+				t.Errorf("Expected command to fail with exit code %d, but it succeeded", tt.expectedExit)
+				return
+			}
+
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode := exitErr.ExitCode()
+				if exitCode != tt.expectedExit {
+					t.Errorf("Expected exit code %d, got %d. Output: %s", tt.expectedExit, exitCode, stdout.String())
+				}
+			} else if tt.expectedExit != 0 {
+				t.Errorf("Expected exit error with code %d, got: %v", tt.expectedExit, err)
+			}
+		})
+	}
+}

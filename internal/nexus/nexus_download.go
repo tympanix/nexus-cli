@@ -113,11 +113,20 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	}
 }
 
-func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) bool {
+// DownloadStatus represents the result of a download operation
+type DownloadStatus int
+
+const (
+	DownloadSuccess       DownloadStatus = 0
+	DownloadError         DownloadStatus = 1
+	DownloadNoAssetsFound DownloadStatus = 66
+)
+
+func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
 	parts := strings.SplitN(srcArg, "/", 2)
 	if len(parts) != 2 {
 		opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
-		return false
+		return DownloadError
 	}
 	repository, src := parts[0], parts[1]
 
@@ -145,11 +154,11 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	assets, err := listAssets(repository, src, config)
 	if err != nil {
 		opts.Logger.Println("Error listing assets:", err)
-		return false
+		return DownloadError
 	}
 	if len(assets) == 0 {
 		opts.Logger.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
-		return false
+		return DownloadNoAssetsFound
 	}
 
 	// Build a map of remote asset paths for delete-extra functionality
@@ -222,19 +231,22 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
 			nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
 	}
-	return nErrors == 0
+	if nErrors == 0 {
+		return DownloadSuccess
+	}
+	return DownloadError
 }
 
 // downloadFolderCompressed downloads and extracts a compressed archive
-func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) bool {
+func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
 	return downloadFolderCompressedWithArchiveName(repository, src, "", destDir, config, opts)
 }
 
 // downloadFolderCompressedWithArchiveName downloads and extracts a compressed archive with optional explicit name
-func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) bool {
+func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
 	// Require explicit archive name
 	if explicitArchiveName == "" {
-		return false
+		return DownloadError
 	}
 
 	archiveName := explicitArchiveName
@@ -250,7 +262,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	assets, err := listAssets(repository, src, config)
 	if err != nil {
 		opts.Logger.Println("Error listing assets:", err)
-		return false
+		return DownloadError
 	}
 
 	// Find the archive file
@@ -268,7 +280,12 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 		for _, asset := range assets {
 			opts.Logger.VerbosePrintf("  - %s\n", asset.Path)
 		}
-		return false
+		// If we got the asset list successfully but the specific archive wasn't found,
+		// this is still a "no assets found" scenario (for the specific archive requested)
+		if len(assets) == 0 {
+			return DownloadNoAssetsFound
+		}
+		return DownloadError
 	}
 
 	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
@@ -296,19 +313,19 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 
 	if err != nil {
 		opts.Logger.Printf("Failed to download archive: %v\n", err)
-		return false
+		return DownloadError
 	}
 
 	// Wait for extraction to complete
 	if extractErr := <-errChan; extractErr != nil {
 		opts.Logger.Printf("Failed to extract archive: %v\n", extractErr)
-		return false
+		return DownloadError
 	}
 
 	bar.Finish()
 	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
 		archiveName, src, repository, destDir)
-	return true
+	return DownloadSuccess
 }
 
 // deleteExtraFiles removes local files that are not present in the remote asset map
@@ -390,8 +407,8 @@ func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
 		opts.Logger.Printf("Using key template: %s -> %s\n", src, processedSrc)
 	}
 
-	success := downloadFolder(processedSrc, dest, config, opts)
-	if !success {
-		os.Exit(66)
+	status := downloadFolder(processedSrc, dest, config, opts)
+	if status != DownloadSuccess {
+		os.Exit(int(status))
 	}
 }

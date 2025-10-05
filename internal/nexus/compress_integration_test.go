@@ -259,8 +259,8 @@ func TestCompressedDownload(t *testing.T) {
 	}
 
 	// Download and extract with explicit archive name
-	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, opts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -360,8 +360,8 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	}
 
 	// Download with explicit archive name via downloadFolderCompressedWithArchiveName
-	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", customArchiveName, destDir, config, opts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", customArchiveName, destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -404,8 +404,8 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 	}
 
 	// Download without explicit archive name should fail (return false)
-	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", "", destDir, config, opts)
-	if success {
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", "", destDir, config, opts)
+	if status == DownloadSuccess {
 		t.Fatal("Expected download to fail when using compress without explicit archive name")
 	}
 }
@@ -503,8 +503,8 @@ func TestCompressedRoundTrip(t *testing.T) {
 		CompressionFormat: CompressionGzip,
 	}
 
-	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -617,8 +617,8 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 		CompressionFormat: CompressionZstd,
 	}
 
-	success := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 

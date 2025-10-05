@@ -56,8 +56,8 @@ func TestDownloadSingleFile(t *testing.T) {
 	defer os.RemoveAll(destDir)
 
 	// Test download
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -117,8 +117,8 @@ func TestDownloadLogging(t *testing.T) {
 	}
 	defer os.RemoveAll(destDir)
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -192,8 +192,8 @@ func TestDownloadFlatten(t *testing.T) {
 	}
 	defer os.RemoveAll(destDir)
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -257,8 +257,8 @@ func TestDownloadNoFlatten(t *testing.T) {
 	}
 	defer os.RemoveAll(destDir)
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -345,8 +345,8 @@ func TestDownloadDeleteExtra(t *testing.T) {
 		QuietMode:         true,
 	}
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -423,8 +423,8 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 		QuietMode:         true,
 	}
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -497,8 +497,8 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 		QuietMode:         true,
 	}
 
-	success := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if !success {
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -581,5 +581,67 @@ func TestURLConstruction(t *testing.T) {
 				t.Errorf("Expected path '%s', got '%s'", expectedPath, server.LastListPath)
 			}
 		})
+	}
+}
+
+// TestDownloadNoAssetsFound tests that exit code 66 is returned when no assets are found
+func TestDownloadNoAssetsFound(t *testing.T) {
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-no-assets-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Test download with no assets in the repository
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadNoAssetsFound {
+		t.Errorf("Expected DownloadNoAssetsFound status (66), got %d", status)
+	}
+}
+
+// TestDownloadErrorConditions tests that exit code 1 is returned for error conditions
+func TestDownloadErrorConditions(t *testing.T) {
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-error-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Test with invalid src argument (missing repository/folder format)
+	status := downloadFolder("invalid-format", destDir, config, opts)
+	if status != DownloadError {
+		t.Errorf("Expected DownloadError status (1) for invalid format, got %d", status)
 	}
 }
