@@ -394,10 +394,14 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 	}
 	defer os.RemoveAll(destDir)
 
+	// Capture logger output
+	var logBuf strings.Builder
+	logger := NewLogger(&logBuf)
+
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            logger,
 		QuietMode:         true,
 		Compress:          true,
 		CompressionFormat: CompressionGzip,
@@ -407,6 +411,62 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", "", destDir, config, opts)
 	if status == DownloadSuccess {
 		t.Fatal("Expected download to fail when using compress without explicit archive name")
+	}
+
+	// Verify error message is printed
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "when using --compress, you must specify the .tar.gz filename in the source path") {
+		t.Errorf("Expected error message about missing archive filename, got: %s", logOutput)
+	}
+}
+
+// TestCompressedDownloadWithoutExplicitNameDifferentFormats tests error messages for different compression formats
+func TestCompressedDownloadWithoutExplicitNameDifferentFormats(t *testing.T) {
+	config := &Config{
+		NexusURL: "http://localhost:8081",
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-compress-dl-formats-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	testCases := []struct {
+		format          CompressionFormat
+		expectedMessage string
+	}{
+		{CompressionGzip, ".tar.gz"},
+		{CompressionZstd, ".tar.zst"},
+		{CompressionZip, ".zip"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(string(tc.format), func(t *testing.T) {
+			var logBuf strings.Builder
+			logger := NewLogger(&logBuf)
+
+			opts := &DownloadOptions{
+				ChecksumAlgorithm: "sha1",
+				SkipChecksum:      false,
+				Logger:            logger,
+				QuietMode:         true,
+				Compress:          true,
+				CompressionFormat: tc.format,
+			}
+
+			status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", "", destDir, config, opts)
+			if status == DownloadSuccess {
+				t.Fatal("Expected download to fail when using compress without explicit archive name")
+			}
+
+			logOutput := logBuf.String()
+			if !strings.Contains(logOutput, tc.expectedMessage) {
+				t.Errorf("Expected error message to contain %s, got: %s", tc.expectedMessage, logOutput)
+			}
+		})
 	}
 }
 

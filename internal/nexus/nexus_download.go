@@ -247,6 +247,11 @@ func downloadFolderCompressed(repository, src, destDir string, config *Config, o
 func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
 	// Require explicit archive name
 	if explicitArchiveName == "" {
+		ext := opts.CompressionFormat.Extension()
+		if opts.CompressionFormat == "" {
+			ext = ".tar.gz"
+		}
+		opts.Logger.Printf("Error: when using --compress, you must specify the %s filename in the source path (e.g., repo/path/archive%s)\n", ext, ext)
 		return DownloadError
 	}
 
