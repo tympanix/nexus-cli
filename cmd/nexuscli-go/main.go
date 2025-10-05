@@ -80,7 +80,7 @@ func main() {
 	}
 	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
 	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default) or zstd")
-	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern to filter files (e.g., '**/*.go', '*.txt')")
+	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
