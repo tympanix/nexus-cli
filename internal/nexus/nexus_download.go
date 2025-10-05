@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"crypto/md5"
 	"crypto/sha1"
@@ -15,34 +14,8 @@ import (
 	"crypto/sha512"
 	"hash"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
-
-// progressBarWithCount wraps a progress bar to track file count
-type progressBarWithCount struct {
-	bar         *progressbar.ProgressBar
-	current     *int32
-	total       int
-	description string
-}
-
-func (p *progressBarWithCount) Write(b []byte) (int, error) {
-	return p.bar.Write(b)
-}
-
-func (p *progressBarWithCount) Add64(n int64) error {
-	return p.bar.Add64(n)
-}
-
-func (p *progressBarWithCount) incrementFile() {
-	newCount := atomic.AddInt32(p.current, 1)
-	p.bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", newCount, p.total, p.description))
-}
-
-func (p *progressBarWithCount) Finish() error {
-	return p.bar.Finish()
-}
 
 // DownloadOptions holds options for download operations
 type DownloadOptions struct {

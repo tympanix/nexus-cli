@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync/atomic"
 
 	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
@@ -64,4 +65,30 @@ func newProgressBar(totalBytes int64, description string, currentFile, totalFile
 			BarEnd:        "]",
 		}),
 	)
+}
+
+// progressBarWithCount wraps a progress bar to track file count atomically
+// Used for parallel download operations where multiple goroutines update progress
+type progressBarWithCount struct {
+	bar         *progressbar.ProgressBar
+	current     *int32
+	total       int
+	description string
+}
+
+func (p *progressBarWithCount) Write(b []byte) (int, error) {
+	return p.bar.Write(b)
+}
+
+func (p *progressBarWithCount) Add64(n int64) error {
+	return p.bar.Add64(n)
+}
+
+func (p *progressBarWithCount) incrementFile() {
+	newCount := atomic.AddInt32(p.current, 1)
+	p.bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", newCount, p.total, p.description))
+}
+
+func (p *progressBarWithCount) Finish() error {
+	return p.bar.Finish()
 }
