@@ -82,17 +82,20 @@ All artifacts are placed in the `dist/` directory.
 
 ### Installing from Packages
 
-**DEB (Debian/Ubuntu):**
+#### DEB (Debian/Ubuntu)
+
 ```bash
 sudo dpkg -i dist/nexus-cli_*_linux_amd64.deb
 ```
 
-**RPM (Red Hat/Fedora):**
+#### RPM (Red Hat/Fedora)
+
 ```bash
 sudo rpm -i dist/nexus-cli_*_linux_amd64.rpm
 ```
 
-**Standalone Binary:**
+#### Standalone Binary
+
 ```bash
 ./dist/nexuscli-go_linux_amd64_v1/nexuscli-go
 ```
@@ -134,12 +137,14 @@ nexuscli-go version
 
 You can authenticate with Nexus using environment variables or CLI flags:
 
-**Environment variables:**
+#### Environment variables
+
 - `NEXUS_URL` (default: http://localhost:8081)
 - `NEXUS_USER` (default: admin)
 - `NEXUS_PASS` (default: admin)
 
-**CLI flags (take precedence over environment variables):**
+#### CLI flags (take precedence over environment variables)
+
 - `--url <url>` - URL to Nexus server
 - `--username <username>` - Username for Nexus authentication
 - `--password <password>` - Password for Nexus authentication
@@ -150,29 +155,32 @@ You can authenticate with Nexus using environment variables or CLI flags:
 nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] [--key-from <file>] <directory> <repository[/subdir]>
 ```
 
-**Upload options:**
+#### Upload options
+
 - `--compress` or `-z` - Create and upload files as a compressed archive
 - `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
 - `--glob <pattern>` or `-g <pattern>` - Glob pattern(s) to filter files (supports multiple patterns and negation)
 - `--key-from <file>` - Path to file to compute hash from for `{key}` template in dest
 
-**About the `--glob` flag:**
+#### About the `--glob` flag
 
 The `--glob` flag allows you to filter which files are uploaded using glob patterns. This works for both regular uploads and compressed uploads. The pattern is matched against file paths relative to the source directory.
 
-**Multiple patterns and negation:**
+##### Multiple patterns and negation
+
 - Use commas to specify multiple patterns: `"**/*.go,**/*.md"`
 - Use `!` prefix for negative matches (exclusions): `"**/*.go,!**/*_test.go"`
 - Patterns are evaluated left-to-right: positive patterns include files, negative patterns exclude them
 
-**Supported glob patterns:**
+##### Supported glob patterns
+
 - `*` - Matches any characters except `/` (directory separator)
 - `**` - Matches any characters including `/` (matches directories recursively)
 - `?` - Matches any single character
 - `[...]` - Matches any character inside the brackets
 - `{alt1,alt2}` - Matches any of the alternatives
 
-**Examples:**
+##### Examples
 
 ```bash
 # Upload only .txt files from root directory
@@ -206,14 +214,15 @@ nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
 nexuscli-go upload --compress --glob "**/*.go,!**/*_test.go" ./files my-repo/archive.tar.gz
 ```
 
-**About the `--compress` flag:**
+#### About the `--compress` flag
 
 When the `--compress` flag is used, all files in the source directory are compressed into a single archive before uploading. This is useful for:
 - Uploading many small files more efficiently
 - Reducing network overhead
 - Storing files as a single artifact in Nexus
 
-**Compression formats:**
+##### Compression formats
+
 - `gzip` (default) - Creates `.tar.gz` archives (widely compatible)
 - `zstd` - Creates `.tar.zst` archives (better compression ratio and speed)
 - `zip` - Creates `.zip` archives (widely compatible, no tar wrapper)
@@ -242,7 +251,7 @@ nexuscli-go upload --compress ./files my-repo/path/backup.zip
 # Automatically uses zip compression based on .zip extension
 ```
 
-**About the `--key-from` flag:**
+#### About the `--key-from` flag
 
 The `--key-from` flag enables content-based caching by computing a hash from a specified file and using it in the destination path. This is particularly useful for:
 - Caching build artifacts based on dependency files (e.g., `package-lock.json`, `go.sum`)
@@ -251,7 +260,7 @@ The `--key-from` flag enables content-based caching by computing a hash from a s
 
 When using `--key-from`, you must include the `{key}` template placeholder in your destination path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value.
 
-**Examples:**
+##### Examples
 
 ```bash
 # Upload node_modules with hash from package-lock.json
@@ -275,7 +284,8 @@ nexuscli-go upload --key-from go.sum ./vendor my-repo/go-deps/{key}/vendor
 nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder> <directory>
 ```
 
-**Download options:**
+#### Download options
+
 - `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
@@ -284,7 +294,7 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
 - `--key-from <file>` - Path to file to compute hash from for `{key}` template in src
 
-**About the `--flatten` flag:**
+#### About the `--flatten` flag
 
 By default, when downloading from `repository/path/to/folder`, the entire path structure is preserved locally. For example:
 - File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/path/to/folder/file.txt` locally
@@ -293,14 +303,15 @@ With the `--flatten` flag enabled, the base path specified in the source argumen
 - File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/file.txt` locally
 - File at `/path/to/folder/subdir/file.txt` in Nexus → saved to `<dest>/subdir/file.txt` locally (subdirectories beyond the base path are preserved)
 
-**About the `--compress` flag:**
+#### About the `--compress` flag
 
 When the `--compress` flag is used with download, the CLI looks for a compressed archive in the specified path and extracts it to the destination directory. This is useful for:
 - Downloading files that were uploaded with compression
 - Extracting archives on-the-fly without storing the compressed file locally
 - Faster downloads when dealing with many small files
 
-**Compression formats:**
+##### Compression formats
+
 - `gzip` (default) - Extracts `.tar.gz` archives
 - `zstd` - Extracts `.tar.zst` archives (better performance)
 - `zip` - Extracts `.zip` archives (widely compatible)
@@ -323,7 +334,7 @@ nexuscli-go download --compress my-repo/path/archive.zip ./local-folder
 # Format is auto-detected from the .zip extension
 ```
 
-**Examples:**
+#### Examples
 
 Using environment variables:
 ```bash
@@ -392,13 +403,13 @@ nexuscli-go download --compress my-repo/artifacts/backup.zip ./local-folder
 # Downloads and extracts: backup.zip from my-repo/artifacts/
 ```
 
-**About the `--key-from` flag:**
+#### About the `--key-from` flag
 
 The `--key-from` flag enables content-based cache retrieval by computing a hash from a specified file and using it in the source path. This allows you to download cached artifacts that were uploaded with the same key-based naming.
 
 When using `--key-from`, you must include the `{key}` template placeholder in your source path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value to locate the correct artifact.
 
-**Examples:**
+##### Examples
 
 ```bash
 # Download node_modules using hash from package-lock.json
@@ -416,7 +427,7 @@ nexuscli-go download --key-from go.sum my-repo/go-deps/{key}/vendor ./vendor
 
 **Important:** The `{key}` placeholder is required when `--key-from` is specified. If the template is missing, the CLI will exit with an error.
 
-**Typical workflow for caching:**
+##### Typical workflow for caching
 
 ```bash
 # Upload cached dependencies
@@ -491,11 +502,12 @@ An end-to-end test is provided that uses a real Nexus instance running in Docker
 - Validates that the downloaded content matches the uploaded content
 - Cleans up the Docker container
 
-**Requirements:**
+#### Requirements
+
 - Docker must be installed and running
 - The test takes approximately 1-2 minutes to complete
 
-**Run the end-to-end test:**
+#### Run the end-to-end test
 
 ```bash
 make test-e2e
