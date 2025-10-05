@@ -378,3 +378,159 @@ func TestUploadURLConstruction(t *testing.T) {
 		})
 	}
 }
+
+// TestUploadCompressedGzipWithProgressBar tests uploading with gzip compression and progress bar validation
+func TestUploadCompressedGzipWithProgressBar(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-gzip-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Test content 1",
+		"file2.txt": "Test content 2",
+		"file3.txt": "Test content 3",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
+	}
+
+	err = uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.tar.gz", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	uploadedArchives := server.GetUploadedArchives()
+	if len(uploadedArchives) == 0 {
+		t.Fatal("Archive was not uploaded")
+	}
+
+	if uploadedArchives[0].Filename != "archive.tar.gz" {
+		t.Errorf("Expected archive filename 'archive.tar.gz', got '%s'", uploadedArchives[0].Filename)
+	}
+}
+
+// TestUploadCompressedZstdWithProgressBar tests uploading with zstd compression and progress bar validation
+func TestUploadCompressedZstdWithProgressBar(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-zstd-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Test content 1",
+		"file2.txt": "Test content 2",
+		"file3.txt": "Test content 3",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionZstd,
+	}
+
+	err = uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.tar.zst", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	uploadedArchives := server.GetUploadedArchives()
+	if len(uploadedArchives) == 0 {
+		t.Fatal("Archive was not uploaded")
+	}
+
+	if uploadedArchives[0].Filename != "archive.tar.zst" {
+		t.Errorf("Expected archive filename 'archive.tar.zst', got '%s'", uploadedArchives[0].Filename)
+	}
+}
+
+// TestUploadCompressedZipWithProgressBar tests uploading with zip compression and progress bar validation
+func TestUploadCompressedZipWithProgressBar(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-zip-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFiles := map[string]string{
+		"file1.txt": "Test content 1",
+		"file2.txt": "Test content 2",
+		"file3.txt": "Test content 3",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:            NewLogger(io.Discard),
+		QuietMode:         true,
+		Compress:          true,
+		CompressionFormat: CompressionZip,
+	}
+
+	err = uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.zip", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	uploadedArchives := server.GetUploadedArchives()
+	if len(uploadedArchives) == 0 {
+		t.Fatal("Archive was not uploaded")
+	}
+
+	if uploadedArchives[0].Filename != "archive.zip" {
+		t.Errorf("Expected archive filename 'archive.zip', got '%s'", uploadedArchives[0].Filename)
+	}
+}
