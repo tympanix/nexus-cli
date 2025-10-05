@@ -55,8 +55,8 @@ func TestCompressedUploadWithProgressBar(t *testing.T) {
 			t.Fatalf("Upload failed: %v", err)
 		}
 
-		uploadedArchives := server.GetUploadedArchives()
-		if len(uploadedArchives) == 0 {
+		uploadedFiles := server.GetUploadedFiles()
+		if len(uploadedFiles) == 0 {
 			t.Fatal("Archive was not uploaded")
 		}
 	})

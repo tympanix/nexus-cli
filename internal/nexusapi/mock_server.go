@@ -22,23 +22,15 @@ type MockNexusServer struct {
 	ContinuationTokens map[string]string
 
 	// Captured data from requests
-	UploadedFiles    []UploadedFile
-	UploadedArchives []UploadedArchive
-	RequestCount     int
-	LastUploadRepo   string
-	LastListRepo     string
-	LastListPath     string
+	UploadedFiles  []UploadedFile
+	RequestCount   int
+	LastUploadRepo string
+	LastListRepo   string
+	LastListPath   string
 }
 
 // UploadedFile represents a file that was uploaded to the mock server
 type UploadedFile struct {
-	Filename   string
-	Content    []byte
-	Repository string
-}
-
-// UploadedArchive represents an archive that was uploaded to the mock server
-type UploadedArchive struct {
 	Filename   string
 	Content    []byte
 	Repository string
@@ -51,7 +43,6 @@ func NewMockNexusServer() *MockNexusServer {
 		AssetContent:       make(map[string][]byte),
 		ContinuationTokens: make(map[string]string),
 		UploadedFiles:      make([]UploadedFile, 0),
-		UploadedArchives:   make([]UploadedArchive, 0),
 	}
 
 	mock.Server = httptest.NewServer(http.HandlerFunc(mock.handler))
@@ -114,21 +105,11 @@ func (m *MockNexusServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 			}
 
 			m.mu.Lock()
-			if strings.HasSuffix(header.Filename, ".tar.gz") || strings.HasSuffix(header.Filename, ".tar.zst") || strings.HasSuffix(header.Filename, ".zip") {
-				// This is an archive upload
-				m.UploadedArchives = append(m.UploadedArchives, UploadedArchive{
-					Filename:   header.Filename,
-					Content:    content,
-					Repository: repository,
-				})
-			} else {
-				// Regular file upload
-				m.UploadedFiles = append(m.UploadedFiles, UploadedFile{
-					Filename:   header.Filename,
-					Content:    content,
-					Repository: repository,
-				})
-			}
+			m.UploadedFiles = append(m.UploadedFiles, UploadedFile{
+				Filename:   header.Filename,
+				Content:    content,
+				Repository: repository,
+			})
 			m.mu.Unlock()
 		}
 	}
@@ -259,7 +240,6 @@ func (m *MockNexusServer) Reset() {
 	m.AssetContent = make(map[string][]byte)
 	m.ContinuationTokens = make(map[string]string)
 	m.UploadedFiles = make([]UploadedFile, 0)
-	m.UploadedArchives = make([]UploadedArchive, 0)
 	m.RequestCount = 0
 	m.LastUploadRepo = ""
 	m.LastListRepo = ""
@@ -271,13 +251,6 @@ func (m *MockNexusServer) GetUploadedFiles() []UploadedFile {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return append([]UploadedFile{}, m.UploadedFiles...)
-}
-
-// GetUploadedArchives returns the list of uploaded archives
-func (m *MockNexusServer) GetUploadedArchives() []UploadedArchive {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return append([]UploadedArchive{}, m.UploadedArchives...)
 }
 
 // GetRequestCount returns the number of requests received

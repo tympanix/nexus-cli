@@ -421,13 +421,13 @@ func TestUploadCompressedGzipWithProgressBar(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
-	if len(uploadedArchives) == 0 {
+	uploadedFiles := server.GetUploadedFiles()
+	if len(uploadedFiles) == 0 {
 		t.Fatal("Archive was not uploaded")
 	}
 
-	if uploadedArchives[0].Filename != "archive.tar.gz" {
-		t.Errorf("Expected archive filename 'archive.tar.gz', got '%s'", uploadedArchives[0].Filename)
+	if uploadedFiles[0].Filename != "archive.tar.gz" {
+		t.Errorf("Expected archive filename 'archive.tar.gz', got '%s'", uploadedFiles[0].Filename)
 	}
 }
 
@@ -473,13 +473,13 @@ func TestUploadCompressedZstdWithProgressBar(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
-	if len(uploadedArchives) == 0 {
+	uploadedFiles := server.GetUploadedFiles()
+	if len(uploadedFiles) == 0 {
 		t.Fatal("Archive was not uploaded")
 	}
 
-	if uploadedArchives[0].Filename != "archive.tar.zst" {
-		t.Errorf("Expected archive filename 'archive.tar.zst', got '%s'", uploadedArchives[0].Filename)
+	if uploadedFiles[0].Filename != "archive.tar.zst" {
+		t.Errorf("Expected archive filename 'archive.tar.zst', got '%s'", uploadedFiles[0].Filename)
 	}
 }
 
@@ -525,12 +525,12 @@ func TestUploadCompressedZipWithProgressBar(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
-	if len(uploadedArchives) == 0 {
+	uploadedFiles := server.GetUploadedFiles()
+	if len(uploadedFiles) == 0 {
 		t.Fatal("Archive was not uploaded")
 	}
 
-	if uploadedArchives[0].Filename != "archive.zip" {
-		t.Errorf("Expected archive filename 'archive.zip', got '%s'", uploadedArchives[0].Filename)
+	if uploadedFiles[0].Filename != "archive.zip" {
+		t.Errorf("Expected archive filename 'archive.zip', got '%s'", uploadedFiles[0].Filename)
 	}
 }

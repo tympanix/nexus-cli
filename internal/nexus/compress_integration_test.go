@@ -59,15 +59,15 @@ func TestCompressedUpload(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
+	uploadedFiles := server.GetUploadedFiles()
 
-	if len(uploadedArchives) == 0 {
+	if len(uploadedFiles) == 0 {
 		t.Fatal("Archive was not uploaded")
 	}
 
 	expectedName := "test-repo-test-folder.tar.gz"
-	if uploadedArchives[0].Filename != expectedName {
-		t.Errorf("Expected archive name %q, got %q", expectedName, uploadedArchives[0].Filename)
+	if uploadedFiles[0].Filename != expectedName {
+		t.Errorf("Expected archive name %q, got %q", expectedName, uploadedFiles[0].Filename)
 	}
 }
 
@@ -115,15 +115,15 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
+	uploadedFiles := server.GetUploadedFiles()
 
-	if len(uploadedArchives) == 0 {
+	if len(uploadedFiles) == 0 {
 		t.Fatal("No archive was uploaded")
 	}
 
 	expectedName := "custom-archive.tar.gz"
-	if uploadedArchives[0].Filename != expectedName {
-		t.Errorf("Expected archive name %q, got %q", expectedName, uploadedArchives[0].Filename)
+	if uploadedFiles[0].Filename != expectedName {
+		t.Errorf("Expected archive name %q, got %q", expectedName, uploadedFiles[0].Filename)
 	}
 }
 
@@ -466,12 +466,12 @@ func TestCompressedRoundTrip(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
-	if len(uploadedArchives) == 0 {
+	uploadedFiles := server.GetUploadedFiles()
+	if len(uploadedFiles) == 0 {
 		t.Fatal("Archive was not captured during upload")
 	}
 
-	uploadedArchiveContent := uploadedArchives[0].Content
+	uploadedArchiveContent := uploadedFiles[0].Content
 
 	// Setup mock server to serve the uploaded archive for download
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
@@ -574,12 +574,12 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
-	if len(uploadedArchives) == 0 {
+	uploadedFiles := server.GetUploadedFiles()
+	if len(uploadedFiles) == 0 {
 		t.Fatal("Archive was not captured during upload")
 	}
 
-	uploadedArchiveContent := uploadedArchives[0].Content
+	uploadedArchiveContent := uploadedFiles[0].Content
 
 	// Verify it's zstd compressed (starts with zstd magic bytes)
 	if len(uploadedArchiveContent) < 4 {

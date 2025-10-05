@@ -280,14 +280,14 @@ func TestCompressedUploadWithGlob(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	uploadedArchives := server.GetUploadedArchives()
+	uploadedFiles := server.GetUploadedFiles()
 
-	if len(uploadedArchives) != 1 {
-		t.Fatalf("Expected 1 uploaded archive, got %d", len(uploadedArchives))
+	if len(uploadedFiles) != 1 {
+		t.Fatalf("Expected 1 uploaded archive, got %d", len(uploadedFiles))
 	}
 
-	if uploadedArchives[0].Filename != "archive.tar.gz" {
-		t.Errorf("Expected archive name 'archive.tar.gz', got '%s'", uploadedArchives[0].Filename)
+	if uploadedFiles[0].Filename != "archive.tar.gz" {
+		t.Errorf("Expected archive name 'archive.tar.gz', got '%s'", uploadedFiles[0].Filename)
 	}
 }
 
