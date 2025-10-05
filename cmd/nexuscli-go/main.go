@@ -16,6 +16,7 @@ func main() {
 	config := nexus.NewConfig()
 	var logger nexus.Logger
 	var quietMode bool
+	var verboseMode bool
 
 	var rootCmd = &cobra.Command{
 		Use:   "nexuscli-go",
@@ -26,6 +27,7 @@ func main() {
 			cliUsername, _ := cmd.Flags().GetString("username")
 			cliPassword, _ := cmd.Flags().GetString("password")
 			quietMode, _ = cmd.Flags().GetBool("quiet")
+			verboseMode, _ = cmd.Flags().GetBool("verbose")
 			if cliURL != "" {
 				config.NexusURL = cliURL
 			}
@@ -38,6 +40,8 @@ func main() {
 			// Configure logger based on quiet mode
 			if quietMode {
 				logger = nexus.NewLogger(io.Discard)
+			} else if verboseMode {
+				logger = nexus.NewVerboseLogger(os.Stdout)
 			} else {
 				logger = nexus.NewLogger(os.Stdout)
 			}
@@ -48,6 +52,7 @@ func main() {
 	rootCmd.PersistentFlags().String("username", "", "Username for Nexus authentication (defaults to NEXUS_USER env var or 'admin')")
 	rootCmd.PersistentFlags().String("password", "", "Password for Nexus authentication (defaults to NEXUS_PASS env var or 'admin')")
 	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "Suppress all output")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 
 	var uploadCompress bool
 	var uploadCompressionFormat string

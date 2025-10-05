@@ -90,7 +90,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	}
 
 	if shouldSkip {
-		opts.Logger.Printf(skipReason, localPath)
+		opts.Logger.VerbosePrintf(skipReason, localPath)
 		// Advance progress bar by file size for skipped files
 		if bar != nil {
 			bar.Add64(asset.FileSize)
@@ -242,7 +242,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 		opts.CompressionFormat = DetectCompressionFromFilename(archiveName)
 	}
 
-	opts.Logger.Printf("Looking for compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
+	opts.Logger.VerbosePrintf("Looking for compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
 	// List assets to find the archive
 	assets, err := listAssets(repository, src, config)
@@ -262,9 +262,9 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 
 	if archiveAsset == nil {
 		opts.Logger.Printf("Archive '%s' not found in '%s' in repository '%s'\n", archiveName, src, repository)
-		opts.Logger.Println("Available assets:")
+		opts.Logger.VerbosePrintln("Available assets:")
 		for _, asset := range assets {
-			opts.Logger.Printf("  - %s\n", asset.Path)
+			opts.Logger.VerbosePrintf("  - %s\n", asset.Path)
 		}
 		return false
 	}
@@ -381,7 +381,7 @@ func deleteExtraFiles(destDir string, remoteAssetPaths map[string]bool, opts *Do
 
 		// Check if this file exists in remote assets
 		if !remoteAssetPaths[path] {
-			opts.Logger.Printf("Deleting extra file: %s\n", path)
+			opts.Logger.VerbosePrintf("Deleting extra file: %s\n", path)
 			if err := os.Remove(path); err != nil {
 				opts.Logger.Printf("Failed to delete file %s: %v\n", path, err)
 			} else {
@@ -423,7 +423,7 @@ func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
 			}
 
 			if len(entries) == 0 {
-				opts.Logger.Printf("Removing empty directory: %s\n", path)
+				opts.Logger.VerbosePrintf("Removing empty directory: %s\n", path)
 				os.Remove(path)
 			}
 		}

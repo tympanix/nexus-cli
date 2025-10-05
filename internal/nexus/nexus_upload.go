@@ -154,7 +154,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	}
 
 	archiveName := explicitArchiveName
-	opts.Logger.Printf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
+	opts.Logger.VerbosePrintf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
 	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
 
