@@ -206,13 +206,48 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
-func TestVerboseFlag(t *testing.T) {
-	// Build the binary first
-	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-verbose")
+func TestKeyFromFlagExists(t *testing.T) {
+	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-keyfrom")
 	buildCmd.Dir = "."
 	if err := buildCmd.Run(); err != nil {
 		t.Fatalf("Failed to build binary: %v", err)
 	}
+	defer os.Remove("./nexuscli-go-test-keyfrom")
+
+	tests := []struct {
+		command string
+		args    []string
+	}{
+		{
+			command: "upload",
+			args:    []string{"upload", "--help"},
+		},
+		{
+			command: "download",
+			args:    []string{"download", "--help"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			cmd := exec.Command("./nexuscli-go-test-keyfrom", tt.args...)
+			var stdout bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stdout
+
+			cmd.Run()
+
+			output := stdout.String()
+			if !strings.Contains(output, "--key-from") {
+				t.Errorf("Expected help output to contain --key-from flag for %s command, got: %s", tt.command, output)
+			}
+		})
+  }
+}
+
+func TestVerboseFlag(t *testing.T) {
+	// Build the binary first
+	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-verbose")
 	defer os.Remove("./nexuscli-go-test-verbose")
 
 	// Test that --verbose flag is available in help
