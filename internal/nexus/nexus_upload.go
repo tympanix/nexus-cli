@@ -268,16 +268,6 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		return fmt.Errorf("no files to upload in %s", src)
 	}
 
-	// Calculate total bytes for progress
-	totalBytes := int64(0)
-	for _, filePath := range filePaths {
-		info, err := os.Stat(filePath)
-		if err != nil {
-			return err
-		}
-		totalBytes += info.Size()
-	}
-
 	// Require explicit archive name
 	if explicitArchiveName == "" {
 		ext := opts.CompressionFormat.Extension()
@@ -286,8 +276,6 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 
 	archiveName := explicitArchiveName
 	opts.Logger.VerbosePrintf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
-
-	bar := newProgressBar(totalBytes, "Compressing files", 1, 1, opts.QuietMode)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -304,9 +292,8 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 			return
 		}
 
-		// Create compressed archive with progress tracking
-		progressWriter := io.MultiWriter(part, bar)
-		if err := opts.CompressionFormat.CreateArchiveWithGlob(src, progressWriter, opts.GlobPattern); err != nil {
+		// Create compressed archive (no progress tracking for compressed uploads)
+		if err := opts.CompressionFormat.CreateArchiveWithGlob(src, part, opts.GlobPattern); err != nil {
 			errChan <- fmt.Errorf("failed to create archive: %w", err)
 			return
 		}
@@ -334,7 +321,6 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		opts.Logger.Printf("Failed to upload archive: %v\n", err)
 		return err
 	}
-	bar.Finish()
 	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil
 }
