@@ -25,9 +25,17 @@ func CreateTarGz(srcDir string, writer io.Writer) error {
 // Files are stored in the archive with paths relative to srcDir.
 func CreateTarGzWithGlob(srcDir string, writer io.Writer, globPattern string) error {
 	gzipWriter := gzip.NewWriter(writer)
-	defer gzipWriter.Close()
 
-	return createTarArchive(srcDir, gzipWriter, globPattern)
+	if err := createTarArchive(srcDir, gzipWriter, globPattern); err != nil {
+		gzipWriter.Close()
+		return err
+	}
+
+	if err := gzipWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return nil
 }
 
 // ExtractTarGz extracts a tar.gz archive from the provided reader to destDir.
@@ -57,9 +65,17 @@ func CreateTarZstWithGlob(srcDir string, writer io.Writer, globPattern string) e
 	if err != nil {
 		return fmt.Errorf("failed to create zstd writer: %w", err)
 	}
-	defer zstdWriter.Close()
 
-	return createTarArchive(srcDir, zstdWriter, globPattern)
+	if err := createTarArchive(srcDir, zstdWriter, globPattern); err != nil {
+		zstdWriter.Close()
+		return err
+	}
+
+	if err := zstdWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close zstd writer: %w", err)
+	}
+
+	return nil
 }
 
 // ExtractTarZst extracts a tar.zst archive from the provided reader to destDir.
