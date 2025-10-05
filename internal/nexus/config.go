@@ -96,3 +96,48 @@ func (p *progressBarWithCount) incrementFile() {
 func (p *progressBarWithCount) Finish() error {
 	return p.bar.Finish()
 }
+
+// cappingWriter wraps an io.Writer and caps the total bytes written to a maximum value
+// This is useful for progress bars where the actual size might exceed the estimated max
+// (e.g., compressed data with headers/footers)
+type cappingWriter struct {
+	writer       io.Writer
+	maxBytes     int64
+	bytesWritten int64
+}
+
+func newCappingWriter(writer io.Writer, maxBytes int64) *cappingWriter {
+	return &cappingWriter{
+		writer:   writer,
+		maxBytes: maxBytes,
+	}
+}
+
+func (cw *cappingWriter) Write(p []byte) (int, error) {
+	n := len(p)
+
+	// Calculate how many bytes we should actually report to stay under max
+	remaining := cw.maxBytes - cw.bytesWritten
+	if remaining <= 0 {
+		// Already at or over max, don't report any more progress
+		return n, nil
+	}
+
+	// Only report up to the remaining bytes
+	toReport := int64(n)
+	if toReport > remaining {
+		toReport = remaining
+	}
+
+	// Update the underlying writer with the capped amount
+	if toReport > 0 {
+		reportBytes := make([]byte, toReport)
+		copy(reportBytes, p[:toReport])
+		if _, err := cw.writer.Write(reportBytes); err != nil {
+			return n, err
+		}
+	}
+
+	cw.bytesWritten += toReport
+	return n, nil
+}
