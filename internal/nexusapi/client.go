@@ -174,13 +174,13 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 			return err
 		}
 		defer f.Close()
-		
+
 		// Create form file with Nexus RAW format: raw.asset1, raw.asset2, etc.
 		part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(file.FilePath))
 		if err != nil {
 			return err
 		}
-		
+
 		// Copy file content to form, optionally through progress writer
 		var reader io.Reader = f
 		if progressWriter != nil {
@@ -189,15 +189,15 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 		if _, err := io.Copy(part, reader); err != nil {
 			return err
 		}
-		
+
 		// Add filename field with relative path
 		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), file.RelativePath)
 	}
-	
+
 	// Add directory field if subdirectory is specified
 	if subdir != "" {
 		_ = writer.WriteField("raw.directory", subdir)
 	}
-	
+
 	return nil
 }
