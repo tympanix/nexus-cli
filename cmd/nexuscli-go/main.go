@@ -51,6 +51,7 @@ func main() {
 
 	var uploadCompress bool
 	var uploadCompressionFormat string
+	var uploadGlobPattern string
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
@@ -58,9 +59,10 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			opts := &nexus.UploadOptions{
-				Logger:    logger,
-				QuietMode: quietMode,
-				Compress:  uploadCompress,
+				Logger:      logger,
+				QuietMode:   quietMode,
+				Compress:    uploadCompress,
+				GlobPattern: uploadGlobPattern,
 			}
 			// Parse compression format if provided
 			if uploadCompressionFormat != "" {
@@ -78,6 +80,7 @@ func main() {
 	}
 	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
 	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern to filter files (e.g., '**/*.go', '*.txt')")
 
 	var checksumAlg string
 	var skipChecksumValidation bool

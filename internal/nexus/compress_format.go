@@ -36,13 +36,18 @@ func (f CompressionFormat) Extension() string {
 
 // CreateArchive creates a compressed archive based on the format
 func (f CompressionFormat) CreateArchive(srcDir string, writer io.Writer) error {
+	return f.CreateArchiveWithGlob(srcDir, writer, "")
+}
+
+// CreateArchiveWithGlob creates a compressed archive based on the format with optional glob filtering
+func (f CompressionFormat) CreateArchiveWithGlob(srcDir string, writer io.Writer, globPattern string) error {
 	switch f {
 	case CompressionGzip:
-		return CreateTarGz(srcDir, writer)
+		return CreateTarGzWithGlob(srcDir, writer, globPattern)
 	case CompressionZstd:
-		return CreateTarZst(srcDir, writer)
+		return CreateTarZstWithGlob(srcDir, writer, globPattern)
 	case CompressionZip:
-		return CreateZip(srcDir, writer)
+		return CreateZipWithGlob(srcDir, writer, globPattern)
 	default:
 		return fmt.Errorf("unsupported compression format: %s", f)
 	}
