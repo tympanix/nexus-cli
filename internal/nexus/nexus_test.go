@@ -31,7 +31,7 @@ func TestUploadSingleFile(t *testing.T) {
 	}
 
 	// Create mock Nexus server
-	server := newMockNexusServer()
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
 	// Create test config
@@ -54,10 +54,8 @@ func TestUploadSingleFile(t *testing.T) {
 	}
 
 	// Validate uploaded content
-	server.mu.RLock()
-	uploadedFiles := server.UploadedFiles
+	uploadedFiles := server.GetUploadedFiles()
 	receivedRepository := server.LastUploadRepo
-	server.mu.RUnlock()
 
 	if len(uploadedFiles) != 1 {
 		t.Fatalf("Expected 1 uploaded file, got %d", len(uploadedFiles))
@@ -82,12 +80,12 @@ func TestDownloadSingleFile(t *testing.T) {
 	testPath := "/test-folder/downloaded.txt"
 
 	// Create mock Nexus server
-	server := newMockNexusServer()
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
 	// Setup mock data
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.addAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -97,7 +95,7 @@ func TestDownloadSingleFile(t *testing.T) {
 			SHA1: "abc123",
 		},
 	})
-	server.setAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
 	// Create test config
 	config := &Config{
@@ -235,7 +233,7 @@ func TestUploadLogging(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	server := newMockNexusServer()
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
 	config := &Config{

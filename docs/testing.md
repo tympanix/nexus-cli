@@ -4,13 +4,13 @@ This document describes the high-level mock Nexus server infrastructure for unit
 
 ## Overview
 
-The codebase includes reusable mock Nexus servers that simulate the Nexus REST API for testing purposes. These mock servers eliminate the need for inline HTTP handlers in tests, making tests more readable and maintainable.
+The codebase includes a reusable mock Nexus server that simulates the Nexus REST API for testing purposes. This mock server eliminates the need for inline HTTP handlers in tests, making tests more readable and maintainable.
 
-## Mock Server Implementations
+## Mock Server Implementation
 
-### `internal/nexusapi/mock_nexus_test.go`
+### `internal/nexusapi/mock_server.go`
 
-A comprehensive mock Nexus server for testing the `nexusapi` package.
+A comprehensive mock Nexus server that can be used across all test packages.
 
 **Features:**
 - Asset listing with pagination support
@@ -22,18 +22,18 @@ A comprehensive mock Nexus server for testing the `nexusapi` package.
 **Usage Example:**
 ```go
 func TestExample(t *testing.T) {
-    server := NewMockNexusServer()
+    server := nexusapi.NewMockNexusServer()
     defer server.Close()
 
     // Setup mock data
-    server.AddAssetWithQuery("test-repo", "/path/*", Asset{
+    server.AddAssetWithQuery("test-repo", "/path/*", nexusapi.Asset{
         ID: "asset1",
         Path: "/path/file.txt",
         FileSize: 100,
     })
 
     // Test your code
-    client := NewClient(server.URL, "user", "pass")
+    client := nexusapi.NewClient(server.URL, "user", "pass")
     assets, err := client.ListAssets("test-repo", "path")
     
     // Validate
@@ -46,36 +46,31 @@ func TestExample(t *testing.T) {
 }
 ```
 
-### `internal/nexus/mock_server_test.go`
+## Using the Mock Server in Different Packages
 
-A similar mock server adapted for the `nexus` package tests.
+### In nexusapi package tests
 
-**Usage Example:**
+Since the mock server is defined in the `nexusapi` package, tests in this package can use it directly:
+
 ```go
-func TestUpload(t *testing.T) {
-    server := newMockNexusServer()
+func TestSomething(t *testing.T) {
+    server := NewMockNexusServer()
     defer server.Close()
+    // ... test code
+}
+```
 
-    config := &Config{
-        NexusURL: server.URL,
-        Username: "test",
-        Password: "test",
-    }
+### In other package tests (e.g., nexus)
 
-    // Test upload
-    err := uploadFiles(testDir, "test-repo", "", config, opts)
-    if err != nil {
-        t.Fatal(err)
-    }
+Other packages can import and use the mock server from `nexusapi`:
 
-    // Validate captured data
-    server.mu.RLock()
-    uploadedFiles := server.UploadedFiles
-    server.mu.RUnlock()
+```go
+import "github.com/tympanix/nexus-cli/internal/nexusapi"
 
-    if len(uploadedFiles) != 1 {
-        t.Errorf("Expected 1 file, got %d", len(uploadedFiles))
-    }
+func TestSomething(t *testing.T) {
+    server := nexusapi.NewMockNexusServer()
+    defer server.Close()
+    // ... test code
 }
 ```
 
@@ -104,7 +99,7 @@ func TestUpload(t *testing.T) {
 
 1. **Readability**: Tests focus on behavior rather than HTTP mechanics
 2. **Maintainability**: Mock behavior centralized in one place
-3. **Reusability**: Same mock server used across multiple tests
+3. **Reusability**: Same mock server used across multiple packages
 4. **Thread-safety**: Proper mutex locking for concurrent access
 5. **Debugging**: Easy access to captured request data
 
@@ -124,7 +119,7 @@ server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *htt
 
 **After:**
 ```go
-server := NewMockNexusServer()
+server := nexusapi.NewMockNexusServer()
 defer server.Close()
 server.AddAssetWithQuery("repo", "/path/*", asset)
 // Test code uses server.URL
@@ -132,4 +127,4 @@ server.AddAssetWithQuery("repo", "/path/*", asset)
 
 ## Testing
 
-All mock servers are tested in their respective `*_test.go` files to ensure they correctly simulate Nexus behavior.
+The mock server is tested in `internal/nexusapi/mock_server_test.go` to ensure it correctly simulates Nexus behavior.

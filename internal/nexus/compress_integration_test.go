@@ -40,7 +40,7 @@ func TestCompressedUpload(t *testing.T) {
 	}
 
 	// Create mock server
-	server := newMockNexusServer()
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
 	config := &Config{
@@ -61,9 +61,7 @@ func TestCompressedUpload(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	server.mu.RLock()
-	uploadedArchives := server.UploadedArchives
-	server.mu.RUnlock()
+	uploadedArchives := server.GetUploadedArchives()
 
 	if len(uploadedArchives) == 0 {
 		t.Fatal("Archive was not uploaded")
@@ -97,7 +95,7 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 	}
 
 	// Create mock server
-	server := newMockNexusServer()
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
 	config := &Config{
@@ -118,9 +116,7 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	server.mu.RLock()
-	uploadedArchives := server.UploadedArchives
-	server.mu.RUnlock()
+	uploadedArchives := server.GetUploadedArchives()
 
 	if len(uploadedArchives) == 0 {
 		t.Fatal("No archive was uploaded")

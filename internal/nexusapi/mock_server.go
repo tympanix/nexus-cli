@@ -184,8 +184,8 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 // handleDownloadAsset handles asset download requests
 func (m *MockNexusServer) handleDownloadAsset(w http.ResponseWriter, r *http.Request) {
 	m.mu.RLock()
-	// Try full URL first, then just the path
-	content, exists := m.AssetContent[r.URL.String()]
+	// Try with the full URL path first
+	content, exists := m.AssetContent[r.URL.Path]
 	if !exists {
 		// Try with the full server URL + path
 		for key, val := range m.AssetContent {
