@@ -12,4 +12,4 @@ test-short:
 	go test -v -short ./...
 
 test-e2e:
-	go test -v -run TestEndToEndUploadDownload -timeout 15m ./internal/nexus
+	go test -v -run TestEndToEnd -timeout 15m ./internal/nexus

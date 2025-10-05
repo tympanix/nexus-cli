@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,60 @@ import (
 	"testing"
 	"time"
 )
+
+var (
+	e2eContainerID string
+	e2eConfig      *Config
+	e2eNexusURL    = "http://localhost:8081"
+)
+
+func TestMain(m *testing.M) {
+	// Parse flags first
+	flag.Parse()
+
+	// Check if running in short mode or if Docker is unavailable
+	if testing.Short() || !isDockerAvailable() {
+		// Skip setup and run tests (they will skip individually)
+		os.Exit(m.Run())
+	}
+
+	// Start Nexus container once for all tests
+	containerID, err := startNexusContainer()
+	if err != nil {
+		fmt.Printf("Failed to start Nexus container: %v\n", err)
+		os.Exit(1)
+	}
+	e2eContainerID = containerID
+
+	// Wait for Nexus to be ready
+	if !waitForNexus(e2eNexusURL, 5*time.Minute) {
+		cleanupContainer(e2eContainerID)
+		fmt.Println("Nexus did not become ready in time")
+		os.Exit(1)
+	}
+
+	// Get admin password from container
+	adminPassword, err := getAdminPassword(e2eContainerID)
+	if err != nil {
+		cleanupContainer(e2eContainerID)
+		fmt.Printf("Failed to get admin password: %v\n", err)
+		os.Exit(1)
+	}
+
+	e2eConfig = &Config{
+		NexusURL: e2eNexusURL,
+		Username: "admin",
+		Password: adminPassword,
+	}
+
+	// Run tests
+	exitCode := m.Run()
+
+	// Cleanup
+	cleanupContainer(e2eContainerID)
+
+	os.Exit(exitCode)
+}
 
 // TestEndToEndUploadDownload tests the complete workflow of uploading and downloading files using a real Nexus instance
 func TestEndToEndUploadDownload(t *testing.T) {
@@ -27,30 +82,8 @@ func TestEndToEndUploadDownload(t *testing.T) {
 		t.Skip("Docker is not available, skipping end-to-end test")
 	}
 
-	// Start Nexus container
-	containerID, err := startNexusContainer()
-	if err != nil {
-		t.Fatalf("Failed to start Nexus container: %v", err)
-	}
-	defer cleanupContainer(containerID)
-
-	// Wait for Nexus to be ready
-	nexusURL := "http://localhost:8081"
-	if !waitForNexus(nexusURL, 5*time.Minute) {
-		t.Fatal("Nexus did not become ready in time")
-	}
-
-	// Get admin password from container
-	adminPassword, err := getAdminPassword(containerID)
-	if err != nil {
-		t.Fatalf("Failed to get admin password: %v", err)
-	}
-
-	config := &Config{
-		NexusURL: nexusURL,
-		Username: "admin",
-		Password: adminPassword,
-	}
+	// Use shared Nexus instance
+	config := e2eConfig
 
 	// Create a RAW repository
 	repoName := "test-repo"
@@ -271,4 +304,307 @@ func cleanupContainer(containerID string) {
 	// Remove the container
 	rmCmd := exec.Command("docker", "rm", containerID)
 	rmCmd.Run()
+}
+
+// TestEndToEndUploadDownloadZstd tests the complete workflow of uploading and downloading files with zstd compression using a real Nexus instance
+func TestEndToEndUploadDownloadZstd(t *testing.T) {
+	// Skip if running in short mode
+	if testing.Short() {
+		t.Skip("Skipping end-to-end test in short mode")
+	}
+
+	// Check if Docker is available
+	if !isDockerAvailable() {
+		t.Skip("Docker is not available, skipping end-to-end test")
+	}
+
+	// Use shared Nexus instance
+	config := e2eConfig
+
+	// Create a RAW repository
+	repoName := "test-repo-zstd"
+	if err := createRawRepository(config, repoName); err != nil {
+		t.Fatalf("Failed to create repository: %v", err)
+	}
+
+	// Create test files
+	testDir, err := os.MkdirTemp("", "test-upload-zstd-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create some test files with known content
+	testFiles := map[string]string{
+		"file1.txt":        "Hello from file 1",
+		"file2.txt":        "Content of file 2",
+		"subdir/file3.txt": "Nested file content",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// Upload files using zstd compression
+	archiveName := "test-archive.tar.zst"
+	uploadOpts := &UploadOptions{
+		Logger:            NewLogger(os.Stdout),
+		QuietMode:         false,
+		Compress:          true,
+		CompressionFormat: CompressionZstd,
+	}
+
+	// Upload with explicit archive name
+	err = uploadFilesWithArchiveName(testDir, repoName, "test-folder", archiveName, config, uploadOpts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Give Nexus a moment to process the upload
+	time.Sleep(2 * time.Second)
+
+	// Create download directory
+	downloadDir, err := os.MkdirTemp("", "test-download-zstd-*")
+	if err != nil {
+		t.Fatalf("Failed to create download directory: %v", err)
+	}
+	defer os.RemoveAll(downloadDir)
+
+	// Download archive using the CLI
+	downloadOpts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(os.Stdout),
+		QuietMode:         false,
+		Compress:          true,
+		CompressionFormat: CompressionZstd,
+	}
+
+	success := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Validate downloaded files match original content
+	for filename, expectedContent := range testFiles {
+		downloadedPath := filepath.Join(downloadDir, filename)
+		content, err := os.ReadFile(downloadedPath)
+		if err != nil {
+			t.Errorf("Failed to read downloaded file %s: %v", filename, err)
+			continue
+		}
+
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+// TestEndToEndUploadDownloadGzip tests the complete workflow of uploading and downloading files with gzip compression using a real Nexus instance
+func TestEndToEndUploadDownloadGzip(t *testing.T) {
+	// Skip if running in short mode
+	if testing.Short() {
+		t.Skip("Skipping end-to-end test in short mode")
+	}
+
+	// Check if Docker is available
+	if !isDockerAvailable() {
+		t.Skip("Docker is not available, skipping end-to-end test")
+	}
+
+	// Use shared Nexus instance
+	config := e2eConfig
+
+	// Create a RAW repository
+	repoName := "test-repo-gzip"
+	if err := createRawRepository(config, repoName); err != nil {
+		t.Fatalf("Failed to create repository: %v", err)
+	}
+
+	// Create test files
+	testDir, err := os.MkdirTemp("", "test-upload-gzip-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create some test files with known content
+	testFiles := map[string]string{
+		"file1.txt":        "Hello from file 1",
+		"file2.txt":        "Content of file 2",
+		"subdir/file3.txt": "Nested file content",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// Upload files using gzip compression
+	archiveName := "test-archive.tar.gz"
+	uploadOpts := &UploadOptions{
+		Logger:            NewLogger(os.Stdout),
+		QuietMode:         false,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
+	}
+
+	// Upload with explicit archive name
+	err = uploadFilesWithArchiveName(testDir, repoName, "test-folder", archiveName, config, uploadOpts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Give Nexus a moment to process the upload
+	time.Sleep(2 * time.Second)
+
+	// Create download directory
+	downloadDir, err := os.MkdirTemp("", "test-download-gzip-*")
+	if err != nil {
+		t.Fatalf("Failed to create download directory: %v", err)
+	}
+	defer os.RemoveAll(downloadDir)
+
+	// Download archive using the CLI
+	downloadOpts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(os.Stdout),
+		QuietMode:         false,
+		Compress:          true,
+		CompressionFormat: CompressionGzip,
+	}
+
+	success := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Validate downloaded files match original content
+	for filename, expectedContent := range testFiles {
+		downloadedPath := filepath.Join(downloadDir, filename)
+		content, err := os.ReadFile(downloadedPath)
+		if err != nil {
+			t.Errorf("Failed to read downloaded file %s: %v", filename, err)
+			continue
+		}
+
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+// TestEndToEndUploadDownloadZip tests the complete workflow of uploading and downloading files with zip compression using a real Nexus instance
+func TestEndToEndUploadDownloadZip(t *testing.T) {
+	// Skip if running in short mode
+	if testing.Short() {
+		t.Skip("Skipping end-to-end test in short mode")
+	}
+
+	// Check if Docker is available
+	if !isDockerAvailable() {
+		t.Skip("Docker is not available, skipping end-to-end test")
+	}
+
+	// Use shared Nexus instance
+	config := e2eConfig
+
+	// Create a RAW repository
+	repoName := "test-repo-zip"
+	if err := createRawRepository(config, repoName); err != nil {
+		t.Fatalf("Failed to create repository: %v", err)
+	}
+
+	// Create test files
+	testDir, err := os.MkdirTemp("", "test-upload-zip-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create some test files with known content
+	testFiles := map[string]string{
+		"file1.txt":        "Hello from file 1",
+		"file2.txt":        "Content of file 2",
+		"subdir/file3.txt": "Nested file content",
+	}
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(testDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// Upload files using zip compression
+	archiveName := "test-archive.zip"
+	uploadOpts := &UploadOptions{
+		Logger:            NewLogger(os.Stdout),
+		QuietMode:         false,
+		Compress:          true,
+		CompressionFormat: CompressionZip,
+	}
+
+	// Upload with explicit archive name
+	err = uploadFilesWithArchiveName(testDir, repoName, "test-folder", archiveName, config, uploadOpts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Give Nexus a moment to process the upload
+	time.Sleep(2 * time.Second)
+
+	// Create download directory
+	downloadDir, err := os.MkdirTemp("", "test-download-zip-*")
+	if err != nil {
+		t.Fatalf("Failed to create download directory: %v", err)
+	}
+	defer os.RemoveAll(downloadDir)
+
+	// Download archive using the CLI
+	downloadOpts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            NewLogger(os.Stdout),
+		QuietMode:         false,
+		Compress:          true,
+		CompressionFormat: CompressionZip,
+	}
+
+	success := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
+	if !success {
+		t.Fatal("Download failed")
+	}
+
+	// Validate downloaded files match original content
+	for filename, expectedContent := range testFiles {
+		downloadedPath := filepath.Join(downloadDir, filename)
+		content, err := os.ReadFile(downloadedPath)
+		if err != nil {
+			t.Errorf("Failed to read downloaded file %s: %v", filename, err)
+			continue
+		}
+
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
 }

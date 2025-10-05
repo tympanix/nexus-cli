@@ -164,7 +164,6 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	for _, filePath := range filePaths {
 		relPath, _ := filepath.Rel(src, filePath)
 		relPath = filepath.ToSlash(relPath)
-
 		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
@@ -204,7 +203,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return nil
 	}
 
-	bar := newProgressBar(totalBytes, "Uploading bytes", opts.QuietMode)
+	bar := newProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
 
 	// Prepare file upload information
 	files := make([]nexusapi.FileUpload, len(filesToUpload))
@@ -224,7 +223,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	errChan := make(chan error, 1)
 	go func() {
 		defer pw.Close()
-		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar)
+		// Callback to update progress bar description when each file completes
+		onFileComplete := func(idx, total int) {
+			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, total))
+		}
+		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, nil, onFileComplete)
 		writer.Close()
 		errChan <- err
 	}()
@@ -284,7 +287,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	archiveName := explicitArchiveName
 	opts.Logger.VerbosePrintf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
-	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
+	bar := newProgressBar(totalBytes, "Compressing files", 1, 1, opts.QuietMode)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
