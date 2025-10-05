@@ -228,3 +228,69 @@ func TestCappingWriterWithProgressBar(t *testing.T) {
 
 	bar.Finish()
 }
+
+// TestProgressBarWithCountFinish tests that Finish() shows the correct final count
+func TestProgressBarWithCountFinish(t *testing.T) {
+	// Create a progress bar with count tracking
+	baseBar := newProgressBar(1000, "Downloading files", 0, 5, true) // quiet mode to avoid output
+	var current int32
+	bar := &progressBarWithCount{
+		bar:          baseBar,
+		current:      &current,
+		total:        5,
+		description:  "Downloading files",
+		showProgress: false,
+	}
+
+	// Simulate downloading 5 files
+	for i := 0; i < 5; i++ {
+		bar.Add64(200)
+		bar.incrementFile()
+	}
+
+	// Before finishing, current should be 5
+	currentCount := *bar.current
+	if currentCount != 5 {
+		t.Errorf("Before Finish: current count = %d, expected 5", currentCount)
+	}
+
+	// Call Finish - this should update the description with the final count
+	err := bar.Finish()
+	if err != nil {
+		t.Errorf("Finish returned error: %v", err)
+	}
+
+	// Verify the description was updated (we can't directly check the description,
+	// but we can verify that calling Finish didn't panic and returned successfully)
+}
+
+// TestProgressBarWithCountWithErrors tests count when some downloads fail
+func TestProgressBarWithCountWithErrors(t *testing.T) {
+	baseBar := newProgressBar(1000, "Downloading files", 0, 5, true)
+	var current int32
+	bar := &progressBarWithCount{
+		bar:          baseBar,
+		current:      &current,
+		total:        5,
+		description:  "Downloading files",
+		showProgress: false,
+	}
+
+	// Simulate 3 successful downloads and 2 failures (no incrementFile called)
+	for i := 0; i < 3; i++ {
+		bar.Add64(200)
+		bar.incrementFile()
+	}
+
+	// Current should be 3 (only successful downloads)
+	currentCount := *bar.current
+	if currentCount != 3 {
+		t.Errorf("With errors: current count = %d, expected 3", currentCount)
+	}
+
+	// Finish should show 3/5
+	err := bar.Finish()
+	if err != nil {
+		t.Errorf("Finish returned error: %v", err)
+	}
+}

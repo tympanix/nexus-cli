@@ -95,6 +95,10 @@ func (p *progressBarWithCount) incrementFile() {
 }
 
 func (p *progressBarWithCount) Finish() error {
+	currentCount := atomic.LoadInt32(p.current)
+	p.mu.Lock()
+	p.bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", currentCount, p.total, p.description))
+	p.mu.Unlock()
 	err := p.bar.Finish()
 	if p.showProgress {
 		fmt.Println()
