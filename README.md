@@ -432,6 +432,38 @@ docker run --rm -v $(pwd):/data \
   nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword /data/<directory> <repository/subdir>
 ```
 
+## Exit Codes
+
+The CLI uses different exit codes to indicate various outcomes:
+
+- **0** - Success: Operation completed successfully
+- **1** - Error: General errors including:
+  - Invalid command-line arguments
+  - API communication errors
+  - Authentication failures
+  - Download/upload failures
+- **66** - No assets found: The API call succeeded, but returned zero assets
+  - This exit code is specific to download operations
+  - Indicates the repository path exists but contains no files
+  - Distinguishes "empty folder" from "API error"
+
+**Example usage in scripts:**
+
+```bash
+#!/bin/bash
+nexuscli-go download my-repo/folder ./dest
+
+if [ $? -eq 0 ]; then
+  echo "Download successful"
+elif [ $? -eq 66 ]; then
+  echo "No files found in repository (this may be expected)"
+  exit 0  # Treat as success in your script if desired
+else
+  echo "Download failed with error"
+  exit 1
+fi
+```
+
 ## Testing
 
 ### Unit Tests

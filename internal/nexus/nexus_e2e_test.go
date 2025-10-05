@@ -146,8 +146,8 @@ func TestEndToEndUploadDownload(t *testing.T) {
 		QuietMode:         false,
 	}
 
-	success := downloadFolder(uploadPath, downloadDir, config, downloadOpts)
-	if !success {
+	status := downloadFolder(uploadPath, downloadDir, config, downloadOpts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -387,8 +387,8 @@ func TestEndToEndUploadDownloadZstd(t *testing.T) {
 		CompressionFormat: CompressionZstd,
 	}
 
-	success := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -488,8 +488,8 @@ func TestEndToEndUploadDownloadGzip(t *testing.T) {
 		CompressionFormat: CompressionGzip,
 	}
 
-	success := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
@@ -589,8 +589,8 @@ func TestEndToEndUploadDownloadZip(t *testing.T) {
 		CompressionFormat: CompressionZip,
 	}
 
-	success := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
-	if !success {
+	status := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
+	if status != DownloadSuccess {
 		t.Fatal("Download failed")
 	}
 
