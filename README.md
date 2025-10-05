@@ -4,6 +4,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
+- Filter files using advanced glob patterns (e.g., `**/*.go`, `src/**/*.test.js`)
 - Download all files from a Nexus RAW folder recursively
 - Compression support: upload/download files as tar.gz or tar.zst archives
 - Parallel downloads for speed
@@ -146,12 +147,43 @@ You can authenticate with Nexus using environment variables or CLI flags:
 ### Upload
 
 ```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] <directory> <repository[/subdir]>
 ```
 
 **Upload options:**
 - `--compress` or `-z` - Create and upload files as a compressed archive
 - `--compress-format <format>` - Compression format to use: `gzip` (default) or `zstd`
+- `--glob <pattern>` or `-g <pattern>` - Glob pattern to filter files (e.g., `**/*.go`, `*.txt`)
+
+**About the `--glob` flag:**
+
+The `--glob` flag allows you to filter which files are uploaded using glob patterns. This works for both regular uploads and compressed uploads. The pattern is matched against file paths relative to the source directory.
+
+**Supported glob patterns:**
+- `*` - Matches any characters except `/` (directory separator)
+- `**` - Matches any characters including `/` (matches directories recursively)
+- `?` - Matches any single character
+- `[...]` - Matches any character inside the brackets
+- `{alt1,alt2}` - Matches any of the alternatives
+
+**Examples:**
+
+```bash
+# Upload only .txt files from root directory
+nexuscli-go upload --glob "*.txt" ./files my-repo
+
+# Upload all .go files anywhere in the directory tree
+nexuscli-go upload --glob "**/*.go" ./files my-repo
+
+# Upload all files from a specific subdirectory
+nexuscli-go upload --glob "src/**" ./files my-repo
+
+# Upload files with multiple extensions
+nexuscli-go upload --glob "**/*.{go,md}" ./files my-repo
+
+# Create compressed archive with only .go files
+nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
+```
 
 **About the `--compress` flag:**
 
