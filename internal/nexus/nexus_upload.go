@@ -19,6 +19,7 @@ type UploadOptions struct {
 	Compress          bool              // Enable compression (tar.gz or tar.zst)
 	CompressionFormat CompressionFormat // Compression format to use (gzip or zstd)
 	GlobPattern       string            // Optional glob pattern to filter files
+	KeyFromFile       string            // Path to file to compute hash from for {key} template
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -209,12 +210,22 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 }
 
 func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
-	repository := dest
+	processedDest, err := processKeyTemplate(dest, opts.KeyFromFile)
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
+
+	if opts.KeyFromFile != "" {
+		opts.Logger.Printf("Using key template: %s -> %s\n", dest, processedDest)
+	}
+
+	repository := processedDest
 	subdir := ""
 	explicitArchiveName := ""
 
-	if strings.Contains(dest, "/") {
-		parts := strings.SplitN(dest, "/", 2)
+	if strings.Contains(processedDest, "/") {
+		parts := strings.SplitN(processedDest, "/", 2)
 		repository = parts[0]
 		subdir = parts[1]
 
@@ -235,9 +246,9 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 				opts.CompressionFormat = DetectCompressionFromFilename(explicitArchiveName)
 			}
 		}
-	} else if opts.Compress && (strings.HasSuffix(dest, ".tar.gz") || strings.HasSuffix(dest, ".tar.zst")) {
+	} else if opts.Compress && (strings.HasSuffix(processedDest, ".tar.gz") || strings.HasSuffix(processedDest, ".tar.zst")) {
 		// Repository name ends with .tar.gz or .tar.zst, treat it as explicit archive name
-		explicitArchiveName = dest
+		explicitArchiveName = processedDest
 		repository = ""
 		subdir = ""
 		// Detect compression format from filename if not explicitly set
@@ -251,7 +262,7 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 		opts.CompressionFormat = CompressionGzip
 	}
 
-	err := uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
+	err = uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
 	if err != nil {
 		fmt.Println("Upload error:", err)
 		os.Exit(1)
