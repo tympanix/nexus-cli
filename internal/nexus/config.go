@@ -71,11 +71,12 @@ func newProgressBar(totalBytes int64, description string, currentFile, totalFile
 // progressBarWithCount wraps a progress bar to track file count atomically
 // Used for parallel download operations where multiple goroutines update progress
 type progressBarWithCount struct {
-	bar         *progressbar.ProgressBar
-	current     *int32
-	total       int
-	description string
-	mu          sync.Mutex // Protects bar.Describe() calls
+	bar          *progressbar.ProgressBar
+	current      *int32
+	total        int
+	description  string
+	mu           sync.Mutex // Protects bar.Describe() calls
+	showProgress bool       // Whether progress is being shown (not quiet mode and is TTY)
 }
 
 func (p *progressBarWithCount) Write(b []byte) (int, error) {
@@ -94,7 +95,11 @@ func (p *progressBarWithCount) incrementFile() {
 }
 
 func (p *progressBarWithCount) Finish() error {
-	return p.bar.Finish()
+	err := p.bar.Finish()
+	if p.showProgress {
+		fmt.Println()
+	}
+	return err
 }
 
 // cappingWriter wraps an io.Writer and caps the total bytes written to a maximum value

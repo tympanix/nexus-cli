@@ -188,10 +188,11 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 	baseBar := newProgressBar(totalBytes, "Downloading files", 0, len(assets), opts.QuietMode)
 	var current int32
 	bar := &progressBarWithCount{
-		bar:         baseBar,
-		current:     &current,
-		total:       len(assets),
-		description: "Downloading files",
+		bar:          baseBar,
+		current:      &current,
+		total:        len(assets),
+		description:  "Downloading files",
+		showProgress: isatty() && !opts.QuietMode,
 	}
 
 	var wg sync.WaitGroup
@@ -323,6 +324,9 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	}
 
 	bar.Finish()
+	if isatty() && !opts.QuietMode {
+		fmt.Println()
+	}
 	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
 		archiveName, src, repository, destDir)
 	return DownloadSuccess

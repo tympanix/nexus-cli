@@ -244,6 +244,9 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return err
 	}
 	bar.Finish()
+	if isatty() && !opts.QuietMode {
+		fmt.Println()
+	}
 	if skippedCount > 0 {
 		opts.Logger.Printf("Uploaded %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
 	} else {
@@ -340,6 +343,9 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		return err
 	}
 	bar.Finish()
+	if isatty() && !opts.QuietMode {
+		fmt.Println()
+	}
 	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil
 }
