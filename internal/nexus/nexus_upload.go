@@ -277,6 +277,19 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	archiveName := explicitArchiveName
 	opts.Logger.VerbosePrintf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
+	// Calculate total uncompressed size for progress bar
+	totalBytes := int64(0)
+	for _, filePath := range filePaths {
+		info, err := os.Stat(filePath)
+		if err != nil {
+			return err
+		}
+		totalBytes += info.Size()
+	}
+
+	// Create progress bar using uncompressed size as approximation
+	bar := newProgressBar(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode)
+
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
 
@@ -292,8 +305,13 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 			return
 		}
 
-		// Create compressed archive (no progress tracking for compressed uploads)
-		if err := opts.CompressionFormat.CreateArchiveWithGlob(src, part, opts.GlobPattern); err != nil {
+		// Wrap part with capping writer and progress bar
+		// Use io.MultiWriter to send bytes to both the form part and progress bar
+		cappedBar := newCappingWriter(bar, totalBytes)
+		progressWriter := io.MultiWriter(part, cappedBar)
+
+		// Create compressed archive with progress tracking
+		if err := opts.CompressionFormat.CreateArchiveWithGlob(src, progressWriter, opts.GlobPattern); err != nil {
 			errChan <- fmt.Errorf("failed to create archive: %w", err)
 			return
 		}
@@ -321,6 +339,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		opts.Logger.Printf("Failed to upload archive: %v\n", err)
 		return err
 	}
+	bar.Finish()
 	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil
 }

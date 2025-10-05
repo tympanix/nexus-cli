@@ -1,6 +1,7 @@
 package nexus
 
 import (
+	"bytes"
 	"os"
 	"testing"
 )
@@ -114,4 +115,116 @@ func TestNewProgressBar(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCappingWriter tests the cappingWriter functionality
+func TestCappingWriter(t *testing.T) {
+	tests := []struct {
+		name            string
+		maxBytes        int64
+		writes          []int
+		expectedWritten int64
+		expectedBuf     int
+	}{
+		{
+			name:            "writes under max",
+			maxBytes:        100,
+			writes:          []int{30, 40, 20},
+			expectedWritten: 90,
+			expectedBuf:     90,
+		},
+		{
+			name:            "writes exactly at max",
+			maxBytes:        100,
+			writes:          []int{50, 50},
+			expectedWritten: 100,
+			expectedBuf:     100,
+		},
+		{
+			name:            "writes exceed max",
+			maxBytes:        100,
+			writes:          []int{50, 60},
+			expectedWritten: 100,
+			expectedBuf:     100,
+		},
+		{
+			name:            "writes far exceed max",
+			maxBytes:        50,
+			writes:          []int{30, 40, 50},
+			expectedWritten: 50,
+			expectedBuf:     50,
+		},
+		{
+			name:            "single write exceeds max",
+			maxBytes:        20,
+			writes:          []int{100},
+			expectedWritten: 20,
+			expectedBuf:     20,
+		},
+		{
+			name:            "continue writing after reaching max",
+			maxBytes:        30,
+			writes:          []int{20, 20, 20},
+			expectedWritten: 30,
+			expectedBuf:     30,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			cw := newCappingWriter(&buf, tt.maxBytes)
+
+			for _, size := range tt.writes {
+				data := make([]byte, size)
+				n, err := cw.Write(data)
+				if err != nil {
+					t.Fatalf("Write failed: %v", err)
+				}
+				if n != size {
+					t.Errorf("Write returned %d, expected %d", n, size)
+				}
+			}
+
+			if cw.bytesWritten != tt.expectedWritten {
+				t.Errorf("bytesWritten = %d, expected %d", cw.bytesWritten, tt.expectedWritten)
+			}
+
+			if int64(buf.Len()) != int64(tt.expectedBuf) {
+				t.Errorf("buffer length = %d, expected %d", buf.Len(), tt.expectedBuf)
+			}
+		})
+	}
+}
+
+// TestCappingWriterWithProgressBar tests capping writer with actual progress bar
+func TestCappingWriterWithProgressBar(t *testing.T) {
+	// Create a progress bar with max 100 bytes
+	bar := newProgressBar(100, "Testing", 1, 1, true) // quiet mode to avoid output
+
+	// Wrap it with capping writer
+	cw := newCappingWriter(bar, 100)
+
+	// Write 50 bytes
+	cw.Write(make([]byte, 50))
+	state := bar.State()
+	if state.CurrentNum != 50 {
+		t.Errorf("After 50 bytes: current=%d, expected 50", state.CurrentNum)
+	}
+
+	// Write 60 more bytes (would be 110 total, but should cap at 100)
+	cw.Write(make([]byte, 60))
+	state = bar.State()
+	if state.CurrentNum != 100 {
+		t.Errorf("After 110 bytes written: current=%d, expected 100 (capped)", state.CurrentNum)
+	}
+
+	// Write more bytes - should still be capped at 100
+	cw.Write(make([]byte, 50))
+	state = bar.State()
+	if state.CurrentNum != 100 {
+		t.Errorf("After 160 bytes written: current=%d, expected 100 (capped)", state.CurrentNum)
+	}
+
+	bar.Finish()
 }
