@@ -14,12 +14,27 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
+	ChecksumAlgorithm string
+	SkipChecksum      bool
 	Logger            Logger
 	QuietMode         bool
 	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 	KeyFromFile       string            // Path to file to compute hash from for {key} template
+	checksumValidator ChecksumValidator // Internal validator instance
+}
+
+// SetChecksumAlgorithm validates and sets the checksum algorithm
+// Returns an error if the algorithm is not supported
+func (opts *UploadOptions) SetChecksumAlgorithm(algorithm string) error {
+	validator, err := NewChecksumValidator(algorithm)
+	if err != nil {
+		return err
+	}
+	opts.ChecksumAlgorithm = validator.Algorithm()
+	opts.checksumValidator = validator
+	return nil
 }
 
 func collectFiles(src string) ([]string, error) {
@@ -113,21 +128,86 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	if err != nil {
 		return err
 	}
-	// Calculate total bytes to upload
+
+	// Build a map of remote assets if checksum validation is enabled or skip-checksum is enabled
+	var remoteAssets map[string]nexusapi.Asset
+	if opts.SkipChecksum || opts.checksumValidator != nil {
+		basePath := subdir
+		if basePath == "" {
+			basePath = ""
+		}
+		assets, err := listAssets(repository, basePath, config)
+		if err != nil {
+			opts.Logger.VerbosePrintf("Could not list existing assets (will upload all files): %v\n", err)
+			remoteAssets = make(map[string]nexusapi.Asset)
+		} else {
+			remoteAssets = make(map[string]nexusapi.Asset)
+			for _, asset := range assets {
+				path := strings.TrimLeft(asset.Path, "/")
+				if basePath != "" {
+					normalizedBasePath := strings.TrimLeft(basePath, "/")
+					if strings.HasPrefix(path, normalizedBasePath+"/") {
+						path = strings.TrimPrefix(path, normalizedBasePath+"/")
+					}
+				}
+				remoteAssets[path] = asset
+			}
+		}
+	}
+
+	// Filter files based on checksum validation
+	var filesToUpload []string
+	var filesToUploadSizes []int64
+	var skippedCount int
 	totalBytes := int64(0)
+
 	for _, filePath := range filePaths {
+		relPath, _ := filepath.Rel(src, filePath)
+		relPath = filepath.ToSlash(relPath)
 		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
 		}
-		totalBytes += info.Size()
+
+		shouldSkip := false
+		skipReason := ""
+
+		// Check if file exists remotely and validate checksum
+		if remoteAssets != nil {
+			if asset, exists := remoteAssets[relPath]; exists {
+				if opts.SkipChecksum {
+					shouldSkip = true
+					skipReason = "Skipped (file exists): %s\n"
+				} else if opts.checksumValidator != nil {
+					valid, err := opts.checksumValidator.Validate(filePath, asset.Checksum)
+					if err == nil && valid {
+						shouldSkip = true
+						skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+					}
+				}
+			}
+		}
+
+		if shouldSkip {
+			opts.Logger.VerbosePrintf(skipReason, filePath)
+			skippedCount++
+		} else {
+			filesToUpload = append(filesToUpload, filePath)
+			filesToUploadSizes = append(filesToUploadSizes, info.Size())
+			totalBytes += info.Size()
+		}
+	}
+
+	if len(filesToUpload) == 0 {
+		opts.Logger.Printf("All %d files already exist with matching checksums\n", len(filePaths))
+		return nil
 	}
 
 	bar := newProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
 
 	// Prepare file upload information
-	files := make([]nexusapi.FileUpload, len(filePaths))
-	for i, filePath := range filePaths {
+	files := make([]nexusapi.FileUpload, len(filesToUpload))
+	for i, filePath := range filesToUpload {
 		relPath, _ := filepath.Rel(src, filePath)
 		relPath = filepath.ToSlash(relPath)
 		files[i] = nexusapi.FileUpload{
@@ -164,7 +244,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return err
 	}
 	bar.Finish()
-	opts.Logger.Printf("Uploaded %d files from %s\n", len(filePaths), src)
+	if skippedCount > 0 {
+		opts.Logger.Printf("Uploaded %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
+	} else {
+		opts.Logger.Printf("Uploaded %d files from %s\n", len(filesToUpload), src)
+	}
 	return nil
 }
 
