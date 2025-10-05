@@ -16,7 +16,7 @@ import (
 type UploadOptions struct {
 	Logger            Logger
 	QuietMode         bool
-  Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
+	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 }
