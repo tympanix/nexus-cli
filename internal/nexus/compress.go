@@ -16,14 +16,21 @@ import (
 // The archive is written to the provided writer on-the-fly.
 // Files are stored in the archive with paths relative to srcDir.
 func CreateTarGz(srcDir string, writer io.Writer) error {
+	return CreateTarGzWithGlob(srcDir, writer, "")
+}
+
+// CreateTarGzWithGlob creates a tar.gz archive containing files from srcDir filtered by glob pattern.
+// The archive is written to the provided writer on-the-fly.
+// Files are stored in the archive with paths relative to srcDir.
+func CreateTarGzWithGlob(srcDir string, writer io.Writer, globPattern string) error {
 	gzipWriter := gzip.NewWriter(writer)
 	defer gzipWriter.Close()
 
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
-	// Collect all files
-	files, err := collectFiles(srcDir)
+	// Collect all files with optional glob filtering
+	files, err := collectFilesWithGlob(srcDir, globPattern)
 	if err != nil {
 		return fmt.Errorf("failed to collect files: %w", err)
 	}
@@ -88,6 +95,13 @@ func ExtractTarGz(reader io.Reader, destDir string) error {
 // The archive is written to the provided writer on-the-fly.
 // Files are stored in the archive with paths relative to srcDir.
 func CreateTarZst(srcDir string, writer io.Writer) error {
+	return CreateTarZstWithGlob(srcDir, writer, "")
+}
+
+// CreateTarZstWithGlob creates a tar.zst archive containing files from srcDir filtered by glob pattern.
+// The archive is written to the provided writer on-the-fly.
+// Files are stored in the archive with paths relative to srcDir.
+func CreateTarZstWithGlob(srcDir string, writer io.Writer, globPattern string) error {
 	zstdWriter, err := zstd.NewWriter(writer)
 	if err != nil {
 		return fmt.Errorf("failed to create zstd writer: %w", err)
@@ -97,8 +111,8 @@ func CreateTarZst(srcDir string, writer io.Writer) error {
 	tarWriter := tar.NewWriter(zstdWriter)
 	defer tarWriter.Close()
 
-	// Collect all files
-	files, err := collectFiles(srcDir)
+	// Collect all files with optional glob filtering
+	files, err := collectFilesWithGlob(srcDir, globPattern)
 	if err != nil {
 		return fmt.Errorf("failed to collect files: %w", err)
 	}

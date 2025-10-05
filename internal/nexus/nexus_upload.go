@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
@@ -17,15 +18,38 @@ type UploadOptions struct {
 	QuietMode         bool
 	Compress          bool              // Enable compression (tar.gz or tar.zst)
 	CompressionFormat CompressionFormat // Compression format to use (gzip or zstd)
+	GlobPattern       string            // Optional glob pattern to filter files
 }
 
 func collectFiles(src string) ([]string, error) {
+	return collectFilesWithGlob(src, "")
+}
+
+func collectFilesWithGlob(src string, globPattern string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
+			// If glob pattern is provided, filter files
+			if globPattern != "" {
+				relPath, err := filepath.Rel(src, path)
+				if err != nil {
+					return err
+				}
+				// Normalize to forward slashes for consistent matching
+				relPath = filepath.ToSlash(relPath)
+
+				// Match against the glob pattern
+				matched, err := doublestar.Match(globPattern, relPath)
+				if err != nil {
+					return fmt.Errorf("invalid glob pattern '%s': %w", globPattern, err)
+				}
+				if !matched {
+					return nil
+				}
+			}
 			files = append(files, path)
 		}
 		return nil
@@ -40,7 +64,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	}
 
 	// Original uncompressed upload logic
-	filePaths, err := collectFiles(src)
+	filePaths, err := collectFilesWithGlob(src, opts.GlobPattern)
 	if err != nil {
 		return err
 	}
@@ -104,7 +128,7 @@ func uploadFilesCompressed(src, repository, subdir string, config *Config, opts 
 
 // uploadFilesCompressedWithArchiveName creates a compressed archive and uploads it as a single file with optional explicit name
 func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName string, config *Config, opts *UploadOptions) error {
-	filePaths, err := collectFiles(src)
+	filePaths, err := collectFilesWithGlob(src, opts.GlobPattern)
 	if err != nil {
 		return err
 	}
@@ -151,7 +175,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 
 		// Create compressed archive with progress tracking
 		progressWriter := io.MultiWriter(part, bar)
-		if err := opts.CompressionFormat.CreateArchive(src, progressWriter); err != nil {
+		if err := opts.CompressionFormat.CreateArchiveWithGlob(src, progressWriter, opts.GlobPattern); err != nil {
 			errChan <- fmt.Errorf("failed to create archive: %w", err)
 			return
 		}

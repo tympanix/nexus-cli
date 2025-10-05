@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
