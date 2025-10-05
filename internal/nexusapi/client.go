@@ -201,3 +201,46 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 
 	return nil
 }
+
+// ProgressBarUpdater interface for updating progress bar descriptions
+type ProgressBarUpdater interface {
+	io.Writer
+	ChangeMax64(int64)
+	Describe(string)
+}
+
+// BuildRawUploadFormWithProgress builds a multipart form with per-file progress tracking
+func BuildRawUploadFormWithProgress(writer *multipart.Writer, files []FileUpload, subdir string, bar ProgressBarUpdater, fileSizes []int64) error {
+	for idx, file := range files {
+		// Update progress bar description for current file
+		bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, len(files)))
+
+		f, err := os.Open(file.FilePath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		// Create form file with Nexus RAW format: raw.asset1, raw.asset2, etc.
+		part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(file.FilePath))
+		if err != nil {
+			return err
+		}
+
+		// Copy file content to form through progress writer
+		reader := io.TeeReader(f, bar)
+		if _, err := io.Copy(part, reader); err != nil {
+			return err
+		}
+
+		// Add filename field with relative path
+		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), file.RelativePath)
+	}
+
+	// Add directory field if subdirectory is specified
+	if subdir != "" {
+		_ = writer.WriteField("raw.directory", subdir)
+	}
+
+	return nil
+}

@@ -76,31 +76,39 @@ func TestNewProgressBar(t *testing.T) {
 		name        string
 		totalBytes  int64
 		description string
+		currentFile int
+		totalFiles  int
 		quietMode   bool
 	}{
 		{
 			name:        "normal mode with upload",
 			totalBytes:  1024,
-			description: "Uploading bytes",
+			description: "Uploading files",
+			currentFile: 1,
+			totalFiles:  3,
 			quietMode:   false,
 		},
 		{
 			name:        "normal mode with download",
 			totalBytes:  2048,
-			description: "Downloading bytes",
+			description: "Downloading files",
+			currentFile: 2,
+			totalFiles:  5,
 			quietMode:   false,
 		},
 		{
 			name:        "quiet mode",
 			totalBytes:  512,
-			description: "Testing bytes",
+			description: "Testing files",
+			currentFile: 1,
+			totalFiles:  1,
 			quietMode:   true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bar := newProgressBar(tt.totalBytes, tt.description, tt.quietMode)
+			bar := newProgressBar(tt.totalBytes, tt.description, tt.currentFile, tt.totalFiles, tt.quietMode)
 			if bar == nil {
 				t.Errorf("newProgressBar returned nil")
 			}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"crypto/md5"
 	"crypto/sha1"
@@ -17,6 +18,31 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
+
+// progressBarWithCount wraps a progress bar to track file count
+type progressBarWithCount struct {
+	bar         *progressbar.ProgressBar
+	current     *int32
+	total       int
+	description string
+}
+
+func (p *progressBarWithCount) Write(b []byte) (int, error) {
+	return p.bar.Write(b)
+}
+
+func (p *progressBarWithCount) Add64(n int64) error {
+	return p.bar.Add64(n)
+}
+
+func (p *progressBarWithCount) incrementFile() {
+	newCount := atomic.AddInt32(p.current, 1)
+	p.bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", newCount, p.total, p.description))
+}
+
+func (p *progressBarWithCount) Finish() error {
+	return p.bar.Finish()
+}
 
 // DownloadOptions holds options for download operations
 type DownloadOptions struct {
@@ -48,7 +74,7 @@ func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error
 	return client.ListAssets(repository, src)
 }
 
-func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressbar.ProgressBar, skipCh chan bool, config *Config, opts *DownloadOptions) {
+func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressBarWithCount, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 
@@ -94,6 +120,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 		// Advance progress bar by file size for skipped files
 		if bar != nil {
 			bar.Add64(asset.FileSize)
+			bar.incrementFile()
 		}
 		// Signal that this file was skipped
 		if skipCh != nil {
@@ -115,6 +142,9 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	err = client.DownloadAsset(asset.DownloadURL, writer)
 	if err != nil {
 		errCh <- err
+	} else {
+		// Only increment file count on successful download
+		bar.incrementFile()
 	}
 }
 
@@ -181,7 +211,14 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		totalBytes += asset.FileSize
 	}
 
-	bar := newProgressBar(totalBytes, "Downloading bytes", opts.QuietMode)
+	baseBar := newProgressBar(totalBytes, "Downloading files", 0, len(assets), opts.QuietMode)
+	var current int32
+	bar := &progressBarWithCount{
+		bar:         baseBar,
+		current:     &current,
+		total:       len(assets),
+		description: "Downloading files",
+	}
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
@@ -269,7 +306,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 		return false
 	}
 
-	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", opts.QuietMode)
+	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
 
 	// Download and extract archive
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)

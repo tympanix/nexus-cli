@@ -1,9 +1,11 @@
 package nexus
 
 import (
+	"fmt"
 	"io"
 	"os"
 
+	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -36,18 +38,30 @@ func isatty() bool {
 }
 
 // newProgressBar creates a new progress bar with standard configuration
-// The description parameter should describe the operation (e.g., "Uploading bytes", "Downloading bytes")
+// The description parameter should describe the operation (e.g., "Uploading", "Downloading")
+// The currentFile and totalFiles parameters track which file is being processed
 // The quietMode parameter controls whether progress should be shown
-func newProgressBar(totalBytes int64, description string, quietMode bool) *progressbar.ProgressBar {
+func newProgressBar(totalBytes int64, description string, currentFile, totalFiles int, quietMode bool) *progressbar.ProgressBar {
 	showProgress := isatty() && !quietMode
-	progressWriter := io.Writer(os.Stdout)
+	var writer io.Writer = ansi.NewAnsiStdout()
 	if !showProgress {
-		progressWriter = io.Discard
+		writer = io.Discard
 	}
+
+	descWithCount := fmt.Sprintf("[cyan][%d/%d][reset] %s", currentFile, totalFiles, description)
+
 	return progressbar.NewOptions64(totalBytes,
-		progressbar.OptionSetWriter(progressWriter),
+		progressbar.OptionSetWriter(writer),
+		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowBytes(true),
-		progressbar.OptionSetDescription(description),
-		progressbar.OptionFullWidth(),
+		progressbar.OptionSetWidth(15),
+		progressbar.OptionSetDescription(descWithCount),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "[green]=[reset]",
+			SaucerHead:    "[green]>[reset]",
+			SaucerPadding: " ",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
 	)
 }

@@ -16,7 +16,7 @@ import (
 type UploadOptions struct {
 	Logger            Logger
 	QuietMode         bool
-  Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
+	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 }
@@ -124,7 +124,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		totalBytes += info.Size()
 	}
 
-	bar := newProgressBar(totalBytes, "Uploading bytes", opts.QuietMode)
+	bar := newProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
 
 	// Prepare file upload information
 	files := make([]nexusapi.FileUpload, len(filePaths))
@@ -144,7 +144,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	errChan := make(chan error, 1)
 	go func() {
 		defer pw.Close()
-		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar)
+		err := nexusapi.BuildRawUploadFormWithProgress(writer, files, subdir, bar, fileSizes)
 		writer.Close()
 		errChan <- err
 	}()
@@ -200,7 +200,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	archiveName := explicitArchiveName
 	opts.Logger.VerbosePrintf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
-	bar := newProgressBar(totalBytes, "Compressing bytes", opts.QuietMode)
+	bar := newProgressBar(totalBytes, "Compressing files", 1, 1, opts.QuietMode)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
