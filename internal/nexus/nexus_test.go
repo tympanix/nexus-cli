@@ -1,10 +1,7 @@
 package nexus
 
 import (
-	"encoding/json"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,23 +175,7 @@ func TestURLConstruction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			receivedRepo := ""
-			receivedQuery := ""
-
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				receivedRepo = r.URL.Query().Get("repository")
-				receivedQuery = r.URL.Query().Get("q")
-
-				assets := struct {
-					Items             []nexusapi.Asset `json:"items"`
-					ContinuationToken string           `json:"continuationToken"`
-				}{
-					Items:             []nexusapi.Asset{},
-					ContinuationToken: "",
-				}
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(assets)
-			}))
+			server := nexusapi.NewMockNexusServer()
 			defer server.Close()
 
 			config := &Config{
@@ -208,12 +189,13 @@ func TestURLConstruction(t *testing.T) {
 				t.Fatalf("listAssets failed: %v", err)
 			}
 
-			if receivedRepo != tt.wantRepo {
-				t.Errorf("Expected repository '%s', got '%s'", tt.wantRepo, receivedRepo)
+			if server.LastListRepo != tt.wantRepo {
+				t.Errorf("Expected repository '%s', got '%s'", tt.wantRepo, server.LastListRepo)
 			}
 
-			if receivedQuery != tt.wantQuery {
-				t.Errorf("Expected query '%s', got '%s'", tt.wantQuery, receivedQuery)
+			expectedPath := tt.src
+			if server.LastListPath != expectedPath {
+				t.Errorf("Expected path '%s', got '%s'", expectedPath, server.LastListPath)
 			}
 		})
 	}
@@ -268,44 +250,21 @@ func TestDownloadLogging(t *testing.T) {
 	testContent := "test content"
 	testPath := "/test-folder/test.txt"
 
-	var serverURL string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + testPath,
-						Path:        testPath,
-						ID:          "test-id",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
-
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
-	serverURL = server.URL
+
+	downloadURL := server.URL + "/repository/test-repo" + testPath
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        testPath,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
 	config := &Config{
 		NexusURL: server.URL,
@@ -352,54 +311,38 @@ func TestDownloadFlatten(t *testing.T) {
 	subPath := "/subdir"
 	fileName := "/file.txt"
 
-	var serverURL string
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
 
 	// Test two files:
 	// 1. /test-folder/file.txt -> should become file.txt
 	// 2. /test-folder/subdir/file.txt -> should become subdir/file.txt
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := nexusapi.SearchResponse{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-						Path:        basePath + fileName,
-						ID:          "test-id-1",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + basePath + subPath + fileName,
-						Path:        basePath + subPath + fileName,
-						ID:          "test-id-2",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "def456",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
+	downloadURL1 := server.URL + "/repository/test-repo" + basePath + fileName
+	downloadURL2 := server.URL + "/repository/test-repo" + basePath + subPath + fileName
 
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL1,
+		Path:        basePath + fileName,
+		ID:          "test-id-1",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL2,
+		Path:        basePath + subPath + fileName,
+		ID:          "test-id-2",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "def456",
+		},
+	})
 
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
+	server.SetAssetContent("/repository/test-repo"+basePath+subPath+fileName, []byte(testContent))
 
 	config := &Config{
 		NexusURL: server.URL,
@@ -450,41 +393,21 @@ func TestDownloadNoFlatten(t *testing.T) {
 	testContent := "test content"
 	testPath := "/test-folder/file.txt"
 
-	var serverURL string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := nexusapi.SearchResponse{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + testPath,
-						Path:        testPath,
-						ID:          "test-id",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
-
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
+	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
-	serverURL = server.URL
+
+	downloadURL := server.URL + "/repository/test-repo" + testPath
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        testPath,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
 	config := &Config{
 		NexusURL: server.URL,
@@ -561,12 +484,7 @@ func TestUploadURLConstruction(t *testing.T) {
 				t.Fatalf("Failed to create test file: %v", err)
 			}
 
-			receivedRepo := ""
-
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				receivedRepo = r.URL.Query().Get("repository")
-				w.WriteHeader(http.StatusNoContent)
-			}))
+			server := nexusapi.NewMockNexusServer()
 			defer server.Close()
 
 			config := &Config{
@@ -585,8 +503,8 @@ func TestUploadURLConstruction(t *testing.T) {
 				t.Fatalf("Upload failed: %v", err)
 			}
 
-			if receivedRepo != tt.wantRepo {
-				t.Errorf("Expected repository '%s', got '%s'", tt.wantRepo, receivedRepo)
+			if server.LastUploadRepo != tt.wantRepo {
+				t.Errorf("Expected repository '%s', got '%s'", tt.wantRepo, server.LastUploadRepo)
 			}
 		})
 	}
@@ -598,45 +516,22 @@ func TestDownloadDeleteExtra(t *testing.T) {
 	basePath := "/test-folder"
 	fileName := "/file.txt"
 
-	var serverURL string
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
 
 	// Nexus only has one file: /test-folder/file.txt
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-						Path:        basePath + fileName,
-						ID:          "test-id-1",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
-
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        basePath + fileName,
+		ID:          "test-id-1",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
 	config := &Config{
 		NexusURL: server.URL,
@@ -712,45 +607,22 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 	basePath := "/test-folder"
 	fileName := "/file.txt"
 
-	var serverURL string
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
 
 	// Nexus only has one file: /test-folder/file.txt
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-						Path:        basePath + fileName,
-						ID:          "test-id-1",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
-
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        basePath + fileName,
+		ID:          "test-id-1",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
 	config := &Config{
 		NexusURL: server.URL,
@@ -810,45 +682,22 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 	basePath := "/test-folder"
 	fileName := "/file.txt"
 
-	var serverURL string
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
 
 	// Nexus only has one file: /test-folder/file.txt
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/service/rest/v1/search/assets") {
-			assets := struct {
-				Items             []nexusapi.Asset `json:"items"`
-				ContinuationToken string           `json:"continuationToken"`
-			}{
-				Items: []nexusapi.Asset{
-					{
-						DownloadURL: serverURL + "/repository/test-repo" + basePath + fileName,
-						Path:        basePath + fileName,
-						ID:          "test-id-1",
-						Repository:  "test-repo",
-						FileSize:    int64(len(testContent)),
-						Checksum: nexusapi.Checksum{
-							SHA1: "abc123",
-						},
-					},
-				},
-				ContinuationToken: "",
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(assets)
-			return
-		}
-
-		if strings.Contains(r.URL.Path, "/repository/test-repo") {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(testContent))
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        basePath + fileName,
+		ID:          "test-id-1",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
 	config := &Config{
 		NexusURL: server.URL,
