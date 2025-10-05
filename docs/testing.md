@@ -14,7 +14,7 @@ A comprehensive mock Nexus server that can be used across all test packages.
 
 **Features:**
 - Asset listing with pagination support
-- File and archive uploads
+- File uploads (including archives)
 - Asset downloads
 - Request tracking and data capture
 - Thread-safe operations
@@ -86,8 +86,7 @@ func TestSomething(t *testing.T) {
 - `Reset()` - Clear all mock data
 
 #### Accessors
-- `GetUploadedFiles() []UploadedFile` - Get all uploaded files
-- `GetUploadedArchives() []UploadedArchive` - Get all uploaded archives
+- `GetUploadedFiles() []UploadedFile` - Get all uploaded files (including archives)
 - `GetRequestCount() int` - Get total number of requests
 
 #### Public Fields
