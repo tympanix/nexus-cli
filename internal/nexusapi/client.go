@@ -165,10 +165,20 @@ type FileUpload struct {
 	RelativePath string // Relative path to use in Nexus (with forward slashes)
 }
 
+// FileProcessCallback is called before processing each file during upload
+// idx is the 0-based index of the file being processed, total is the total number of files
+type FileProcessCallback func(idx, total int)
+
 // BuildRawUploadForm builds a multipart form for uploading files to a Nexus RAW repository
 // It writes the form data to the provided writer and returns any error encountered
-func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer) error {
+// If onFileStart is provided, it will be called before processing each file with the index and total count
+func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir string, progressWriter io.Writer, onFileStart FileProcessCallback) error {
 	for idx, file := range files {
+		// Notify callback that we're starting to process this file
+		if onFileStart != nil {
+			onFileStart(idx, len(files))
+		}
+
 		f, err := os.Open(file.FilePath)
 		if err != nil {
 			return err
@@ -186,49 +196,6 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 		if progressWriter != nil {
 			reader = io.TeeReader(f, progressWriter)
 		}
-		if _, err := io.Copy(part, reader); err != nil {
-			return err
-		}
-
-		// Add filename field with relative path
-		_ = writer.WriteField(fmt.Sprintf("raw.asset%d.filename", idx+1), file.RelativePath)
-	}
-
-	// Add directory field if subdirectory is specified
-	if subdir != "" {
-		_ = writer.WriteField("raw.directory", subdir)
-	}
-
-	return nil
-}
-
-// ProgressBarUpdater interface for updating progress bar descriptions
-type ProgressBarUpdater interface {
-	io.Writer
-	ChangeMax64(int64)
-	Describe(string)
-}
-
-// BuildRawUploadFormWithProgress builds a multipart form with per-file progress tracking
-func BuildRawUploadFormWithProgress(writer *multipart.Writer, files []FileUpload, subdir string, bar ProgressBarUpdater, fileSizes []int64) error {
-	for idx, file := range files {
-		// Update progress bar description for current file
-		bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, len(files)))
-
-		f, err := os.Open(file.FilePath)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		// Create form file with Nexus RAW format: raw.asset1, raw.asset2, etc.
-		part, err := writer.CreateFormFile(fmt.Sprintf("raw.asset%d", idx+1), filepath.Base(file.FilePath))
-		if err != nil {
-			return err
-		}
-
-		// Copy file content to form through progress writer
-		reader := io.TeeReader(f, bar)
 		if _, err := io.Copy(part, reader); err != nil {
 			return err
 		}

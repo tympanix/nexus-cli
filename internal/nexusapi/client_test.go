@@ -200,7 +200,7 @@ func TestBuildRawUploadForm(t *testing.T) {
 	var buf strings.Builder
 	writer := multipart.NewWriter(&buf)
 
-	err = BuildRawUploadForm(writer, files, "test-subdir", nil)
+	err = BuildRawUploadForm(writer, files, "test-subdir", nil, nil)
 	if err != nil {
 		t.Fatalf("BuildRawUploadForm failed: %v", err)
 	}

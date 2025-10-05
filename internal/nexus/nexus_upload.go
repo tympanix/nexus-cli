@@ -114,13 +114,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	}
 	// Calculate total bytes to upload
 	totalBytes := int64(0)
-	fileSizes := make([]int64, len(filePaths))
-	for i, filePath := range filePaths {
+	for _, filePath := range filePaths {
 		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
 		}
-		fileSizes[i] = info.Size()
 		totalBytes += info.Size()
 	}
 
@@ -144,7 +142,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	errChan := make(chan error, 1)
 	go func() {
 		defer pw.Close()
-		err := nexusapi.BuildRawUploadFormWithProgress(writer, files, subdir, bar, fileSizes)
+		// Callback to update progress bar description for each file
+		onFileStart := func(idx, total int) {
+			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, total))
+		}
+		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, onFileStart)
 		writer.Close()
 		errChan <- err
 	}()
