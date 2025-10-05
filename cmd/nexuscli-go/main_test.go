@@ -242,5 +242,29 @@ func TestKeyFromFlagExists(t *testing.T) {
 				t.Errorf("Expected help output to contain --key-from flag for %s command, got: %s", tt.command, output)
 			}
 		})
+  }
+}
+
+func TestVerboseFlag(t *testing.T) {
+	// Build the binary first
+	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-verbose")
+	defer os.Remove("./nexuscli-go-test-verbose")
+
+	// Test that --verbose flag is available in help
+	cmd := exec.Command("./nexuscli-go-test-verbose", "--help")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Command failed: %v, output: %s", err, stdout.String())
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "--verbose") {
+		t.Errorf("Expected help output to contain '--verbose' flag, got: %s", output)
+	}
+	if !strings.Contains(output, "Enable verbose output") {
+		t.Errorf("Expected help output to contain verbose flag description, got: %s", output)
 	}
 }

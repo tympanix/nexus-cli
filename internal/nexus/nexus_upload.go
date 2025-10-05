@@ -293,6 +293,9 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 	} else if opts.Compress && (strings.HasSuffix(processedDest, ".tar.gz") || strings.HasSuffix(processedDest, ".tar.zst") || strings.HasSuffix(processedDest, ".zip")) {
 		// Repository name ends with .tar.gz or .tar.zst or .zip, treat it as explicit archive name
 		explicitArchiveName = processedDest
+	} else if opts.Compress && (strings.HasSuffix(dest, ".tar.gz") || strings.HasSuffix(dest, ".tar.zst") || strings.HasSuffix(dest, ".zip")) {
+		// Repository name ends with .tar.gz or .tar.zst or .zip, treat it as explicit archive name
+		explicitArchiveName = dest
 		repository = ""
 		subdir = ""
 		// Detect compression format from filename if not explicitly set

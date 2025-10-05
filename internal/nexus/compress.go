@@ -2,6 +2,7 @@ package nexus
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -216,6 +217,122 @@ func extractTar(reader io.Reader, destDir string) error {
 			if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil {
 				return fmt.Errorf("failed to set permissions on %s: %w", targetPath, err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// CreateZip creates a zip archive containing all files from srcDir.
+// The archive is written to the provided writer on-the-fly.
+// Files are stored in the archive with paths relative to srcDir.
+func CreateZip(srcDir string, writer io.Writer) error {
+	return CreateZipWithGlob(srcDir, writer, "")
+}
+
+// CreateZipWithGlob creates a zip archive containing files from srcDir filtered by glob pattern.
+// The archive is written to the provided writer on-the-fly.
+// Files are stored in the archive with paths relative to srcDir.
+func CreateZipWithGlob(srcDir string, writer io.Writer, globPattern string) error {
+	zipWriter := zip.NewWriter(writer)
+	defer zipWriter.Close()
+
+	files, err := collectFilesWithGlob(srcDir, globPattern)
+	if err != nil {
+		return fmt.Errorf("failed to collect files: %w", err)
+	}
+
+	for _, filePath := range files {
+		info, err := os.Stat(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+		}
+
+		relPath, err := filepath.Rel(srcDir, filePath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path for %s: %w", filePath, err)
+		}
+		relPath = filepath.ToSlash(relPath)
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return fmt.Errorf("failed to create zip header for %s: %w", relPath, err)
+		}
+		header.Name = relPath
+		header.Method = zip.Deflate
+
+		headerWriter, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return fmt.Errorf("failed to create header for %s: %w", relPath, err)
+		}
+
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", filePath, err)
+		}
+
+		if _, err := io.Copy(headerWriter, file); err != nil {
+			file.Close()
+			return fmt.Errorf("failed to write file %s to archive: %w", relPath, err)
+		}
+		file.Close()
+	}
+
+	return nil
+}
+
+// ExtractZip extracts a zip archive from the provided reader to destDir.
+// Files are extracted on-the-fly as they are read from the archive.
+func ExtractZip(reader io.Reader, destDir string) error {
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read zip data: %w", err)
+	}
+
+	zipReader, err := zip.NewReader(strings.NewReader(string(data)), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("failed to create zip reader: %w", err)
+	}
+
+	for _, file := range zipReader.File {
+		targetPath := filepath.Join(destDir, file.Name)
+
+		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)) {
+			return fmt.Errorf("illegal file path in archive: %s", file.Name)
+		}
+
+		if file.FileInfo().IsDir() {
+			if err := os.MkdirAll(targetPath, file.Mode()); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
+		}
+
+		fileReader, err := file.Open()
+		if err != nil {
+			return fmt.Errorf("failed to open file %s in archive: %w", file.Name, err)
+		}
+
+		outFile, err := os.Create(targetPath)
+		if err != nil {
+			fileReader.Close()
+			return fmt.Errorf("failed to create file %s: %w", targetPath, err)
+		}
+
+		if _, err := io.Copy(outFile, fileReader); err != nil {
+			outFile.Close()
+			fileReader.Close()
+			return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
+		}
+		outFile.Close()
+		fileReader.Close()
+
+		if err := os.Chmod(targetPath, file.Mode()); err != nil {
+			return fmt.Errorf("failed to set permissions on %s: %w", targetPath, err)
 		}
 	}
 

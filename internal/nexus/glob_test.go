@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
@@ -97,6 +98,48 @@ func TestCollectFilesWithGlob(t *testing.T) {
 			globPattern:    "*.py",
 			expectedCount:  0,
 			expectedInList: []string{},
+			expectError:    false,
+		},
+		{
+			name:           "multiple patterns - .txt and .go files",
+			globPattern:    "**/*.txt,**/*.go",
+			expectedCount:  6,
+			expectedInList: []string{"file1.txt", "file2.go", "subdir/file4.txt", "subdir/file5.go", "subdir/nested/file6.txt", "subdir/nested/file7.go"},
+			expectError:    false,
+		},
+		{
+			name:           "negative pattern - exclude nested files",
+			globPattern:    "**/*.txt,!subdir/nested/*",
+			expectedCount:  2,
+			expectedInList: []string{"file1.txt", "subdir/file4.txt"},
+			expectError:    false,
+		},
+		{
+			name:           "negative pattern - exclude test files",
+			globPattern:    "**/*.go,!**/nested/**",
+			expectedCount:  2,
+			expectedInList: []string{"file2.go", "subdir/file5.go"},
+			expectError:    false,
+		},
+		{
+			name:           "only negative pattern - all files except .txt",
+			globPattern:    "!**/*.txt",
+			expectedCount:  4,
+			expectedInList: []string{"file2.go", "file3.js", "subdir/file5.go", "subdir/nested/file7.go"},
+			expectError:    false,
+		},
+		{
+			name:           "multiple negatives - exclude .txt and .js",
+			globPattern:    "!**/*.txt,!**/*.js",
+			expectedCount:  3,
+			expectedInList: []string{"file2.go", "subdir/file5.go", "subdir/nested/file7.go"},
+			expectError:    false,
+		},
+		{
+			name:           "complex pattern - specific directory with exclusions",
+			globPattern:    "subdir/**,!subdir/nested/*.txt",
+			expectedCount:  3,
+			expectedInList: []string{"subdir/file4.txt", "subdir/file5.go", "subdir/nested/file7.go"},
 			expectError:    false,
 		},
 	}
@@ -245,5 +288,124 @@ func TestCompressedUploadWithGlob(t *testing.T) {
 
 	if uploadedArchives[0].Filename != "archive.tar.gz" {
 		t.Errorf("Expected archive name 'archive.tar.gz', got '%s'", uploadedArchives[0].Filename)
+	}
+}
+
+func TestUploadWithMultipleGlobs(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-multi-glob-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	files := []string{
+		"file1.txt",
+		"file2.go",
+		"file3.js",
+		"subdir/file4.txt",
+		"subdir/file5.go",
+	}
+
+	for _, file := range files {
+		fullPath := filepath.Join(testDir, file)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(fullPath, []byte("test content"), 0644); err != nil {
+			t.Fatalf("Failed to create file %s: %v", file, err)
+		}
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:      NewLogger(io.Discard),
+		QuietMode:   true,
+		GlobPattern: "**/*.txt,**/*.go",
+	}
+
+	err = uploadFiles(testDir, "test-repo", "", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	uploadedFiles := server.GetUploadedFiles()
+
+	if len(uploadedFiles) != 4 {
+		t.Logf("Uploaded files:")
+		for i, uf := range uploadedFiles {
+			t.Logf("  [%d] Filename: %s", i, uf.Filename)
+		}
+		t.Errorf("Expected 4 uploaded files (matching **/*.txt,**/*.go), got %d", len(uploadedFiles))
+	}
+}
+
+func TestUploadWithNegativeGlob(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-neg-glob-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	files := []string{
+		"file1.go",
+		"file1_test.go",
+		"file2.go",
+		"subdir/file3.go",
+		"subdir/file3_test.go",
+	}
+
+	for _, file := range files {
+		fullPath := filepath.Join(testDir, file)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(fullPath, []byte("test content"), 0644); err != nil {
+			t.Fatalf("Failed to create file %s: %v", file, err)
+		}
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:      NewLogger(io.Discard),
+		QuietMode:   true,
+		GlobPattern: "**/*.go,!**/*_test.go",
+	}
+
+	err = uploadFiles(testDir, "test-repo", "", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	uploadedFiles := server.GetUploadedFiles()
+
+	if len(uploadedFiles) != 3 {
+		t.Logf("Uploaded files:")
+		for i, uf := range uploadedFiles {
+			t.Logf("  [%d] Filename: %s", i, uf.Filename)
+		}
+		t.Errorf("Expected 3 uploaded files (excluding *_test.go), got %d", len(uploadedFiles))
+	}
+
+	// Verify no test files were uploaded
+	for _, uf := range uploadedFiles {
+		if strings.Contains(uf.Filename, "_test.go") {
+			t.Errorf("Test file should not be uploaded: %s", uf.Filename)
+		}
 	}
 }

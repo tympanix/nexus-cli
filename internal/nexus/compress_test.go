@@ -393,3 +393,145 @@ func TestRoundTripCompressionZst(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateZip(t *testing.T) {
+	testFiles := map[string]string{
+		"file1.txt":           "content1",
+		"dir1/file2.txt":      "content2",
+		"dir1/dir2/file3.txt": "content3",
+	}
+
+	srcDir, err := os.MkdirTemp("", "test-src-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	var buf bytes.Buffer
+	err = CreateZip(srcDir, &buf)
+	if err != nil {
+		t.Fatalf("Failed to create zip: %v", err)
+	}
+
+	if buf.Len() == 0 {
+		t.Error("Created zip archive is empty")
+	}
+}
+
+func TestExtractZip(t *testing.T) {
+	testFiles := map[string]string{
+		"file1.txt":           "content1",
+		"dir1/file2.txt":      "content2",
+		"dir1/dir2/file3.txt": "content3",
+	}
+
+	srcDir, err := os.MkdirTemp("", "test-src-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	var buf bytes.Buffer
+	err = CreateZip(srcDir, &buf)
+	if err != nil {
+		t.Fatalf("Failed to create zip: %v", err)
+	}
+
+	destDir, err := os.MkdirTemp("", "test-extract-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	err = ExtractZip(&buf, destDir)
+	if err != nil {
+		t.Fatalf("Failed to extract zip: %v", err)
+	}
+
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}
+
+func TestRoundTripCompressionZip(t *testing.T) {
+	testFiles := map[string]string{
+		"file1.txt":           "content1",
+		"dir1/file2.txt":      "content2",
+		"dir1/dir2/file3.txt": "content3",
+		"special chars.txt":   "special content!@#$%",
+	}
+
+	srcDir, err := os.MkdirTemp("", "test-roundtrip-zip-src-*")
+	if err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	defer os.RemoveAll(srcDir)
+
+	for filename, content := range testFiles {
+		filePath := filepath.Join(srcDir, filename)
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := CreateZip(srcDir, &buf); err != nil {
+		t.Fatalf("Failed to create zip: %v", err)
+	}
+
+	destDir, err := os.MkdirTemp("", "test-roundtrip-zip-dest-*")
+	if err != nil {
+		t.Fatalf("Failed to create destination directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	if err := ExtractZip(&buf, destDir); err != nil {
+		t.Fatalf("Failed to extract zip: %v", err)
+	}
+
+	for filename, expectedContent := range testFiles {
+		extractedPath := filepath.Join(destDir, filename)
+		content, err := os.ReadFile(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to read extracted file %s: %v", filename, err)
+			continue
+		}
+		if string(content) != expectedContent {
+			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
+		}
+	}
+}

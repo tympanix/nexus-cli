@@ -4,9 +4,9 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
-- Filter files using advanced glob patterns (e.g., `**/*.go`, `src/**/*.test.js`)
+- Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.go,!**/*_test.go`)
 - Download all files from a Nexus RAW folder recursively
-- Compression support: upload/download files as tar.gz or tar.zst archives
+- Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
 - Small container image size using multi-stage build with scratch base
 
@@ -152,13 +152,18 @@ nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--comp
 
 **Upload options:**
 - `--compress` or `-z` - Create and upload files as a compressed archive
-- `--compress-format <format>` - Compression format to use: `gzip` (default) or `zstd`
-- `--glob <pattern>` or `-g <pattern>` - Glob pattern to filter files (e.g., `**/*.go`, `*.txt`)
+- `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
+- `--glob <pattern>` or `-g <pattern>` - Glob pattern(s) to filter files (supports multiple patterns and negation)
 - `--key-from <file>` - Path to file to compute hash from for `{key}` template in dest
 
 **About the `--glob` flag:**
 
 The `--glob` flag allows you to filter which files are uploaded using glob patterns. This works for both regular uploads and compressed uploads. The pattern is matched against file paths relative to the source directory.
+
+**Multiple patterns and negation:**
+- Use commas to specify multiple patterns: `"**/*.go,**/*.md"`
+- Use `!` prefix for negative matches (exclusions): `"**/*.go,!**/*_test.go"`
+- Patterns are evaluated left-to-right: positive patterns include files, negative patterns exclude them
 
 **Supported glob patterns:**
 - `*` - Matches any characters except `/` (directory separator)
@@ -179,11 +184,26 @@ nexuscli-go upload --glob "**/*.go" ./files my-repo
 # Upload all files from a specific subdirectory
 nexuscli-go upload --glob "src/**" ./files my-repo
 
-# Upload files with multiple extensions
+# Upload files with multiple extensions (comma-separated)
 nexuscli-go upload --glob "**/*.{go,md}" ./files my-repo
+
+# Upload multiple file types using multiple patterns
+nexuscli-go upload --glob "**/*.go,**/*.md,**/*.txt" ./files my-repo
+
+# Upload all .go files except test files (using negation)
+nexuscli-go upload --glob "**/*.go,!**/*_test.go" ./files my-repo
+
+# Upload all files except those in a specific directory
+nexuscli-go upload --glob "!vendor/**,!node_modules/**" ./files my-repo
+
+# Complex pattern: upload source files but exclude tests and vendor
+nexuscli-go upload --glob "**/*.go,**/*.md,!**/*_test.go,!vendor/**" ./files my-repo
 
 # Create compressed archive with only .go files
 nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
+
+# Create compressed archive excluding test files
+nexuscli-go upload --compress --glob "**/*.go,!**/*_test.go" ./files my-repo/archive.tar.gz
 ```
 
 **About the `--compress` flag:**
@@ -196,6 +216,7 @@ When the `--compress` flag is used, all files in the source directory are compre
 **Compression formats:**
 - `gzip` (default) - Creates `.tar.gz` archives (widely compatible)
 - `zstd` - Creates `.tar.zst` archives (better compression ratio and speed)
+- `zip` - Creates `.zip` archives (widely compatible, no tar wrapper)
 
 **Important:** You must specify the archive filename (with extension) as part of the destination path:
 
@@ -211,6 +232,14 @@ nexuscli-go upload --compress --compress-format zstd ./files my-repo/path/custom
 # Auto-detect format from extension
 nexuscli-go upload --compress ./files my-repo/path/archive.tar.zst
 # Automatically uses zstd compression based on .tar.zst extension
+
+# Using zip
+nexuscli-go upload --compress --compress-format zip ./files my-repo/path/archive.zip
+# Creates and uploads: archive.zip to my-repo/path/
+
+# Auto-detect zip from extension
+nexuscli-go upload --compress ./files my-repo/path/backup.zip
+# Automatically uses zip compression based on .zip extension
 ```
 
 **About the `--key-from` flag:**
@@ -252,7 +281,7 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
 - `--delete` - Remove local files from the destination folder that are not present in Nexus
 - `--compress` or `-z` - Download and extract a compressed archive
-- `--compress-format <format>` - Compression format to use: `gzip` (default) or `zstd`
+- `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
 - `--key-from <file>` - Path to file to compute hash from for `{key}` template in src
 
 **About the `--flatten` flag:**
@@ -274,6 +303,7 @@ When the `--compress` flag is used with download, the CLI looks for a compressed
 **Compression formats:**
 - `gzip` (default) - Extracts `.tar.gz` archives
 - `zstd` - Extracts `.tar.zst` archives (better performance)
+- `zip` - Extracts `.zip` archives (widely compatible)
 
 **Important:** You must specify the archive filename (with extension) as part of the source path:
 
@@ -286,6 +316,11 @@ nexuscli-go download --compress my-repo/path/custom-name.tar.gz ./local-folder
 nexuscli-go download --compress my-repo/path/custom-name.tar.zst ./local-folder
 # Downloads and extracts: custom-name.tar.zst from my-repo/path/
 # Format is auto-detected from the .tar.zst extension
+
+# Download zip archive
+nexuscli-go download --compress my-repo/path/archive.zip ./local-folder
+# Downloads and extracts: archive.zip from my-repo/path/
+# Format is auto-detected from the .zip extension
 ```
 
 **Examples:**
@@ -342,7 +377,19 @@ nexuscli-go download --compress my-repo/artifacts/backup.tar.gz ./local-folder
 # Download and extract zstd archive (auto-detected)
 nexuscli-go download --compress my-repo/artifacts/backup.tar.zst ./local-folder
 # Downloads and extracts: backup.tar.zst from my-repo/artifacts/
-# Format is auto-detected from the .tar.zst extension
+# Format is automatically detected from the .tar.zst extension
+
+# Upload with zip compression
+nexuscli-go upload --compress --compress-format zip ./files my-repo/artifacts/backup.zip
+# Creates: backup.zip in my-repo/artifacts/
+
+# Upload with auto-detected zip format
+nexuscli-go upload --compress ./files my-repo/artifacts/backup.zip
+# Automatically uses zip based on .zip extension
+
+# Download and extract zip archive
+nexuscli-go download --compress my-repo/artifacts/backup.zip ./local-folder
+# Downloads and extracts: backup.zip from my-repo/artifacts/
 ```
 
 **About the `--key-from` flag:**
