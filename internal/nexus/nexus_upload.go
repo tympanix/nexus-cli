@@ -16,6 +16,7 @@ import (
 type UploadOptions struct {
 	ChecksumAlgorithm string
 	SkipChecksum      bool
+	Force             bool
 	Logger            Logger
 	QuietMode         bool
 	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
@@ -172,8 +173,8 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		shouldSkip := false
 		skipReason := ""
 
-		// Check if file exists remotely and validate checksum
-		if remoteAssets != nil {
+		// Check if file exists remotely and validate checksum (unless --force is used)
+		if !opts.Force && remoteAssets != nil {
 			if asset, exists := remoteAssets[relPath]; exists {
 				if opts.SkipChecksum {
 					shouldSkip = true

@@ -60,6 +60,7 @@ func main() {
 	var uploadKeyFrom string
 	var uploadChecksumAlg string
 	var uploadSkipChecksum bool
+	var uploadForce bool
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
@@ -73,6 +74,7 @@ func main() {
 				GlobPattern:  uploadGlobPattern,
 				KeyFromFile:  uploadKeyFrom,
 				SkipChecksum: uploadSkipChecksum,
+				Force:        uploadForce,
 			}
 			// Parse compression format if provided
 			if uploadCompressionFormat != "" {
@@ -100,6 +102,7 @@ func main() {
 	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
 	uploadCmd.Flags().StringVarP(&uploadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	uploadCmd.Flags().BoolVarP(&uploadSkipChecksum, "skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
+	uploadCmd.Flags().BoolVarP(&uploadForce, "force", "F", false, "Force upload of all files, ignoring both checksum validation and file existence checks")
 
 	var checksumAlg string
 	var skipChecksumValidation bool
@@ -108,6 +111,7 @@ func main() {
 	var compressDownload bool
 	var downloadCompressionFormat string
 	var downloadKeyFrom string
+	var downloadForce bool
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -123,6 +127,7 @@ func main() {
 				QuietMode:         quietMode,
 				Compress:          compressDownload,
 				KeyFromFile:       downloadKeyFrom,
+				Force:             downloadForce,
 			}
 			// Parse compression format if provided
 			if downloadCompressionFormat != "" {
@@ -149,6 +154,7 @@ func main() {
 	downloadCmd.Flags().BoolVarP(&compressDownload, "compress", "z", false, "Download and extract a compressed archive")
 	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	downloadCmd.Flags().StringVar(&downloadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
+	downloadCmd.Flags().BoolVarP(&downloadForce, "force", "F", false, "Force download of all files, ignoring both checksum validation and file existence checks")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
