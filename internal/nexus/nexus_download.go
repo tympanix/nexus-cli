@@ -23,6 +23,8 @@ type DownloadOptions struct {
 	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
 	KeyFromFile       string            // Path to file to compute hash from for {key} template
 	checksumValidator ChecksumValidator // Internal validator instance
+	progressWriter    io.Writer         // Custom writer for progress bar (test only)
+	forceShowProgress bool              // Force progress display even without TTY (test only)
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -184,14 +186,14 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		totalBytes += asset.FileSize
 	}
 
-	baseBar := newProgressBar(totalBytes, "Downloading files", 0, len(assets), opts.QuietMode)
+	baseBar := newProgressBarWithWriter(totalBytes, "Downloading files", 0, len(assets), opts.QuietMode, opts.progressWriter, opts.forceShowProgress)
 	var current int32
 	bar := &progressBarWithCount{
 		bar:          baseBar,
 		current:      &current,
 		total:        len(assets),
 		description:  "Downloading files",
-		showProgress: isatty() && !opts.QuietMode,
+		showProgress: (isatty() || opts.forceShowProgress) && !opts.QuietMode,
 	}
 
 	var wg sync.WaitGroup
@@ -293,7 +295,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 		return DownloadError
 	}
 
-	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
+	bar := newProgressBarWithWriter(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode, opts.progressWriter, opts.forceShowProgress)
 
 	// Download and extract archive
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)

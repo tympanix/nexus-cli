@@ -23,6 +23,8 @@ type UploadOptions struct {
 	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 	KeyFromFile       string            // Path to file to compute hash from for {key} template
 	checksumValidator ChecksumValidator // Internal validator instance
+	progressWriter    io.Writer         // Custom writer for progress bar (test only)
+	forceShowProgress bool              // Force progress display even without TTY (test only)
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -203,7 +205,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return nil
 	}
 
-	bar := newProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
+	bar := newProgressBarWithWriter(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode, opts.progressWriter, opts.forceShowProgress)
 
 	// Prepare file upload information
 	files := make([]nexusapi.FileUpload, len(filesToUpload))
@@ -291,7 +293,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	}
 
 	// Create progress bar using uncompressed size as approximation
-	bar := newProgressBar(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode)
+	bar := newProgressBarWithWriter(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode, opts.progressWriter, opts.forceShowProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)

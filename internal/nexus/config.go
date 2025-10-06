@@ -44,9 +44,17 @@ func isatty() bool {
 // The currentFile and totalFiles parameters track which file is being processed
 // The quietMode parameter controls whether progress should be shown
 func newProgressBar(totalBytes int64, description string, currentFile, totalFiles int, quietMode bool) *progressbar.ProgressBar {
-	showProgress := isatty() && !quietMode
+	return newProgressBarWithWriter(totalBytes, description, currentFile, totalFiles, quietMode, nil, false)
+}
+
+// newProgressBarWithWriter creates a progress bar with a custom writer (for testing)
+func newProgressBarWithWriter(totalBytes int64, description string, currentFile, totalFiles int, quietMode bool, customWriter io.Writer, forceShow bool) *progressbar.ProgressBar {
+	showProgress := (isatty() || forceShow) && !quietMode
 	var writer io.Writer = ansi.NewAnsiStdout()
-	if !showProgress {
+	if customWriter != nil {
+		writer = customWriter
+		showProgress = true // Always show if custom writer provided
+	} else if !showProgress {
 		writer = io.Discard
 	}
 
