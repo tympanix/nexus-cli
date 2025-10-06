@@ -15,8 +15,8 @@ import (
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
 	ChecksumAlgorithm string
-	SkipChecksum      bool
-	Force             bool
+	SkipChecksum      bool // Skip checksum validation and upload files based on file existence
+	Force             bool // Force upload of all files, ignoring both checksum validation and file existence checks
 	Logger            Logger
 	QuietMode         bool
 	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)

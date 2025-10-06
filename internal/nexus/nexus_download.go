@@ -14,8 +14,8 @@ import (
 // DownloadOptions holds options for download operations
 type DownloadOptions struct {
 	ChecksumAlgorithm string
-	SkipChecksum      bool
-	Force             bool
+	SkipChecksum      bool // Skip checksum validation and download files based on file existence
+	Force             bool // Force download of all files, ignoring both checksum validation and file existence checks
 	Logger            Logger
 	QuietMode         bool
 	Flatten           bool
