@@ -2,6 +2,7 @@ package nexus
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
 )
@@ -227,4 +228,166 @@ func TestCappingWriterWithProgressBar(t *testing.T) {
 	}
 
 	bar.Finish()
+}
+
+// TestProgressBarCompletion tests that progress bar shows 100% and [n/n] when complete
+func TestProgressBarCompletion(t *testing.T) {
+	tests := []struct {
+		name        string
+		totalBytes  int64
+		totalFiles  int
+		description string
+	}{
+		{
+			name:        "single file upload",
+			totalBytes:  1024,
+			totalFiles:  1,
+			description: "Uploading files",
+		},
+		{
+			name:        "multiple files upload",
+			totalBytes:  5120,
+			totalFiles:  5,
+			description: "Uploading files",
+		},
+		{
+			name:        "single file download",
+			totalBytes:  2048,
+			totalFiles:  1,
+			description: "Downloading files",
+		},
+		{
+			name:        "multiple files download",
+			totalBytes:  10240,
+			totalFiles:  10,
+			description: "Downloading files",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create progress bar in quiet mode to avoid output
+			bar := newProgressBar(tt.totalBytes, tt.description, 0, tt.totalFiles, true)
+
+			// Simulate writing all the bytes
+			written := int64(0)
+			chunkSize := int64(256) // Write in chunks of 256 bytes
+			for written < tt.totalBytes {
+				toWrite := chunkSize
+				if written+toWrite > tt.totalBytes {
+					toWrite = tt.totalBytes - written
+				}
+				bar.Write(make([]byte, toWrite))
+				written += toWrite
+			}
+
+			// Simulate updating file count by updating description
+			for i := 1; i <= tt.totalFiles; i++ {
+				bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", i, tt.totalFiles, tt.description))
+			}
+
+			// Finish the progress bar
+			bar.Finish()
+
+			// Check the state
+			state := bar.State()
+
+			// Verify completion - CurrentNum should equal Max (which means 100%)
+			if state.CurrentNum != state.Max {
+				t.Errorf("Expected CurrentNum to equal Max (%d), got %d", state.Max, state.CurrentNum)
+			}
+
+			// Verify all bytes were written
+			if state.CurrentNum != tt.totalBytes {
+				t.Errorf("Expected %d bytes written, got %d", tt.totalBytes, state.CurrentNum)
+			}
+
+			// Calculate percentage manually
+			percentComplete := float64(state.CurrentNum) / float64(state.Max) * 100.0
+			if percentComplete != 100.0 {
+				t.Errorf("Expected 100%% completion, got %.2f%%", percentComplete)
+			}
+
+			// Verify description shows final file count [n/n]
+			expectedDesc := fmt.Sprintf("[cyan][%d/%d][reset] %s", tt.totalFiles, tt.totalFiles, tt.description)
+			if state.Description != expectedDesc {
+				t.Errorf("Expected description '%s', got '%s'", expectedDesc, state.Description)
+			}
+		})
+	}
+}
+
+// TestProgressBarWithCountCompletion tests progressBarWithCount completion
+func TestProgressBarWithCountCompletion(t *testing.T) {
+	tests := []struct {
+		name        string
+		totalBytes  int64
+		totalFiles  int
+		description string
+	}{
+		{
+			name:        "single file",
+			totalBytes:  1024,
+			totalFiles:  1,
+			description: "Downloading files",
+		},
+		{
+			name:        "multiple files",
+			totalBytes:  5120,
+			totalFiles:  5,
+			description: "Downloading files",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create base progress bar in quiet mode
+			baseBar := newProgressBar(tt.totalBytes, tt.description, 0, tt.totalFiles, true)
+			var current int32
+			bar := &progressBarWithCount{
+				bar:          baseBar,
+				current:      &current,
+				total:        tt.totalFiles,
+				description:  tt.description,
+				showProgress: false,
+			}
+
+			// Simulate downloading files
+			bytesPerFile := tt.totalBytes / int64(tt.totalFiles)
+			for i := 0; i < tt.totalFiles; i++ {
+				// Write bytes for this file
+				bar.Add64(bytesPerFile)
+				// Increment file count
+				bar.incrementFile()
+			}
+
+			// Finish the progress bar
+			bar.Finish()
+
+			// Check the state
+			state := baseBar.State()
+
+			// Verify completion - CurrentNum should equal Max (which means 100%)
+			if state.CurrentNum != state.Max {
+				t.Errorf("Expected CurrentNum to equal Max (%d), got %d", state.Max, state.CurrentNum)
+			}
+
+			// Verify all bytes were written
+			if state.CurrentNum != tt.totalBytes {
+				t.Errorf("Expected %d bytes written, got %d", tt.totalBytes, state.CurrentNum)
+			}
+
+			// Calculate percentage manually
+			percentComplete := float64(state.CurrentNum) / float64(state.Max) * 100.0
+			if percentComplete != 100.0 {
+				t.Errorf("Expected 100%% completion, got %.2f%%", percentComplete)
+			}
+
+			// Verify description shows final file count [n/n]
+			expectedDesc := fmt.Sprintf("[cyan][%d/%d][reset] %s", tt.totalFiles, tt.totalFiles, tt.description)
+			if state.Description != expectedDesc {
+				t.Errorf("Expected description '%s', got '%s'", expectedDesc, state.Description)
+			}
+		})
+	}
 }
