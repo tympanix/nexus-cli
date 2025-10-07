@@ -134,7 +134,7 @@ func TestDownloadLogging(t *testing.T) {
 
 // TestDownloadWithForce tests that download downloads files even when they exist locally when --force is used
 func TestDownloadWithForce(t *testing.T) {
-	testContent := "original content"
+	originalContent := "original content"
 	newContent := "new content from Nexus"
 	testPath := "/test-folder/test.txt"
 
@@ -149,7 +149,7 @@ func TestDownloadWithForce(t *testing.T) {
 		Repository:  "test-repo",
 		FileSize:    int64(len(newContent)),
 		Checksum: nexusapi.Checksum{
-			SHA1: "abc123",
+			SHA1: "c1dab0c0864b6ac9bdd3743a1408d679f1acd823", // SHA1 of "original content"
 		},
 	})
 	server.SetAssetContent("/repository/test-repo"+testPath, []byte(newContent))
@@ -160,59 +160,116 @@ func TestDownloadWithForce(t *testing.T) {
 		Password: "test",
 	}
 
-	destDir, err := os.MkdirTemp("", "test-download-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(destDir)
+	// First, test WITHOUT --force flag (should skip the file if checksums match)
+	t.Run("without force flag", func(t *testing.T) {
+		destDir, err := os.MkdirTemp("", "test-download-*")
+		if err != nil {
+			t.Fatalf("Failed to create temp directory: %v", err)
+		}
+		defer os.RemoveAll(destDir)
 
-	// Pre-create the file with different content
-	localPath := filepath.Join(destDir, testPath)
-	os.MkdirAll(filepath.Dir(localPath), 0755)
-	err = os.WriteFile(localPath, []byte(testContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create pre-existing file: %v", err)
-	}
+		// Pre-create the file with original content (matching the checksum from the server)
+		localPath := filepath.Join(destDir, testPath)
+		os.MkdirAll(filepath.Dir(localPath), 0755)
+		err = os.WriteFile(localPath, []byte(originalContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create pre-existing file: %v", err)
+		}
 
-	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+		var logBuf strings.Builder
+		logger := NewLogger(&logBuf)
 
-	opts := &DownloadOptions{
-		ChecksumAlgorithm: "sha1",
-		SkipChecksum:      false,
-		Logger:            logger,
-		QuietMode:         true,
-		Force:             true,
-	}
+		opts := &DownloadOptions{
+			ChecksumAlgorithm: "sha1",
+			SkipChecksum:      false,
+			Logger:            logger,
+			QuietMode:         true,
+			Force:             false,
+		}
 
-	err = opts.SetChecksumAlgorithm("sha1")
-	if err != nil {
-		t.Fatalf("Failed to set checksum algorithm: %v", err)
-	}
+		err = opts.SetChecksumAlgorithm("sha1")
+		if err != nil {
+			t.Fatalf("Failed to set checksum algorithm: %v", err)
+		}
 
-	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
-	if status != DownloadSuccess {
-		t.Fatal("Download failed")
-	}
+		status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+		if status != DownloadSuccess {
+			t.Fatal("Download failed")
+		}
 
-	// Verify the file was downloaded and replaced with new content
-	content, err := os.ReadFile(localPath)
-	if err != nil {
-		t.Fatalf("Failed to read downloaded file: %v", err)
-	}
+		// Verify the file was NOT replaced (should still have original content)
+		content, err := os.ReadFile(localPath)
+		if err != nil {
+			t.Fatalf("Failed to read file: %v", err)
+		}
 
-	if string(content) != newContent {
-		t.Errorf("Expected file content '%s', got '%s'", newContent, string(content))
-	}
+		if string(content) != originalContent {
+			t.Errorf("Expected file to remain unchanged with content '%s', got '%s'", originalContent, string(content))
+		}
 
-	// Check log output shows file was downloaded (not skipped)
-	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Downloaded 1/1 files") {
-		t.Errorf("Expected log message containing 'Downloaded 1/1 files', got: %s", logOutput)
-	}
-	if !strings.Contains(logOutput, "(skipped: 0, failed: 0)") {
-		t.Errorf("Expected log message containing '(skipped: 0, failed: 0)', got: %s", logOutput)
-	}
+		// Check log output shows file was skipped
+		logOutput := logBuf.String()
+		if !strings.Contains(logOutput, "(skipped: 1, failed: 0)") {
+			t.Errorf("Expected log message showing 1 file skipped, got: %s", logOutput)
+		}
+	})
+
+	// Then, test WITH --force flag (should download and replace the file)
+	t.Run("with force flag", func(t *testing.T) {
+		destDir, err := os.MkdirTemp("", "test-download-*")
+		if err != nil {
+			t.Fatalf("Failed to create temp directory: %v", err)
+		}
+		defer os.RemoveAll(destDir)
+
+		// Pre-create the file with original content
+		localPath := filepath.Join(destDir, testPath)
+		os.MkdirAll(filepath.Dir(localPath), 0755)
+		err = os.WriteFile(localPath, []byte(originalContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create pre-existing file: %v", err)
+		}
+
+		var logBuf strings.Builder
+		logger := NewLogger(&logBuf)
+
+		opts := &DownloadOptions{
+			ChecksumAlgorithm: "sha1",
+			SkipChecksum:      false,
+			Logger:            logger,
+			QuietMode:         true,
+			Force:             true,
+		}
+
+		err = opts.SetChecksumAlgorithm("sha1")
+		if err != nil {
+			t.Fatalf("Failed to set checksum algorithm: %v", err)
+		}
+
+		status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+		if status != DownloadSuccess {
+			t.Fatal("Download failed")
+		}
+
+		// Verify the file was downloaded and replaced with new content
+		content, err := os.ReadFile(localPath)
+		if err != nil {
+			t.Fatalf("Failed to read downloaded file: %v", err)
+		}
+
+		if string(content) != newContent {
+			t.Errorf("Expected file content '%s', got '%s'", newContent, string(content))
+		}
+
+		// Check log output shows file was downloaded (not skipped)
+		logOutput := logBuf.String()
+		if !strings.Contains(logOutput, "Downloaded 1/1 files") {
+			t.Errorf("Expected log message containing 'Downloaded 1/1 files', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "(skipped: 0, failed: 0)") {
+			t.Errorf("Expected log message containing '(skipped: 0, failed: 0)', got: %s", logOutput)
+		}
+	})
 }
 
 // TestDownloadFlatten tests that download with flatten option removes base path

@@ -319,69 +319,139 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 func TestUploadWithForce(t *testing.T) {
 	testContent := "test content"
 
-	testDir, err := os.MkdirTemp("", "test-upload-*")
-	if err != nil {
-		t.Fatalf("Failed to create test directory: %v", err)
-	}
-	defer os.RemoveAll(testDir)
+	// First, test WITHOUT --force flag (should skip the file)
+	t.Run("without force flag", func(t *testing.T) {
+		testDir, err := os.MkdirTemp("", "test-upload-*")
+		if err != nil {
+			t.Fatalf("Failed to create test directory: %v", err)
+		}
+		defer os.RemoveAll(testDir)
 
-	testFile := filepath.Join(testDir, "test.txt")
-	err = os.WriteFile(testFile, []byte(testContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
+		testFile := filepath.Join(testDir, "test.txt")
+		err = os.WriteFile(testFile, []byte(testContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
 
-	server := nexusapi.NewMockNexusServer()
-	defer server.Close()
+		server := nexusapi.NewMockNexusServer()
+		defer server.Close()
 
-	// Add an existing asset with matching checksum
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
-		Path:       "/test.txt",
-		ID:         "test-id",
-		Repository: "test-repo",
-		FileSize:   int64(len(testContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
-		},
+		// Add an existing asset with matching checksum (SHA1 of "test content")
+		server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+			Path:       "/test.txt",
+			ID:         "test-id",
+			Repository: "test-repo",
+			FileSize:   int64(len(testContent)),
+			Checksum: nexusapi.Checksum{
+				SHA1: "1eebdf4fdc9fc7bf283031b93f9aef3338de9052",
+			},
+		})
+
+		config := &Config{
+			NexusURL: server.URL,
+			Username: "test",
+			Password: "test",
+		}
+
+		var logBuf strings.Builder
+		logger := NewLogger(&logBuf)
+
+		opts := &UploadOptions{
+			Logger:    logger,
+			QuietMode: true,
+			Force:     false,
+		}
+
+		// Set checksum algorithm
+		err = opts.SetChecksumAlgorithm("sha1")
+		if err != nil {
+			t.Fatalf("Failed to set checksum algorithm: %v", err)
+		}
+
+		err = uploadFiles(testDir, "test-repo", "", config, opts)
+		if err != nil {
+			t.Fatalf("Upload failed: %v", err)
+		}
+
+		// Check that no files were uploaded (file should be skipped)
+		uploadedFiles := server.GetUploadedFiles()
+		if len(uploadedFiles) != 0 {
+			t.Errorf("Expected 0 files to be uploaded (should be skipped), got %d", len(uploadedFiles))
+		}
+
+		// Check log output confirms file was skipped
+		logOutput := logBuf.String()
+		if !strings.Contains(logOutput, "All 1 files already exist with matching checksums") {
+			t.Errorf("Expected log message about files being skipped, got: %s", logOutput)
+		}
 	})
 
-	config := &Config{
-		NexusURL: server.URL,
-		Username: "test",
-		Password: "test",
-	}
+	// Then, test WITH --force flag (should upload the file)
+	t.Run("with force flag", func(t *testing.T) {
+		testDir, err := os.MkdirTemp("", "test-upload-*")
+		if err != nil {
+			t.Fatalf("Failed to create test directory: %v", err)
+		}
+		defer os.RemoveAll(testDir)
 
-	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+		testFile := filepath.Join(testDir, "test.txt")
+		err = os.WriteFile(testFile, []byte(testContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
 
-	opts := &UploadOptions{
-		Logger:    logger,
-		QuietMode: true,
-		Force:     true,
-	}
+		server := nexusapi.NewMockNexusServer()
+		defer server.Close()
 
-	// Set checksum algorithm
-	err = opts.SetChecksumAlgorithm("sha1")
-	if err != nil {
-		t.Fatalf("Failed to set checksum algorithm: %v", err)
-	}
+		// Add an existing asset with matching checksum (SHA1 of "test content")
+		server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+			Path:       "/test.txt",
+			ID:         "test-id",
+			Repository: "test-repo",
+			FileSize:   int64(len(testContent)),
+			Checksum: nexusapi.Checksum{
+				SHA1: "1eebdf4fdc9fc7bf283031b93f9aef3338de9052",
+			},
+		})
 
-	err = uploadFiles(testDir, "test-repo", "", config, opts)
-	if err != nil {
-		t.Fatalf("Upload failed: %v", err)
-	}
+		config := &Config{
+			NexusURL: server.URL,
+			Username: "test",
+			Password: "test",
+		}
 
-	// Check that the file was uploaded despite existing with matching checksum
-	uploadedFiles := server.GetUploadedFiles()
-	if len(uploadedFiles) != 1 {
-		t.Errorf("Expected 1 file to be uploaded (force enabled), got %d", len(uploadedFiles))
-	}
+		var logBuf strings.Builder
+		logger := NewLogger(&logBuf)
 
-	// Check log output
-	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Uploaded 1 files from") {
-		t.Errorf("Expected log message about 1 file uploaded, got: %s", logOutput)
-	}
+		opts := &UploadOptions{
+			Logger:    logger,
+			QuietMode: true,
+			Force:     true,
+		}
+
+		// Set checksum algorithm
+		err = opts.SetChecksumAlgorithm("sha1")
+		if err != nil {
+			t.Fatalf("Failed to set checksum algorithm: %v", err)
+		}
+
+		err = uploadFiles(testDir, "test-repo", "", config, opts)
+		if err != nil {
+			t.Fatalf("Upload failed: %v", err)
+		}
+
+		// Check that the file was uploaded despite existing with matching checksum
+		uploadedFiles := server.GetUploadedFiles()
+		if len(uploadedFiles) != 1 {
+			t.Errorf("Expected 1 file to be uploaded (force enabled), got %d", len(uploadedFiles))
+		}
+
+		// Check log output confirms file was uploaded
+		logOutput := logBuf.String()
+		if !strings.Contains(logOutput, "Uploaded 1 files from") {
+			t.Errorf("Expected log message about 1 file uploaded, got: %s", logOutput)
+		}
+	})
 }
 
 // TestUploadURLConstruction tests that upload URLs are properly constructed
