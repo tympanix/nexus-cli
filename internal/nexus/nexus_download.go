@@ -46,6 +46,12 @@ func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error
 
 func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressBarWithCount, skipCh chan bool, config *Config, opts *DownloadOptions) {
 	defer wg.Done()
+
+	// Increment file count at the beginning to avoid updating after 100% (progress bar bug)
+	if bar != nil {
+		bar.incrementFile()
+	}
+
 	path := strings.TrimLeft(asset.Path, "/")
 
 	// If flatten is enabled, strip the base path from the asset path
@@ -87,7 +93,6 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 		// Advance progress bar by file size for skipped files
 		if bar != nil {
 			bar.Add64(asset.FileSize)
-			bar.incrementFile()
 		}
 		// Signal that this file was skipped
 		if skipCh != nil {
@@ -109,9 +114,6 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	err = client.DownloadAsset(asset.DownloadURL, writer)
 	if err != nil {
 		errCh <- err
-	} else {
-		// Only increment file count on successful download
-		bar.incrementFile()
 	}
 }
 

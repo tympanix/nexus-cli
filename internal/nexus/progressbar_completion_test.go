@@ -2,6 +2,7 @@ package nexus
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -77,23 +78,28 @@ func TestUploadProgressBarCompletion(t *testing.T) {
 				t.Fatalf("Upload failed: %v", err)
 			}
 
-			// Check progress bar output
+			// Check progress bar output - only validate the final (finished) state
 			output := progressBuf.String()
 
-			// Check for 100% completion indicator
-			if !strings.Contains(output, "100%") {
-				t.Errorf("Progress bar output should show 100%% completion\nGot output: %s", output)
+			// Get the last non-empty line (the final state after Finish())
+			lines := strings.Split(strings.TrimSpace(output), "\n")
+			lastLine := ""
+			for i := len(lines) - 1; i >= 0; i-- {
+				if strings.TrimSpace(lines[i]) != "" {
+					lastLine = lines[i]
+					break
+				}
 			}
 
-			// Check for file count progression [n/n]
-			// The progress bar shows file progress as [current/total]
-			// For upload with multiple files, we should see progression like [1/n], [2/n], ..., [n-1/n]
-			if tt.numFiles > 1 {
-				// Verify we see file progression - at least the penultimate count
-				penultimateCount := "[" + string(rune('0'+tt.numFiles-1)) + "/" + string(rune('0'+tt.numFiles)) + "]"
-				if !strings.Contains(output, penultimateCount) {
-					t.Errorf("Expected to see file progression showing %s in output\nGot output: %s", penultimateCount, output)
-				}
+			// Check for 100% completion in the final state
+			if !strings.Contains(lastLine, "100%") {
+				t.Errorf("Final progress bar state should show 100%% completion\nLast line: %s", lastLine)
+			}
+
+			// Check for final file count [n/n] in the final state
+			expectedCount := fmt.Sprintf("[%d/%d]", tt.numFiles, tt.numFiles)
+			if !strings.Contains(lastLine, expectedCount) {
+				t.Errorf("Final progress bar state should show %s\nLast line: %s", expectedCount, lastLine)
 			}
 
 			// Verify that files were uploaded
@@ -182,30 +188,28 @@ func TestDownloadProgressBarCompletion(t *testing.T) {
 				t.Fatal("Download failed")
 			}
 
-			// Check progress bar output
+			// Check progress bar output - only validate the final (finished) state
 			output := progressBuf.String()
 
-			// Check for 100% completion indicator
-			if !strings.Contains(output, "100%") {
-				t.Errorf("Progress bar output should show 100%% completion\nGot output: %s", output)
+			// Get the last non-empty line (the final state after Finish())
+			lines := strings.Split(strings.TrimSpace(output), "\n")
+			lastLine := ""
+			for i := len(lines) - 1; i >= 0; i-- {
+				if strings.TrimSpace(lines[i]) != "" {
+					lastLine = lines[i]
+					break
+				}
 			}
 
-			// Check for file count progression [n/n]
-			// For download with multiple files, we should see progression like [1/n], [2/n], etc.
-			if tt.numFiles > 1 {
-				// Verify we see file progression - check that at least one intermediate count appears
-				// Downloads may complete quickly, so we'll check for any progression
-				foundProgression := false
-				for i := 1; i < tt.numFiles; i++ {
-					count := "[" + string(rune('0'+i)) + "/" + string(rune('0'+tt.numFiles)) + "]"
-					if strings.Contains(output, count) {
-						foundProgression = true
-						break
-					}
-				}
-				if !foundProgression {
-					t.Errorf("Expected to see some file progression (like [1/%d], [2/%d], etc.) in output\nGot output: %s", tt.numFiles, tt.numFiles, output)
-				}
+			// Check for 100% completion in the final state
+			if !strings.Contains(lastLine, "100%") {
+				t.Errorf("Final progress bar state should show 100%% completion\nLast line: %s", lastLine)
+			}
+
+			// Check for final file count [n/n] in the final state
+			expectedCount := fmt.Sprintf("[%d/%d]", tt.numFiles, tt.numFiles)
+			if !strings.Contains(lastLine, expectedCount) {
+				t.Errorf("Final progress bar state should show %s\nLast line: %s", expectedCount, lastLine)
 			}
 
 			// Verify that files were downloaded
