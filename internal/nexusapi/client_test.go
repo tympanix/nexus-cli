@@ -124,6 +124,31 @@ func TestUploadComponentError(t *testing.T) {
 	}
 }
 
+// TestUploadComponentRepositoryNotFound tests uploading to a non-existent repository
+func TestUploadComponentRepositoryNotFound(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Mark the repository as not found
+	server.SetRepositoryNotFound("non-existent-repo")
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	body := strings.NewReader("test content")
+	err := client.UploadComponent("non-existent-repo", body, "multipart/form-data")
+
+	if err == nil {
+		t.Fatal("Expected error for non-existent repository, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "404") {
+		t.Errorf("Expected error to contain status code 404, got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected error message to mention 'not found', got: %v", err)
+	}
+}
+
 // TestDownloadAsset tests downloading an asset
 func TestDownloadAsset(t *testing.T) {
 	testContent := "downloaded content"

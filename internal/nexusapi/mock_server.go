@@ -27,6 +27,9 @@ type MockNexusServer struct {
 	LastUploadRepo string
 	LastListRepo   string
 	LastListPath   string
+
+	// Error configuration
+	RepositoryNotFoundList map[string]bool
 }
 
 // UploadedFile represents a file that was uploaded to the mock server
@@ -39,10 +42,11 @@ type UploadedFile struct {
 // NewMockNexusServer creates a new mock Nexus server
 func NewMockNexusServer() *MockNexusServer {
 	mock := &MockNexusServer{
-		Assets:             make(map[string][]Asset),
-		AssetContent:       make(map[string][]byte),
-		ContinuationTokens: make(map[string]string),
-		UploadedFiles:      make([]UploadedFile, 0),
+		Assets:                 make(map[string][]Asset),
+		AssetContent:           make(map[string][]byte),
+		ContinuationTokens:     make(map[string]string),
+		UploadedFiles:          make([]UploadedFile, 0),
+		RepositoryNotFoundList: make(map[string]bool),
 	}
 
 	mock.Server = httptest.NewServer(http.HandlerFunc(mock.handler))
@@ -81,7 +85,16 @@ func (m *MockNexusServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 	repository := r.URL.Query().Get("repository")
 	m.mu.Lock()
 	m.LastUploadRepo = repository
+	notFound := m.RepositoryNotFoundList[repository]
 	m.mu.Unlock()
+
+	// Simulate repository not found error
+	if notFound {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"Repository '` + repository + `' not found"}`))
+		return
+	}
 
 	// Parse multipart form (ignore errors for non-multipart content)
 	err := r.ParseMultipartForm(32 << 20)
@@ -240,6 +253,7 @@ func (m *MockNexusServer) Reset() {
 	m.AssetContent = make(map[string][]byte)
 	m.ContinuationTokens = make(map[string]string)
 	m.UploadedFiles = make([]UploadedFile, 0)
+	m.RepositoryNotFoundList = make(map[string]bool)
 	m.RequestCount = 0
 	m.LastUploadRepo = ""
 	m.LastListRepo = ""
@@ -258,4 +272,11 @@ func (m *MockNexusServer) GetRequestCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.RequestCount
+}
+
+// SetRepositoryNotFound marks a repository as not found for error testing
+func (m *MockNexusServer) SetRepositoryNotFound(repository string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.RepositoryNotFoundList[repository] = true
 }

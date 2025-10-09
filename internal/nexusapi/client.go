@@ -132,6 +132,9 @@ func (c *Client) UploadComponent(repository string, body io.Reader, contentType 
 		return nil
 	}
 	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode == 404 {
+		return fmt.Errorf("repository '%s' not found (status %d)", repository, resp.StatusCode)
+	}
 	return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
 }
 

@@ -379,6 +379,51 @@ func TestUploadURLConstruction(t *testing.T) {
 	}
 }
 
+// TestUploadToNonExistentRepository tests uploading to a repository that doesn't exist
+func TestUploadToNonExistentRepository(t *testing.T) {
+	testDir, err := os.MkdirTemp("", "test-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Mark the repository as not found
+	server.SetRepositoryNotFound("non-existent-repo")
+
+	config := &Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	opts := &UploadOptions{
+		Logger:    NewLogger(io.Discard),
+		QuietMode: true,
+	}
+
+	err = uploadFiles(testDir, "non-existent-repo", "", config, opts)
+	if err == nil {
+		t.Fatal("Expected error when uploading to non-existent repository, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected error message to contain 'not found', got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "non-existent-repo") {
+		t.Errorf("Expected error message to contain repository name, got: %v", err)
+	}
+}
+
 // TestUploadCompressedGzipWithProgressBar tests uploading with gzip compression and progress bar validation
 func TestUploadCompressedGzipWithProgressBar(t *testing.T) {
 	testDir, err := os.MkdirTemp("", "test-upload-gzip-*")
