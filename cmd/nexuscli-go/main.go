@@ -131,6 +131,7 @@ func main() {
 	downloadCmd.Flags().BoolVar(&downloadOpts.DeleteExtra, "delete", false, "Remove local files from the destination folder that are not present in Nexus")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.Compress, "compress", "z", false, "Download and extract a compressed archive")
 	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	downloadCmd.Flags().StringVarP(&downloadOpts.GlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
 	downloadCmd.Flags().StringVar(&downloadOpts.KeyFromFile, "key-from", "", "Path to file to compute hash from for {key} template in src")
 	downloadCmd.Flags().BoolVar(&downloadOpts.Force, "force", false, "Force download all files regardless of existence or checksum match")
 
