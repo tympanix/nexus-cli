@@ -62,6 +62,85 @@ type SearchResponse struct {
 	ContinuationToken string  `json:"continuationToken"`
 }
 
+// Repository represents a Nexus repository
+type Repository struct {
+	Name   string `json:"name"`
+	Format string `json:"format"`
+	Type   string `json:"type"`
+	URL    string `json:"url"`
+}
+
+// ListRepositories lists all repositories in Nexus
+func (c *Client) ListRepositories() ([]Repository, error) {
+	baseURL, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Nexus URL: %w", err)
+	}
+	baseURL.Path = "/service/rest/v1/repositories"
+
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(c.Username, c.Password)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to list repositories: %d", resp.StatusCode)
+	}
+	var repositories []Repository
+	if err := json.NewDecoder(resp.Body).Decode(&repositories); err != nil {
+		return nil, err
+	}
+	return repositories, nil
+}
+
+// SearchAssetsForCompletion searches for assets matching a prefix for autocompletion
+// Returns a list of asset paths that match the given prefix
+func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]string, error) {
+	if repository == "" {
+		return nil, nil
+	}
+	baseURL, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Nexus URL: %w", err)
+	}
+	baseURL.Path = "/service/rest/v1/search/assets"
+	query := baseURL.Query()
+	query.Set("repository", repository)
+	query.Set("format", "raw")
+	if pathPrefix != "" {
+		query.Set("q", fmt.Sprintf("/%s*", pathPrefix))
+	}
+	baseURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(c.Username, c.Password)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, nil
+	}
+	var sr SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, asset := range sr.Items {
+		paths = append(paths, asset.Path)
+	}
+	return paths, nil
+}
+
 // ListAssets lists all assets in a repository path
 func (c *Client) ListAssets(repository, path string) ([]Asset, error) {
 	var assets []Asset
