@@ -11,6 +11,7 @@ import (
 	"github.com/tympanix/nexus-cli/internal/util"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -285,6 +286,130 @@ func createRawRepository(config *config.Config, repoName string) error {
 	}
 
 	fmt.Printf("Created repository: %s\n", repoName)
+	return nil
+}
+
+// generateGPGKey generates a GPG key pair for APT repository signing
+func generateGPGKey() (privateKey string, err error) {
+	// Create a temporary GPG home directory
+	gnupgHome, err := os.MkdirTemp("", "gnupg-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create GPG home directory: %w", err)
+	}
+	defer os.RemoveAll(gnupgHome)
+
+	// Generate GPG key batch configuration
+	batchConfig := `%no-protection
+Key-Type: RSA
+Key-Length: 2048
+Name-Real: Test Nexus Repository
+Name-Email: test@nexus.local
+Expire-Date: 0
+`
+
+	// Write batch config to a temporary file
+	batchFile := filepath.Join(gnupgHome, "batch.txt")
+	if err := os.WriteFile(batchFile, []byte(batchConfig), 0600); err != nil {
+		return "", fmt.Errorf("failed to write GPG batch config: %w", err)
+	}
+
+	// Generate the key
+	cmd := exec.Command("gpg", "--homedir", gnupgHome, "--batch", "--gen-key", batchFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate GPG key: %w, output: %s", err, string(output))
+	}
+
+	// List keys to get the key ID
+	cmd = exec.Command("gpg", "--homedir", gnupgHome, "--list-keys", "--with-colons")
+	output, err = cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to list GPG keys: %w", err)
+	}
+
+	// Parse the key ID from the output
+	var keyID string
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "pub:") {
+			fields := strings.Split(line, ":")
+			if len(fields) > 4 {
+				keyID = fields[4]
+				break
+			}
+		}
+	}
+
+	if keyID == "" {
+		return "", fmt.Errorf("failed to find generated key ID")
+	}
+
+	// Export the private key
+	cmd = exec.Command("gpg", "--homedir", gnupgHome, "--armor", "--export-secret-keys", keyID)
+	privateKeyBytes, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to export private key: %w", err)
+	}
+
+	return string(privateKeyBytes), nil
+}
+
+// createAptRepository creates an APT repository in Nexus
+func createAptRepository(config *config.Config, repoName string) error {
+	// Wait a bit to ensure Nexus is fully initialized
+	time.Sleep(5 * time.Second)
+
+	// Generate a GPG key for APT signing
+	privateKey, err := generateGPGKey()
+	if err != nil {
+		return fmt.Errorf("failed to generate GPG key: %w", err)
+	}
+
+	// Create repository configuration for APT hosted repository
+	repoConfig := map[string]interface{}{
+		"name":   repoName,
+		"online": true,
+		"storage": map[string]interface{}{
+			"blobStoreName":               "default",
+			"strictContentTypeValidation": true,
+			"writePolicy":                 "ALLOW",
+		},
+		"apt": map[string]interface{}{
+			"distribution": "bionic",
+		},
+		"aptSigning": map[string]interface{}{
+			"keypair":    privateKey,
+			"passphrase": "",
+		},
+	}
+
+	jsonData, err := json.Marshal(repoConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal repository config: %w", err)
+	}
+
+	// Create the repository via API
+	req, err := http.NewRequest("POST", config.NexusURL+"/service/rest/v1/repositories/apt/hosted", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.SetBasicAuth(config.Username, config.Password)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create repository: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("Created APT repository: %s\n", repoName)
 	return nil
 }
 
@@ -610,4 +735,173 @@ func TestEndToEndUploadDownloadZip(t *testing.T) {
 			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
 		}
 	}
+}
+
+// createDebPackage creates a simple .deb package for testing
+func createDebPackage(outputPath, packageName, version, arch string) error {
+	// Create temporary directory for package structure
+	tmpDir, err := os.MkdirTemp("", "deb-build-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create DEBIAN directory
+	debianDir := filepath.Join(tmpDir, "DEBIAN")
+	if err := os.MkdirAll(debianDir, 0755); err != nil {
+		return fmt.Errorf("failed to create DEBIAN dir: %w", err)
+	}
+
+	// Create control file
+	controlContent := fmt.Sprintf(`Package: %s
+Version: %s
+Architecture: %s
+Maintainer: Test <test@example.com>
+Description: Test package for nexus-cli e2e testing
+ This is a simple test package created for e2e testing purposes.
+`, packageName, version, arch)
+
+	controlFile := filepath.Join(debianDir, "control")
+	if err := os.WriteFile(controlFile, []byte(controlContent), 0644); err != nil {
+		return fmt.Errorf("failed to create control file: %w", err)
+	}
+
+	// Create some dummy content
+	usrDir := filepath.Join(tmpDir, "usr", "share", "doc", packageName)
+	if err := os.MkdirAll(usrDir, 0755); err != nil {
+		return fmt.Errorf("failed to create usr dir: %w", err)
+	}
+
+	readmeContent := fmt.Sprintf("This is a test package: %s version %s\n", packageName, version)
+	readmeFile := filepath.Join(usrDir, "README")
+	if err := os.WriteFile(readmeFile, []byte(readmeContent), 0644); err != nil {
+		return fmt.Errorf("failed to create README: %w", err)
+	}
+
+	// Build the .deb package using dpkg-deb
+	cmd := exec.Command("dpkg-deb", "--build", tmpDir, outputPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to build deb package: %w, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// TestEndToEndAptPackageUpload tests the complete workflow of uploading a .deb file to an APT repository using a real Nexus instance
+func TestEndToEndAptPackageUpload(t *testing.T) {
+	// Skip if running in short mode
+	if testing.Short() {
+		t.Skip("Skipping end-to-end test in short mode")
+	}
+
+	// Check if Docker is available
+	if !isDockerAvailable() {
+		t.Skip("Docker is not available, skipping end-to-end test")
+	}
+
+	// Use shared Nexus instance
+	config := e2eConfig
+
+	// Create an APT repository
+	repoName := "test-apt-repo"
+	if err := createAptRepository(config, repoName); err != nil {
+		t.Fatalf("Failed to create APT repository: %v", err)
+	}
+
+	// Create test directory
+	testDir, err := os.MkdirTemp("", "test-apt-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create a real .deb package
+	debFile := filepath.Join(testDir, "test-package_1.0.0_amd64.deb")
+	err = createDebPackage(debFile, "test-package", "1.0.0", "amd64")
+	if err != nil {
+		t.Fatalf("Failed to create deb package: %v", err)
+	}
+
+	// Verify the .deb file was created
+	if _, err := os.Stat(debFile); os.IsNotExist(err) {
+		t.Fatalf("Deb file was not created: %s", debFile)
+	}
+
+	// Upload the .deb package using the CLI
+	uploadOpts := &UploadOptions{
+		Logger:    util.NewLogger(os.Stdout),
+		QuietMode: false,
+	}
+
+	err = uploadAptPackage(debFile, repoName, config, uploadOpts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Give Nexus a moment to process the upload
+	time.Sleep(2 * time.Second)
+
+	// Verify the package was uploaded by querying Nexus API
+	// Note: APT packages are stored differently than raw files, so we verify via search
+	baseURL, err := url.Parse(config.NexusURL)
+	if err != nil {
+		t.Fatalf("Invalid Nexus URL: %v", err)
+	}
+	baseURL.Path = "/service/rest/v1/search/assets"
+	query := baseURL.Query()
+	query.Set("repository", repoName)
+	query.Set("name", "test-package")
+	baseURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(config.Username, config.Password)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to query assets: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to query assets: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Decode the response
+	var searchResp struct {
+		Items []struct {
+			Path       string `json:"path"`
+			Repository string `json:"repository"`
+			Format     string `json:"format"`
+		} `json:"items"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Verify that the package was found
+	if len(searchResp.Items) == 0 {
+		t.Fatal("Uploaded package not found in repository")
+	}
+
+	found := false
+	for _, item := range searchResp.Items {
+		if item.Repository == repoName && item.Format == "apt" {
+			found = true
+			t.Logf("Found uploaded package: %s in repository %s", item.Path, item.Repository)
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("Expected to find package in APT repository %s, but it was not found", repoName)
+	}
+
+	t.Log("Successfully uploaded and verified .deb package to APT repository")
 }
