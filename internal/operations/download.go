@@ -39,21 +39,23 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	localPath := filepath.Join(destDir, path)
 	os.MkdirAll(filepath.Dir(localPath), 0755)
 
-	// Check if file exists and validate checksum or skip based on file existence
+	// Check if file exists and validate checksum or skip based on file existence (skip this check if Force is enabled)
 	shouldSkip := false
 	skipReason := ""
 
-	if _, err := os.Stat(localPath); err == nil {
-		if opts.SkipChecksum {
-			// When checksum validation is skipped, only check if file exists
-			shouldSkip = true
-			skipReason = "Skipped (file exists): %s\n"
-		} else if opts.checksumValidator != nil {
-			// Use the new checksum.Validator for validation
-			valid, err := opts.checksumValidator.Validate(localPath, asset.Checksum)
-			if err == nil && valid {
+	if !opts.Force {
+		if _, err := os.Stat(localPath); err == nil {
+			if opts.SkipChecksum {
+				// When checksum validation is skipped, only check if file exists
 				shouldSkip = true
-				skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+				skipReason = "Skipped (file exists): %s\n"
+			} else if opts.checksumValidator != nil {
+				// Use the new checksum.Validator for validation
+				valid, err := opts.checksumValidator.Validate(localPath, asset.Checksum)
+				if err == nil && valid {
+					shouldSkip = true
+					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+				}
 			}
 		}
 	}
