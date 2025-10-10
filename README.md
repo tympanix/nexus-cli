@@ -3,9 +3,9 @@
 A command-line tool for uploading and downloading files to/from a Nexus RAW repository.
 
 ## Features
-- Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
+- Upload all files from one or more directories to a Nexus RAW repository (with optional subdirectory)
+- Download all files from one or more Nexus RAW folders recursively
 - Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.go,!**/*_test.go`)
-- Download all files from a Nexus RAW folder recursively
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
 - Small container image size using multi-stage build with scratch base
@@ -152,7 +152,18 @@ You can authenticate with Nexus using environment variables or CLI flags:
 ### Upload
 
 ```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] [--key-from <file>] <directory> <repository[/subdir]>
+nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] [--key-from <file>] <directory>... <repository[/subdir]>
+```
+
+**Note:** You can specify multiple source directories. The last argument is always the destination.
+
+```bash
+# Upload a single directory (backward compatible)
+nexuscli-go upload /path/to/dir1 my-repo/destination
+
+# Upload multiple directories to the same destination
+nexuscli-go upload /path/to/dir1 /path/to/dir2 my-repo/destination
+nexuscli-go upload /path/to/dir1 /path/to/dir2 /path/to/dir3 my-repo/destination
 ```
 
 #### Upload options
@@ -281,7 +292,18 @@ nexuscli-go upload --key-from go.sum ./vendor my-repo/go-deps/{key}/vendor
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder>... <directory>
+```
+
+**Note:** You can specify multiple source paths. The last argument is always the destination.
+
+```bash
+# Download a single path (backward compatible)
+nexuscli-go download my-repo/path1 /local/destination
+
+# Download multiple paths to the same destination
+nexuscli-go download my-repo/path1 my-repo/path2 /local/destination
+nexuscli-go download my-repo/path1 my-repo/path2 my-repo/path3 /local/destination
 ```
 
 #### Download options
