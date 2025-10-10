@@ -1,4 +1,4 @@
-package nexus
+package checksum
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
-func TestNewChecksumValidator(t *testing.T) {
+func TestNewValidator(t *testing.T) {
 	tests := []struct {
 		name      string
 		algorithm string
@@ -48,7 +48,7 @@ func TestNewChecksumValidator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validator, err := NewChecksumValidator(tt.algorithm)
+			validator, err := NewValidator(tt.algorithm)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Expected error for algorithm '%s', got nil", tt.algorithm)
@@ -66,7 +66,7 @@ func TestNewChecksumValidator(t *testing.T) {
 }
 
 func TestChecksumValidatorAlgorithm(t *testing.T) {
-	validator, err := NewChecksumValidator("sha1")
+	validator, err := NewValidator("sha1")
 	if err != nil {
 		t.Fatalf("Failed to create validator: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestChecksumValidatorValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validator, err := NewChecksumValidator(tt.algorithm)
+			validator, err := NewValidator(tt.algorithm)
 			if err != nil {
 				t.Fatalf("Failed to create validator: %v", err)
 			}
@@ -168,7 +168,7 @@ func TestChecksumValidatorValidate(t *testing.T) {
 }
 
 func TestChecksumValidatorValidateNonExistentFile(t *testing.T) {
-	validator, err := NewChecksumValidator("sha1")
+	validator, err := NewValidator("sha1")
 	if err != nil {
 		t.Fatalf("Failed to create validator: %v", err)
 	}

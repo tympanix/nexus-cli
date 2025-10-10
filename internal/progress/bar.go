@@ -1,50 +1,22 @@
-package nexus
+package progress
 
 import (
 	"fmt"
 	"io"
-	"os"
 	"sync"
 	"sync/atomic"
 
 	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
-// Config holds the configuration for connecting to Nexus
-type Config struct {
-	NexusURL string
-	Username string
-	Password string
-}
-
-// NewConfig creates a new Config with values from environment variables or defaults
-func NewConfig() *Config {
-	return &Config{
-		NexusURL: getenv("NEXUS_URL", "http://localhost:8081"),
-		Username: getenv("NEXUS_USER", "admin"),
-		Password: getenv("NEXUS_PASS", "admin"),
-	}
-}
-
-func getenv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func isatty() bool {
-	fileInfo, _ := os.Stdout.Stat()
-	return (fileInfo.Mode() & os.ModeCharDevice) != 0
-}
-
-// newProgressBar creates a new progress bar with standard configuration
+// NewProgressBar creates a new progress bar with standard configuration
 // The description parameter should describe the operation (e.g., "Uploading", "Downloading")
 // The currentFile and totalFiles parameters track which file is being processed
 // The quietMode parameter controls whether progress should be shown
-func newProgressBar(totalBytes int64, description string, currentFile, totalFiles int, quietMode bool) *progressbar.ProgressBar {
-	showProgress := isatty() && !quietMode
+func NewProgressBar(totalBytes int64, description string, currentFile, totalFiles int, quietMode bool) *progressbar.ProgressBar {
+	showProgress := util.IsATTY() && !quietMode
 	var writer io.Writer = ansi.NewAnsiStdout()
 	if !showProgress {
 		writer = io.Discard
@@ -68,9 +40,9 @@ func newProgressBar(totalBytes int64, description string, currentFile, totalFile
 	)
 }
 
-// progressBarWithCount wraps a progress bar to track file count atomically
+// ProgressBarWithCount wraps a progress bar to track file count atomically
 // Used for parallel download operations where multiple goroutines update progress
-type progressBarWithCount struct {
+type ProgressBarWithCount struct {
 	bar          *progressbar.ProgressBar
 	current      *int32
 	total        int
@@ -79,22 +51,22 @@ type progressBarWithCount struct {
 	showProgress bool       // Whether progress is being shown (not quiet mode and is TTY)
 }
 
-func (p *progressBarWithCount) Write(b []byte) (int, error) {
+func (p *ProgressBarWithCount) Write(b []byte) (int, error) {
 	return p.bar.Write(b)
 }
 
-func (p *progressBarWithCount) Add64(n int64) error {
+func (p *ProgressBarWithCount) Add64(n int64) error {
 	return p.bar.Add64(n)
 }
 
-func (p *progressBarWithCount) incrementFile() {
+func (p *ProgressBarWithCount) IncrementFile() {
 	newCount := atomic.AddInt32(p.current, 1)
 	p.mu.Lock()
 	p.bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] %s", newCount, p.total, p.description))
 	p.mu.Unlock()
 }
 
-func (p *progressBarWithCount) Finish() error {
+func (p *ProgressBarWithCount) Finish() error {
 	err := p.bar.Finish()
 	if p.showProgress {
 		fmt.Println()
@@ -102,23 +74,37 @@ func (p *progressBarWithCount) Finish() error {
 	return err
 }
 
-// cappingWriter wraps an io.Writer and caps the total bytes written to a maximum value
+// NewProgressBarWithCount creates a new progress bar with file count tracking
+func NewProgressBarWithCount(totalBytes int64, description string, total int, quietMode bool) *ProgressBarWithCount {
+	var current int32
+	baseBar := NewProgressBar(totalBytes, description, 0, total, quietMode)
+	return &ProgressBarWithCount{
+		bar:          baseBar,
+		current:      &current,
+		total:        total,
+		description:  description,
+		showProgress: util.IsATTY() && !quietMode,
+	}
+}
+
+// CappingWriter wraps an io.Writer and caps the total bytes written to a maximum value
 // This is useful for progress bars where the actual size might exceed the estimated max
 // (e.g., compressed data with headers/footers)
-type cappingWriter struct {
+type CappingWriter struct {
 	writer       io.Writer
 	maxBytes     int64
 	bytesWritten int64
 }
 
-func newCappingWriter(writer io.Writer, maxBytes int64) *cappingWriter {
-	return &cappingWriter{
+// NewCappingWriter creates a new capping writer
+func NewCappingWriter(writer io.Writer, maxBytes int64) *CappingWriter {
+	return &CappingWriter{
 		writer:   writer,
 		maxBytes: maxBytes,
 	}
 }
 
-func (cw *cappingWriter) Write(p []byte) (int, error) {
+func (cw *CappingWriter) Write(p []byte) (int, error) {
 	n := len(p)
 
 	// Calculate how many bytes we should actually report to stay under max

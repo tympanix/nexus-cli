@@ -1,4 +1,4 @@
-package nexus
+package operations
 
 import (
 	"bytes"
@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/util"
 	"io"
 	"net/http"
 	"os"
@@ -18,7 +21,7 @@ import (
 
 var (
 	e2eContainerID string
-	e2eConfig      *Config
+	e2eConfig      *config.Config
 	e2eNexusURL    = "http://localhost:8081"
 )
 
@@ -55,7 +58,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	e2eConfig = &Config{
+	e2eConfig = &config.Config{
 		NexusURL: e2eNexusURL,
 		Username: "admin",
 		Password: adminPassword,
@@ -118,7 +121,7 @@ func TestEndToEndUploadDownload(t *testing.T) {
 
 	// Upload files using the CLI
 	uploadOpts := &UploadOptions{
-		Logger:    NewLogger(os.Stdout),
+		Logger:    util.NewLogger(os.Stdout),
 		QuietMode: false,
 	}
 
@@ -142,7 +145,7 @@ func TestEndToEndUploadDownload(t *testing.T) {
 	downloadOpts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 	}
 
@@ -240,7 +243,7 @@ func getAdminPassword(containerID string) (string, error) {
 }
 
 // createRawRepository creates a RAW repository in Nexus
-func createRawRepository(config *Config, repoName string) error {
+func createRawRepository(config *config.Config, repoName string) error {
 	// Wait a bit to ensure Nexus is fully initialized
 	time.Sleep(5 * time.Second)
 
@@ -355,10 +358,10 @@ func TestEndToEndUploadDownloadZstd(t *testing.T) {
 	// Upload files using zstd compression
 	archiveName := "test-archive.tar.zst"
 	uploadOpts := &UploadOptions{
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 		Compress:          true,
-		CompressionFormat: CompressionZstd,
+		CompressionFormat: archive.FormatZstd,
 	}
 
 	// Upload with explicit archive name
@@ -381,10 +384,10 @@ func TestEndToEndUploadDownloadZstd(t *testing.T) {
 	downloadOpts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 		Compress:          true,
-		CompressionFormat: CompressionZstd,
+		CompressionFormat: archive.FormatZstd,
 	}
 
 	status := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
@@ -456,10 +459,10 @@ func TestEndToEndUploadDownloadGzip(t *testing.T) {
 	// Upload files using gzip compression
 	archiveName := "test-archive.tar.gz"
 	uploadOpts := &UploadOptions{
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Upload with explicit archive name
@@ -482,10 +485,10 @@ func TestEndToEndUploadDownloadGzip(t *testing.T) {
 	downloadOpts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	status := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)
@@ -557,10 +560,10 @@ func TestEndToEndUploadDownloadZip(t *testing.T) {
 	// Upload files using zip compression
 	archiveName := "test-archive.zip"
 	uploadOpts := &UploadOptions{
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 		Compress:          true,
-		CompressionFormat: CompressionZip,
+		CompressionFormat: archive.FormatZip,
 	}
 
 	// Upload with explicit archive name
@@ -583,10 +586,10 @@ func TestEndToEndUploadDownloadZip(t *testing.T) {
 	downloadOpts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(os.Stdout),
+		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
 		Compress:          true,
-		CompressionFormat: CompressionZip,
+		CompressionFormat: archive.FormatZip,
 	}
 
 	status := downloadFolderCompressedWithArchiveName(repoName, "test-folder", archiveName, downloadDir, config, downloadOpts)

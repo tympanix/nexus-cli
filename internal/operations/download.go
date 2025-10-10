@@ -1,4 +1,4 @@
-package nexus
+package operations
 
 import (
 	"fmt"
@@ -8,41 +8,19 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/progress"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
-// DownloadOptions holds options for download operations
-type DownloadOptions struct {
-	ChecksumAlgorithm string
-	SkipChecksum      bool
-	Logger            Logger
-	QuietMode         bool
-	Flatten           bool
-	DeleteExtra       bool
-	Compress          bool              // Enable decompression (tar.gz, tar.zst, or zip)
-	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
-	KeyFromFile       string            // Path to file to compute hash from for {key} template
-	checksumValidator ChecksumValidator // Internal validator instance
-}
-
-// SetChecksumAlgorithm validates and sets the checksum algorithm
-// Returns an error if the algorithm is not supported
-func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
-	validator, err := NewChecksumValidator(algorithm)
-	if err != nil {
-		return err
-	}
-	opts.ChecksumAlgorithm = validator.Algorithm()
-	opts.checksumValidator = validator
-	return nil
-}
-
-func listAssets(repository, src string, config *Config) ([]nexusapi.Asset, error) {
+func listAssets(repository, src string, config *config.Config) ([]nexusapi.Asset, error) {
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	return client.ListAssets(repository, src)
 }
 
-func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progressBarWithCount, skipCh chan bool, config *Config, opts *DownloadOptions) {
+func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, skipCh chan bool, config *config.Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 
@@ -71,7 +49,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 			shouldSkip = true
 			skipReason = "Skipped (file exists): %s\n"
 		} else if opts.checksumValidator != nil {
-			// Use the new ChecksumValidator for validation
+			// Use the new checksum.Validator for validation
 			valid, err := opts.checksumValidator.Validate(localPath, asset.Checksum)
 			if err == nil && valid {
 				shouldSkip = true
@@ -85,7 +63,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 		// Advance progress bar by file size for skipped files
 		if bar != nil {
 			bar.Add64(asset.FileSize)
-			bar.incrementFile()
+			bar.IncrementFile()
 		}
 		// Signal that this file was skipped
 		if skipCh != nil {
@@ -109,21 +87,12 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 		errCh <- err
 	} else {
 		// Only increment file count on successful download
-		bar.incrementFile()
+		bar.IncrementFile()
 	}
 }
 
-// DownloadStatus represents the result of a download operation
-type DownloadStatus int
-
-const (
-	DownloadSuccess       DownloadStatus = 0
-	DownloadError         DownloadStatus = 1
-	DownloadNoAssetsFound DownloadStatus = 66
-)
-
-func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
-	repository, src, ok := ParseRepositoryPath(srcArg)
+func downloadFolder(srcArg, destDir string, config *config.Config, opts *DownloadOptions) DownloadStatus {
+	repository, src, ok := util.ParseRepositoryPath(srcArg)
 	if !ok {
 		opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
 		return DownloadError
@@ -184,15 +153,7 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 		totalBytes += asset.FileSize
 	}
 
-	baseBar := newProgressBar(totalBytes, "Downloading files", 0, len(assets), opts.QuietMode)
-	var current int32
-	bar := &progressBarWithCount{
-		bar:          baseBar,
-		current:      &current,
-		total:        len(assets),
-		description:  "Downloading files",
-		showProgress: isatty() && !opts.QuietMode,
-	}
+	bar := progress.NewProgressBarWithCount(totalBytes, "Downloading files", len(assets), opts.QuietMode)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
@@ -238,12 +199,12 @@ func downloadFolder(srcArg, destDir string, config *Config, opts *DownloadOption
 }
 
 // downloadFolderCompressed downloads and extracts a compressed archive
-func downloadFolderCompressed(repository, src, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
+func downloadFolderCompressed(repository, src, destDir string, config *config.Config, opts *DownloadOptions) DownloadStatus {
 	return downloadFolderCompressedWithArchiveName(repository, src, "", destDir, config, opts)
 }
 
 // downloadFolderCompressedWithArchiveName downloads and extracts a compressed archive with optional explicit name
-func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *Config, opts *DownloadOptions) DownloadStatus {
+func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveName, destDir string, config *config.Config, opts *DownloadOptions) DownloadStatus {
 	// Require explicit archive name
 	if explicitArchiveName == "" {
 		ext := opts.CompressionFormat.Extension()
@@ -258,7 +219,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 
 	// Detect compression format from filename if not explicitly set
 	if opts.CompressionFormat == "" {
-		opts.CompressionFormat = DetectCompressionFromFilename(archiveName)
+		opts.CompressionFormat = archive.DetectFromFilename(archiveName)
 	}
 
 	opts.Logger.VerbosePrintf("Looking for compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
@@ -293,7 +254,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 		return DownloadError
 	}
 
-	bar := newProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
+	bar := progress.NewProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
 
 	// Download and extract archive
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
@@ -328,7 +289,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	}
 
 	bar.Finish()
-	if isatty() && !opts.QuietMode {
+	if util.IsATTY() && !opts.QuietMode {
 		fmt.Println()
 	}
 	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
@@ -404,8 +365,8 @@ func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
 	})
 }
 
-func DownloadMain(src, dest string, config *Config, opts *DownloadOptions) {
-	processedSrc, err := processKeyTemplate(src, opts.KeyFromFile)
+func DownloadMain(src, dest string, config *config.Config, opts *DownloadOptions) {
+	processedSrc, err := processKeyTemplateWrapper(src, opts.KeyFromFile)
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)

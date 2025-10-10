@@ -6,22 +6,25 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tympanix/nexus-cli/internal/nexus"
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/operations"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
 var version = "dev"
 
 func main() {
-	config := nexus.NewConfig()
-	var logger nexus.Logger
+	cfg := config.NewConfig()
+	var logger util.Logger
 	var quietMode bool
 	var verboseMode bool
 
-	uploadOpts := &nexus.UploadOptions{}
+	uploadOpts := &operations.UploadOptions{}
 	var uploadCompressionFormat string
 	var uploadChecksumAlg string
 
-	downloadOpts := &nexus.DownloadOptions{
+	downloadOpts := &operations.DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 	}
 	var downloadCompressionFormat string
@@ -38,20 +41,20 @@ func main() {
 			quietMode, _ = cmd.Flags().GetBool("quiet")
 			verboseMode, _ = cmd.Flags().GetBool("verbose")
 			if cliURL != "" {
-				config.NexusURL = cliURL
+				cfg.NexusURL = cliURL
 			}
 			if cliUsername != "" {
-				config.Username = cliUsername
+				cfg.Username = cliUsername
 			}
 			if cliPassword != "" {
-				config.Password = cliPassword
+				cfg.Password = cliPassword
 			}
 			if quietMode {
-				logger = nexus.NewLogger(io.Discard)
+				logger = util.NewLogger(io.Discard)
 			} else if verboseMode {
-				logger = nexus.NewVerboseLogger(os.Stdout)
+				logger = util.NewVerboseLogger(os.Stdout)
 			} else {
-				logger = nexus.NewLogger(os.Stdout)
+				logger = util.NewLogger(os.Stdout)
 			}
 			uploadOpts.Logger = logger
 			uploadOpts.QuietMode = quietMode
@@ -73,7 +76,7 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if uploadCompressionFormat != "" {
-				format, err := nexus.ParseCompressionFormat(uploadCompressionFormat)
+				format, err := archive.Parse(uploadCompressionFormat)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -88,7 +91,7 @@ func main() {
 					os.Exit(1)
 				}
 			}
-			nexus.UploadMain(src, dest, config, uploadOpts)
+			operations.UploadMain(src, dest, cfg, uploadOpts)
 		},
 	}
 	uploadCmd.Flags().BoolVarP(&uploadOpts.Compress, "compress", "z", false, "Create and upload files as a compressed archive")
@@ -105,7 +108,7 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if downloadCompressionFormat != "" {
-				format, err := nexus.ParseCompressionFormat(downloadCompressionFormat)
+				format, err := archive.Parse(downloadCompressionFormat)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -118,7 +121,7 @@ func main() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			nexus.DownloadMain(src, dest, config, downloadOpts)
+			operations.DownloadMain(src, dest, cfg, downloadOpts)
 		},
 	}
 	downloadCmd.Flags().StringVarP(&downloadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")

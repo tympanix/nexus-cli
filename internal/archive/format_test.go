@@ -1,4 +1,4 @@
-package nexus
+package archive
 
 import (
 	"testing"
@@ -7,24 +7,24 @@ import (
 func TestParseCompressionFormat(t *testing.T) {
 	tests := []struct {
 		input       string
-		expected    CompressionFormat
+		expected    Format
 		expectError bool
 	}{
-		{"gzip", CompressionGzip, false},
-		{"gz", CompressionGzip, false},
-		{"GZIP", CompressionGzip, false},
-		{"zstd", CompressionZstd, false},
-		{"zst", CompressionZstd, false},
-		{"ZSTD", CompressionZstd, false},
-		{"zip", CompressionZip, false},
-		{"ZIP", CompressionZip, false},
+		{"gzip", FormatGzip, false},
+		{"gz", FormatGzip, false},
+		{"GZIP", FormatGzip, false},
+		{"zstd", FormatZstd, false},
+		{"zst", FormatZstd, false},
+		{"ZSTD", FormatZstd, false},
+		{"zip", FormatZip, false},
+		{"ZIP", FormatZip, false},
 		{"invalid", "", true},
 		{"", "", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			format, err := ParseCompressionFormat(tt.input)
+			format, err := Parse(tt.input)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error for input %q, but got none", tt.input)
@@ -43,12 +43,12 @@ func TestParseCompressionFormat(t *testing.T) {
 
 func TestCompressionFormatExtension(t *testing.T) {
 	tests := []struct {
-		format   CompressionFormat
+		format   Format
 		expected string
 	}{
-		{CompressionGzip, ".tar.gz"},
-		{CompressionZstd, ".tar.zst"},
-		{CompressionZip, ".zip"},
+		{FormatGzip, ".tar.gz"},
+		{FormatZstd, ".tar.zst"},
+		{FormatZip, ".zip"},
 	}
 
 	for _, tt := range tests {
@@ -64,21 +64,21 @@ func TestCompressionFormatExtension(t *testing.T) {
 func TestDetectCompressionFromFilename(t *testing.T) {
 	tests := []struct {
 		filename string
-		expected CompressionFormat
+		expected Format
 	}{
-		{"archive.tar.gz", CompressionGzip},
-		{"backup-2024.tar.gz", CompressionGzip},
-		{"archive.tar.zst", CompressionZstd},
-		{"backup-2024.tar.zst", CompressionZstd},
-		{"archive.zip", CompressionZip},
-		{"backup-2024.zip", CompressionZip},
-		{"file.txt", CompressionGzip}, // default
-		{"", CompressionGzip},         // default
+		{"archive.tar.gz", FormatGzip},
+		{"backup-2024.tar.gz", FormatGzip},
+		{"archive.tar.zst", FormatZstd},
+		{"backup-2024.tar.zst", FormatZstd},
+		{"archive.zip", FormatZip},
+		{"backup-2024.zip", FormatZip},
+		{"file.txt", FormatGzip}, // default
+		{"", FormatGzip},         // default
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
-			format := DetectCompressionFromFilename(tt.filename)
+			format := DetectFromFilename(tt.filename)
 			if format != tt.expected {
 				t.Errorf("Expected format %q for filename %q, but got %q", tt.expected, tt.filename, format)
 			}

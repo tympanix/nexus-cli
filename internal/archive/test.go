@@ -1,4 +1,4 @@
-package nexus
+package archive
 
 import (
 	"archive/tar"

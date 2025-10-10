@@ -1,6 +1,9 @@
-package nexus
+package operations
 
 import (
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/util"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,7 +37,7 @@ func TestDownloadSingleFile(t *testing.T) {
 	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
 	// Create test config
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -44,7 +47,7 @@ func TestDownloadSingleFile(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -94,7 +97,7 @@ func TestDownloadLogging(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -102,7 +105,7 @@ func TestDownloadLogging(t *testing.T) {
 
 	// Capture logger output
 	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+	logger := util.NewLogger(&logBuf)
 
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
@@ -172,7 +175,7 @@ func TestDownloadFlatten(t *testing.T) {
 	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 	server.SetAssetContent("/repository/test-repo"+basePath+subPath+fileName, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -182,7 +185,7 @@ func TestDownloadFlatten(t *testing.T) {
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
 		Flatten:           true,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -237,7 +240,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -247,7 +250,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
 		Flatten:           false, // Default behavior
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -297,7 +300,7 @@ func TestDownloadDeleteExtra(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -341,7 +344,7 @@ func TestDownloadDeleteExtra(t *testing.T) {
 		SkipChecksum:      false,
 		Flatten:           false,
 		DeleteExtra:       true,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -388,7 +391,7 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -419,7 +422,7 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 		SkipChecksum:      false,
 		Flatten:           false,
 		DeleteExtra:       false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -463,7 +466,7 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -493,7 +496,7 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 		SkipChecksum:      false,
 		Flatten:           true,
 		DeleteExtra:       true,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -561,7 +564,7 @@ func TestURLConstruction(t *testing.T) {
 			server := nexusapi.NewMockNexusServer()
 			defer server.Close()
 
-			config := &Config{
+			config := &config.Config{
 				NexusURL: server.URL,
 				Username: "test",
 				Password: "test",
@@ -589,7 +592,7 @@ func TestDownloadNoAssetsFound(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -598,7 +601,7 @@ func TestDownloadNoAssetsFound(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -620,7 +623,7 @@ func TestDownloadErrorConditions(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -629,7 +632,7 @@ func TestDownloadErrorConditions(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -651,7 +654,7 @@ func TestDownloadMainExitCode(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -668,7 +671,7 @@ func TestDownloadMainExitCode(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 
@@ -708,7 +711,7 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 	archivePath := archiveFile.Name()
 	defer os.Remove(archivePath)
 
-	if err := CreateTarGz(srcDir, archiveFile); err != nil {
+	if err := archive.CreateTarGz(srcDir, archiveFile); err != nil {
 		t.Fatalf("Failed to create archive: %v", err)
 	}
 	archiveFile.Close()
@@ -738,7 +741,7 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -754,10 +757,10 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Download and extract with explicit archive name
@@ -810,7 +813,7 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 	archivePath := archiveFile.Name()
 	defer os.Remove(archivePath)
 
-	if err := CreateTarZst(srcDir, archiveFile); err != nil {
+	if err := archive.CreateTarZst(srcDir, archiveFile); err != nil {
 		t.Fatalf("Failed to create archive: %v", err)
 	}
 	archiveFile.Close()
@@ -840,7 +843,7 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -856,10 +859,10 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionZstd,
+		CompressionFormat: archive.FormatZstd,
 	}
 
 	// Download and extract with explicit archive name
@@ -912,7 +915,7 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 	archivePath := archiveFile.Name()
 	defer os.Remove(archivePath)
 
-	if err := CreateZip(srcDir, archiveFile); err != nil {
+	if err := archive.CreateZip(srcDir, archiveFile); err != nil {
 		t.Fatalf("Failed to create archive: %v", err)
 	}
 	archiveFile.Close()
@@ -942,7 +945,7 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -958,10 +961,10 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionZip,
+		CompressionFormat: archive.FormatZip,
 	}
 
 	// Download and extract with explicit archive name
@@ -1007,7 +1010,7 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 
 	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -1016,7 +1019,7 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 	}
 

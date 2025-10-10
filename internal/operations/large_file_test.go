@@ -1,8 +1,9 @@
-package nexus
+package operations
 
 import (
 	"bytes"
 	"crypto/rand"
+	"github.com/tympanix/nexus-cli/internal/archive"
 	"io"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ func TestLargeFileCompressionZstd(t *testing.T) {
 
 	// Create tar.zst archive
 	var buf bytes.Buffer
-	if err := CreateTarZst(srcDir, &buf); err != nil {
+	if err := archive.CreateTarZst(srcDir, &buf); err != nil {
 		t.Fatalf("Failed to create tar.zst: %v", err)
 	}
 
@@ -78,7 +79,7 @@ func TestLargeFileCompressionZstd(t *testing.T) {
 	defer os.RemoveAll(destDir)
 
 	// Extract archive
-	if err := ExtractTarZst(&buf, destDir); err != nil {
+	if err := archive.ExtractTarZst(&buf, destDir); err != nil {
 		t.Fatalf("Failed to extract tar.zst: %v", err)
 	}
 
@@ -130,7 +131,7 @@ func TestLargeFileCompressionGzip(t *testing.T) {
 
 	// Create tar.gz archive
 	var buf bytes.Buffer
-	if err := CreateTarGz(srcDir, &buf); err != nil {
+	if err := archive.CreateTarGz(srcDir, &buf); err != nil {
 		t.Fatalf("Failed to create tar.gz: %v", err)
 	}
 
@@ -149,7 +150,7 @@ func TestLargeFileCompressionGzip(t *testing.T) {
 	defer os.RemoveAll(destDir)
 
 	// Extract archive
-	if err := ExtractTarGz(&buf, destDir); err != nil {
+	if err := archive.ExtractTarGz(&buf, destDir); err != nil {
 		t.Fatalf("Failed to extract tar.gz: %v", err)
 	}
 
@@ -197,7 +198,7 @@ func TestStreamingCompressionZstd(t *testing.T) {
 
 	go func() {
 		defer pw.Close()
-		err := CreateTarZst(srcDir, pw)
+		err := archive.CreateTarZst(srcDir, pw)
 		errChan <- err
 	}()
 
@@ -219,7 +220,7 @@ func TestStreamingCompressionZstd(t *testing.T) {
 	}
 	defer os.RemoveAll(destDir)
 
-	if err := ExtractTarZst(&buf, destDir); err != nil {
+	if err := archive.ExtractTarZst(&buf, destDir); err != nil {
 		t.Fatalf("Failed to extract: %v", err)
 	}
 

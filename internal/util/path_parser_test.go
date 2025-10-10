@@ -1,4 +1,4 @@
-package nexus
+package util
 
 import "testing"
 

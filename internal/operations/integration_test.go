@@ -1,4 +1,4 @@
-package nexus
+package operations
 
 import (
 	"io"
@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
 // TestCompressedUpload tests uploading files as a compressed archive
@@ -40,17 +43,17 @@ func TestCompressedUpload(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Upload compressed with explicit archive name
@@ -96,17 +99,17 @@ func TestCompressedUploadWithExplicitName(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Upload with explicit archive name via uploadFilesWithArchiveName
@@ -147,17 +150,17 @@ func TestCompressedUploadWithoutExplicitName(t *testing.T) {
 		}
 	}
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: "http://localhost:8081",
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Upload without explicit archive name should fail
@@ -206,7 +209,7 @@ func TestCompressedDownload(t *testing.T) {
 	archivePath := archiveFile.Name()
 	defer os.Remove(archivePath)
 
-	if err := CreateTarGz(srcDir, archiveFile); err != nil {
+	if err := archive.CreateTarGz(srcDir, archiveFile); err != nil {
 		t.Fatalf("Failed to create archive: %v", err)
 	}
 	archiveFile.Close()
@@ -236,7 +239,7 @@ func TestCompressedDownload(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -252,10 +255,10 @@ func TestCompressedDownload(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Download and extract with explicit archive name
@@ -307,7 +310,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	archivePath := archiveFile.Name()
 	defer os.Remove(archivePath)
 
-	if err := CreateTarGz(srcDir, archiveFile); err != nil {
+	if err := archive.CreateTarGz(srcDir, archiveFile); err != nil {
 		t.Fatalf("Failed to create archive: %v", err)
 	}
 	archiveFile.Close()
@@ -337,7 +340,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	})
 	server.SetAssetContent("/repository/test-repo/test-folder/"+customArchiveName, archiveContent)
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -353,10 +356,10 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Download with explicit archive name via downloadFolderCompressedWithArchiveName
@@ -381,7 +384,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 
 // TestCompressedDownloadWithoutExplicitName tests that download fails when compress is used without explicit archive name
 func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
-	config := &Config{
+	config := &config.Config{
 		NexusURL: "http://localhost:8081",
 		Username: "test",
 		Password: "test",
@@ -396,7 +399,7 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 
 	// Capture logger output
 	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+	logger := util.NewLogger(&logBuf)
 
 	opts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
@@ -404,7 +407,7 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 		Logger:            logger,
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Download without explicit archive name should fail (return false)
@@ -422,7 +425,7 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 
 // TestCompressedDownloadWithoutExplicitNameDifferentFormats tests error messages for different compression formats
 func TestCompressedDownloadWithoutExplicitNameDifferentFormats(t *testing.T) {
-	config := &Config{
+	config := &config.Config{
 		NexusURL: "http://localhost:8081",
 		Username: "test",
 		Password: "test",
@@ -435,18 +438,18 @@ func TestCompressedDownloadWithoutExplicitNameDifferentFormats(t *testing.T) {
 	defer os.RemoveAll(destDir)
 
 	testCases := []struct {
-		format          CompressionFormat
+		format          archive.Format
 		expectedMessage string
 	}{
-		{CompressionGzip, ".tar.gz"},
-		{CompressionZstd, ".tar.zst"},
-		{CompressionZip, ".zip"},
+		{archive.FormatGzip, ".tar.gz"},
+		{archive.FormatZstd, ".tar.zst"},
+		{archive.FormatZip, ".zip"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(string(tc.format), func(t *testing.T) {
 			var logBuf strings.Builder
-			logger := NewLogger(&logBuf)
+			logger := util.NewLogger(&logBuf)
 
 			opts := &DownloadOptions{
 				ChecksumAlgorithm: "sha1",
@@ -506,7 +509,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -514,10 +517,10 @@ func TestCompressedRoundTrip(t *testing.T) {
 
 	// Upload compressed
 	uploadOpts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	// Upload compressed with explicit archive name
@@ -557,10 +560,10 @@ func TestCompressedRoundTrip(t *testing.T) {
 	downloadOpts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
@@ -614,7 +617,7 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -622,10 +625,10 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 
 	// Upload compressed with zstd
 	uploadOpts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionZstd,
+		CompressionFormat: archive.FormatZstd,
 	}
 
 	// Upload compressed with explicit archive name
@@ -671,10 +674,10 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 	downloadOpts := &DownloadOptions{
 		ChecksumAlgorithm: "sha1",
 		SkipChecksum:      false,
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionZstd,
+		CompressionFormat: archive.FormatZstd,
 	}
 
 	status := downloadFolderCompressedWithArchiveName("test-repo", "test-folder", archiveName, destDir, config, downloadOpts)
