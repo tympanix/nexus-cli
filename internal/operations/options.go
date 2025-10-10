@@ -10,6 +10,7 @@ import (
 type UploadOptions struct {
 	ChecksumAlgorithm string
 	SkipChecksum      bool
+	Force             bool
 	Logger            util.Logger
 	QuietMode         bool
 	Compress          bool           // Enable compression (tar.gz, tar.zst, or zip)
@@ -35,6 +36,7 @@ func (opts *UploadOptions) SetChecksumAlgorithm(algorithm string) error {
 type DownloadOptions struct {
 	ChecksumAlgorithm string
 	SkipChecksum      bool
+	Force             bool
 	Logger            util.Logger
 	QuietMode         bool
 	Flatten           bool

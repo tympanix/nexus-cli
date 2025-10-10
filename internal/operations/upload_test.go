@@ -318,6 +318,75 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 	}
 }
 
+// TestUploadWithForce tests that upload uploads all files when --force is used, regardless of existence or checksum
+func TestUploadWithForce(t *testing.T) {
+	testContent := "test content"
+
+	testDir, err := os.MkdirTemp("", "test-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	err = os.WriteFile(testFile, []byte(testContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Add an existing asset with matching checksum
+	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+		Path:       "/test.txt",
+		ID:         "test-id",
+		Repository: "test-repo",
+		FileSize:   int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
+		},
+	})
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	var logBuf strings.Builder
+	logger := util.NewLogger(&logBuf)
+
+	opts := &UploadOptions{
+		Logger:    logger,
+		QuietMode: true,
+		Force:     true,
+	}
+
+	// Set checksum algorithm (even with matching checksum, file should be uploaded when Force is true)
+	err = opts.SetChecksumAlgorithm("sha1")
+	if err != nil {
+		t.Fatalf("Failed to set checksum algorithm: %v", err)
+	}
+
+	err = uploadFiles(testDir, "test-repo", "", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Check that the file was uploaded despite having matching checksum
+	uploadedFiles := server.GetUploadedFiles()
+	if len(uploadedFiles) != 1 {
+		t.Errorf("Expected 1 file to be uploaded (force flag set), got %d", len(uploadedFiles))
+	}
+
+	// Check log output
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "Uploaded 1 files from") {
+		t.Errorf("Expected log message about 1 file uploaded, got: %s", logOutput)
+	}
+}
+
 // TestUploadURLConstruction tests that upload URLs are properly constructed
 func TestUploadURLConstruction(t *testing.T) {
 	tests := []struct {
@@ -641,5 +710,66 @@ func TestUploadAptPackage(t *testing.T) {
 
 	if receivedRepository != "apt-repo" {
 		t.Errorf("Expected repository 'apt-repo', got '%s'", receivedRepository)
+	}
+}
+
+// TestUploadYumPackage tests uploading a single .rpm file to the Nexus API
+func TestUploadYumPackage(t *testing.T) {
+	// Create test directory and .rpm file in a real temp directory
+	testDir, err := os.MkdirTemp("", "test-yum-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	rpmFile := filepath.Join(testDir, "test-package-1.0.0-1.x86_64.rpm")
+	rpmContent := "fake rpm package content"
+
+	err = os.WriteFile(rpmFile, []byte(rpmContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test rpm file: %v", err)
+	}
+
+	// Create mock Nexus server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Create test config
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create test options
+	opts := &UploadOptions{
+		Logger:    util.NewLogger(io.Discard),
+		QuietMode: true,
+	}
+
+	// Test upload
+	err = uploadYumPackage(rpmFile, "yum-repo", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Validate uploaded content
+	uploadedFiles := server.GetUploadedFiles()
+	receivedRepository := server.LastUploadRepo
+
+	if len(uploadedFiles) != 1 {
+		t.Fatalf("Expected 1 uploaded file, got %d", len(uploadedFiles))
+	}
+
+	if string(uploadedFiles[0].Content) != rpmContent {
+		t.Errorf("Expected uploaded content '%s', got '%s'", rpmContent, string(uploadedFiles[0].Content))
+	}
+
+	if uploadedFiles[0].Filename != "test-package-1.0.0-1.x86_64.rpm" {
+		t.Errorf("Expected filename 'test-package-1.0.0-1.x86_64.rpm', got '%s'", uploadedFiles[0].Filename)
+	}
+
+	if receivedRepository != "yum-repo" {
+		t.Errorf("Expected repository 'yum-repo', got '%s'", receivedRepository)
 	}
 }

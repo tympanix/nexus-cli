@@ -57,6 +57,44 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 	return nil
 }
 
+func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *UploadOptions) error {
+	info, err := os.Stat(rpmFile)
+	if err != nil {
+		return err
+	}
+
+	totalBytes := info.Size()
+	bar := progress.NewProgressBar(totalBytes, "Uploading yum package", 0, 1, opts.QuietMode)
+
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+		err := nexusapi.BuildYumUploadForm(writer, rpmFile, bar)
+		writer.Close()
+		errChan <- err
+	}()
+
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	contentType := nexusapi.GetFormDataContentType(writer)
+
+	err = client.UploadComponent(repository, pr, contentType)
+	if err != nil {
+		return err
+	}
+	if goroutineErr := <-errChan; goroutineErr != nil {
+		return goroutineErr
+	}
+	bar.Finish()
+	if util.IsATTY() && !opts.QuietMode {
+		fmt.Println()
+	}
+	opts.Logger.Printf("Uploaded yum package %s\n", filepath.Base(rpmFile))
+	return nil
+}
+
 func uploadFiles(src, repository, subdir string, config *config.Config, opts *UploadOptions) error {
 	// If compression is enabled, use compressed upload
 	if opts.Compress {
@@ -70,8 +108,9 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	}
 
 	// Build a map of remote assets if checksum validation is enabled or skip-checksum is enabled
+	// Skip this step if Force is enabled (always upload all files)
 	var remoteAssets map[string]nexusapi.Asset
-	if opts.SkipChecksum || opts.checksumValidator != nil {
+	if !opts.Force && (opts.SkipChecksum || opts.checksumValidator != nil) {
 		basePath := subdir
 		if basePath == "" {
 			basePath = ""
@@ -126,8 +165,8 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		shouldSkip := false
 		skipReason := ""
 
-		// Check if file exists remotely and validate checksum
-		if remoteAssets != nil {
+		// Check if file exists remotely and validate checksum (skip this check if Force is enabled)
+		if !opts.Force && remoteAssets != nil {
 			if asset, exists := remoteAssets[relPath]; exists {
 				if opts.SkipChecksum {
 					// For skip-checksum, just check existence and add file size to progress
@@ -336,6 +375,26 @@ func UploadMain(src, dest string, config *config.Config, opts *UploadOptions) {
 			os.Exit(1)
 		}
 		err := uploadAptPackage(src, repository, config, opts)
+		if err != nil {
+			fmt.Println("Upload error:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Check if src is a single .rpm file for YUM package upload
+	if info, err := os.Stat(src); err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(src), ".rpm") {
+		// YUM package upload - repository is the destination
+		repository := processedDest
+		if strings.Contains(processedDest, "/") {
+			fmt.Println("Error: YUM package upload does not support subdirectories. Use only repository name as destination.")
+			os.Exit(1)
+		}
+		if opts.Compress {
+			fmt.Println("Error: YUM package upload does not support compression.")
+			os.Exit(1)
+		}
+		err := uploadYumPackage(src, repository, config, opts)
 		if err != nil {
 			fmt.Println("Upload error:", err)
 			os.Exit(1)
