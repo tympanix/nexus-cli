@@ -178,3 +178,92 @@ func TestChecksumValidatorValidateNonExistentFile(t *testing.T) {
 		t.Errorf("Expected error for non-existent file, got nil")
 	}
 }
+
+func TestChecksumValidatorValidateWithProgress(t *testing.T) {
+	testContent := "test content for checksum validation with progress tracking"
+
+	testDir, err := os.MkdirTemp("", "test-checksum-progress-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	err = os.WriteFile(testFile, []byte(testContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	validator, err := NewValidator("sha1")
+	if err != nil {
+		t.Fatalf("Failed to create validator: %v", err)
+	}
+
+	// Track bytes written to progress writer
+	progressTracker := &bytesCounter{}
+
+	// Expected SHA1 for the test content
+	expectedChecksum := nexusapi.Checksum{
+		SHA1: "3d636cf6f895a3598b5847b04fb334ac95f6b23e",
+	}
+
+	valid, err := validator.ValidateWithProgress(testFile, expectedChecksum, progressTracker)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valid {
+		t.Errorf("Expected valid checksum, got invalid")
+	}
+
+	// Verify that progress was tracked
+	expectedBytes := int64(len(testContent))
+	if progressTracker.bytesWritten != expectedBytes {
+		t.Errorf("Expected %d bytes tracked, got %d", expectedBytes, progressTracker.bytesWritten)
+	}
+}
+
+func TestComputeChecksumWithProgress(t *testing.T) {
+	testContent := "test content for compute checksum with progress"
+
+	testDir, err := os.MkdirTemp("", "test-compute-checksum-progress-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	testFile := filepath.Join(testDir, "test.txt")
+	err = os.WriteFile(testFile, []byte(testContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	progressTracker := &bytesCounter{}
+
+	checksum, err := ComputeChecksumWithProgress(testFile, "sha1", progressTracker)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify checksum is computed correctly
+	expectedChecksum := "b8df69c649ab3e06e79f9cd4c934fa55d3106c01"
+	if checksum != expectedChecksum {
+		t.Errorf("Expected checksum %s, got %s", expectedChecksum, checksum)
+	}
+
+	// Verify that progress was tracked
+	expectedBytes := int64(len(testContent))
+	if progressTracker.bytesWritten != expectedBytes {
+		t.Errorf("Expected %d bytes tracked, got %d", expectedBytes, progressTracker.bytesWritten)
+	}
+}
+
+// bytesCounter is a simple io.Writer that counts bytes written
+type bytesCounter struct {
+	bytesWritten int64
+}
+
+func (bc *bytesCounter) Write(p []byte) (n int, err error) {
+	bc.bytesWritten += int64(len(p))
+	return len(p), nil
+}

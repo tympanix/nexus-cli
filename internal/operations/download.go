@@ -43,28 +43,30 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	shouldSkip := false
 	skipReason := ""
 
-	if !opts.Force {
-		if _, err := os.Stat(localPath); err == nil {
-			if opts.SkipChecksum {
-				// When checksum validation is skipped, only check if file exists
-				shouldSkip = true
-				skipReason = "Skipped (file exists): %s\n"
-			} else if opts.checksumValidator != nil {
-				// Use the new checksum.Validator for validation
-				valid, err := opts.checksumValidator.Validate(localPath, asset.Checksum)
-				if err == nil && valid {
-					shouldSkip = true
-					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
-				}
-			}
-		}
-	}
+  if !opts.Force {
+    if _, err := os.Stat(localPath); err == nil {
+      if opts.SkipChecksum {
+        // When checksum validation is skipped, only check if file exists and add to progress
+        shouldSkip = true
+        skipReason = "Skipped (file exists): %s\n"
+        if bar != nil {
+          bar.Add64(asset.FileSize)
+        }
+      } else if opts.checksumValidator != nil {
+        // Use the new checksum.Validator for validation with progress tracking
+        valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, bar)
+        if err == nil && valid {
+          shouldSkip = true
+          skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+        }
+      }
+    }
+  }
 
 	if shouldSkip {
 		opts.Logger.VerbosePrintf(skipReason, localPath)
-		// Advance progress bar by file size for skipped files
+		// Increment file count for skipped files
 		if bar != nil {
-			bar.Add64(asset.FileSize)
 			bar.IncrementFile()
 		}
 		// Signal that this file was skipped
@@ -155,7 +157,7 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		totalBytes += asset.FileSize
 	}
 
-	bar := progress.NewProgressBarWithCount(totalBytes, "Downloading files", len(assets), opts.QuietMode)
+	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(assets), opts.QuietMode)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))

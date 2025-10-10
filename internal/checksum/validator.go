@@ -17,6 +17,7 @@ import (
 // Validator interface for checksum validation
 type Validator interface {
 	Validate(filePath string, expected nexusapi.Checksum) (bool, error)
+	ValidateWithProgress(filePath string, expected nexusapi.Checksum, progress io.Writer) (bool, error)
 	Algorithm() string
 }
 
@@ -31,12 +32,16 @@ func (v *validator) Algorithm() string {
 }
 
 func (v *validator) Validate(filePath string, expected nexusapi.Checksum) (bool, error) {
+	return v.ValidateWithProgress(filePath, expected, io.Discard)
+}
+
+func (v *validator) ValidateWithProgress(filePath string, expected nexusapi.Checksum, progress io.Writer) (bool, error) {
 	expectedChecksum := v.extractor(expected)
 	if expectedChecksum == "" {
 		return false, fmt.Errorf("no %s checksum available for validation", v.algorithm)
 	}
 
-	actualChecksum, err := v.computeChecksum(filePath)
+	actualChecksum, err := v.computeChecksumWithProgress(filePath, progress)
 	if err != nil {
 		return false, err
 	}
@@ -45,6 +50,10 @@ func (v *validator) Validate(filePath string, expected nexusapi.Checksum) (bool,
 }
 
 func (v *validator) computeChecksum(filePath string) (string, error) {
+	return v.computeChecksumWithProgress(filePath, io.Discard)
+}
+
+func (v *validator) computeChecksumWithProgress(filePath string, progress io.Writer) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -52,7 +61,8 @@ func (v *validator) computeChecksum(filePath string) (string, error) {
 	defer file.Close()
 
 	h := v.hashFunc()
-	if _, err := io.Copy(h, file); err != nil {
+	teeReader := io.TeeReader(file, progress)
+	if _, err := io.Copy(h, teeReader); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
@@ -93,6 +103,11 @@ func NewValidator(algorithm string) (Validator, error) {
 
 // ComputeChecksum computes the checksum of a file using the specified algorithm
 func ComputeChecksum(filePath string, algorithm string) (string, error) {
+	return ComputeChecksumWithProgress(filePath, algorithm, io.Discard)
+}
+
+// ComputeChecksumWithProgress computes the checksum of a file using the specified algorithm with progress tracking
+func ComputeChecksumWithProgress(filePath string, algorithm string, progress io.Writer) (string, error) {
 	var h hash.Hash
 	switch strings.ToLower(algorithm) {
 	case "sha1":
@@ -113,7 +128,8 @@ func ComputeChecksum(filePath string, algorithm string) (string, error) {
 	}
 	defer file.Close()
 
-	if _, err := io.Copy(h, file); err != nil {
+	teeReader := io.TeeReader(file, progress)
+	if _, err := io.Copy(h, teeReader); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
