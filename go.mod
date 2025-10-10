@@ -6,7 +6,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/k0kubun/go-ansi v0.0.0-20180517002512-3bf9e2903213
 	github.com/klauspost/compress v1.18.0
-	github.com/schollz/progressbar/v3 v3.18.0
+	github.com/schollz/progressbar/v3 v3.18.1-0.20251007170235-655d41e4d87f
 	github.com/spf13/cobra v1.10.1
 )
 
