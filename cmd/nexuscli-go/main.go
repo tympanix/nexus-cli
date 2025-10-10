@@ -11,39 +11,69 @@ import (
 
 var version = "dev"
 
+type CLIConfig struct {
+	url         string
+	username    string
+	password    string
+	quiet       bool
+	verbose     bool
+	nexusConfig *nexus.Config
+	logger      nexus.Logger
+}
+
+type UploadCLIOptions struct {
+	compress          bool
+	compressionFormat string
+	globPattern       string
+	keyFrom           string
+	checksumAlg       string
+	skipChecksum      bool
+}
+
+type DownloadCLIOptions struct {
+	checksumAlg       string
+	skipChecksum      bool
+	flatten           bool
+	deleteExtra       bool
+	compress          bool
+	compressionFormat string
+	keyFrom           string
+}
+
 func main() {
-	// Create config from environment variables
-	config := nexus.NewConfig()
-	var logger nexus.Logger
-	var quietMode bool
-	var verboseMode bool
+	cliConfig := &CLIConfig{
+		nexusConfig: nexus.NewConfig(),
+	}
+	uploadOpts := &UploadCLIOptions{}
+	downloadOpts := &DownloadCLIOptions{}
 
 	var rootCmd = &cobra.Command{
 		Use:   "nexuscli-go",
 		Short: "Nexus CLI for upload and download",
 		Long:  "Nexus CLI for upload and download\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found (download only)",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			cliURL, _ := cmd.Flags().GetString("url")
-			cliUsername, _ := cmd.Flags().GetString("username")
-			cliPassword, _ := cmd.Flags().GetString("password")
-			quietMode, _ = cmd.Flags().GetBool("quiet")
-			verboseMode, _ = cmd.Flags().GetBool("verbose")
-			if cliURL != "" {
-				config.NexusURL = cliURL
+			cliConfig.url, _ = cmd.Flags().GetString("url")
+			cliConfig.username, _ = cmd.Flags().GetString("username")
+			cliConfig.password, _ = cmd.Flags().GetString("password")
+			cliConfig.quiet, _ = cmd.Flags().GetBool("quiet")
+			cliConfig.verbose, _ = cmd.Flags().GetBool("verbose")
+
+			if cliConfig.url != "" {
+				cliConfig.nexusConfig.NexusURL = cliConfig.url
 			}
-			if cliUsername != "" {
-				config.Username = cliUsername
+			if cliConfig.username != "" {
+				cliConfig.nexusConfig.Username = cliConfig.username
 			}
-			if cliPassword != "" {
-				config.Password = cliPassword
+			if cliConfig.password != "" {
+				cliConfig.nexusConfig.Password = cliConfig.password
 			}
-			// Configure logger based on quiet mode
-			if quietMode {
-				logger = nexus.NewLogger(io.Discard)
-			} else if verboseMode {
-				logger = nexus.NewVerboseLogger(os.Stdout)
+
+			if cliConfig.quiet {
+				cliConfig.logger = nexus.NewLogger(io.Discard)
+			} else if cliConfig.verbose {
+				cliConfig.logger = nexus.NewVerboseLogger(os.Stdout)
 			} else {
-				logger = nexus.NewLogger(os.Stdout)
+				cliConfig.logger = nexus.NewLogger(os.Stdout)
 			}
 		},
 	}
@@ -54,12 +84,6 @@ func main() {
 	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "Suppress all output")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 
-	var uploadCompress bool
-	var uploadCompressionFormat string
-	var uploadGlobPattern string
-	var uploadKeyFrom string
-	var uploadChecksumAlg string
-	var uploadSkipChecksum bool
 	var uploadCmd = &cobra.Command{
 		Use:   "upload <src> <dest>",
 		Short: "Upload a directory to Nexus RAW",
@@ -67,16 +91,15 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			opts := &nexus.UploadOptions{
-				Logger:       logger,
-				QuietMode:    quietMode,
-				Compress:     uploadCompress,
-				GlobPattern:  uploadGlobPattern,
-				KeyFromFile:  uploadKeyFrom,
-				SkipChecksum: uploadSkipChecksum,
+				Logger:       cliConfig.logger,
+				QuietMode:    cliConfig.quiet,
+				Compress:     uploadOpts.compress,
+				GlobPattern:  uploadOpts.globPattern,
+				KeyFromFile:  uploadOpts.keyFrom,
+				SkipChecksum: uploadOpts.skipChecksum,
 			}
-			// Parse compression format if provided
-			if uploadCompressionFormat != "" {
-				format, err := nexus.ParseCompressionFormat(uploadCompressionFormat)
+			if uploadOpts.compressionFormat != "" {
+				format, err := nexus.ParseCompressionFormat(uploadOpts.compressionFormat)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -85,29 +108,22 @@ func main() {
 			}
 			src := args[0]
 			dest := args[1]
-			if !uploadSkipChecksum && uploadChecksumAlg != "" {
-				if err := opts.SetChecksumAlgorithm(uploadChecksumAlg); err != nil {
+			if !uploadOpts.skipChecksum && uploadOpts.checksumAlg != "" {
+				if err := opts.SetChecksumAlgorithm(uploadOpts.checksumAlg); err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
 			}
-			nexus.UploadMain(src, dest, config, opts)
+			nexus.UploadMain(src, dest, cliConfig.nexusConfig, opts)
 		},
 	}
-	uploadCmd.Flags().BoolVarP(&uploadCompress, "compress", "z", false, "Create and upload files as a compressed archive")
-	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
-	uploadCmd.Flags().StringVarP(&uploadGlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
-	uploadCmd.Flags().StringVar(&uploadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
-	uploadCmd.Flags().StringVarP(&uploadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
-	uploadCmd.Flags().BoolVarP(&uploadSkipChecksum, "skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
+	uploadCmd.Flags().BoolVarP(&uploadOpts.compress, "compress", "z", false, "Create and upload files as a compressed archive")
+	uploadCmd.Flags().StringVar(&uploadOpts.compressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	uploadCmd.Flags().StringVarP(&uploadOpts.globPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
+	uploadCmd.Flags().StringVar(&uploadOpts.keyFrom, "key-from", "", "Path to file to compute hash from for {key} template in dest")
+	uploadCmd.Flags().StringVarP(&uploadOpts.checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
+	uploadCmd.Flags().BoolVarP(&uploadOpts.skipChecksum, "skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
 
-	var checksumAlg string
-	var skipChecksumValidation bool
-	var flattenPath bool
-	var deleteExtra bool
-	var compressDownload bool
-	var downloadCompressionFormat string
-	var downloadKeyFrom string
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
 		Short: "Download a folder from Nexus RAW",
@@ -115,18 +131,17 @@ func main() {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			opts := &nexus.DownloadOptions{
-				ChecksumAlgorithm: "sha1", // default
-				SkipChecksum:      skipChecksumValidation,
-				Flatten:           flattenPath,
-				DeleteExtra:       deleteExtra,
-				Logger:            logger,
-				QuietMode:         quietMode,
-				Compress:          compressDownload,
-				KeyFromFile:       downloadKeyFrom,
+				ChecksumAlgorithm: "sha1",
+				SkipChecksum:      downloadOpts.skipChecksum,
+				Flatten:           downloadOpts.flatten,
+				DeleteExtra:       downloadOpts.deleteExtra,
+				Logger:            cliConfig.logger,
+				QuietMode:         cliConfig.quiet,
+				Compress:          downloadOpts.compress,
+				KeyFromFile:       downloadOpts.keyFrom,
 			}
-			// Parse compression format if provided
-			if downloadCompressionFormat != "" {
-				format, err := nexus.ParseCompressionFormat(downloadCompressionFormat)
+			if downloadOpts.compressionFormat != "" {
+				format, err := nexus.ParseCompressionFormat(downloadOpts.compressionFormat)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -135,20 +150,20 @@ func main() {
 			}
 			src := args[0]
 			dest := args[1]
-			if err := opts.SetChecksumAlgorithm(checksumAlg); err != nil {
+			if err := opts.SetChecksumAlgorithm(downloadOpts.checksumAlg); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			nexus.DownloadMain(src, dest, config, opts)
+			nexus.DownloadMain(src, dest, cliConfig.nexusConfig, opts)
 		},
 	}
-	downloadCmd.Flags().StringVarP(&checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
-	downloadCmd.Flags().BoolVarP(&skipChecksumValidation, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
-	downloadCmd.Flags().BoolVarP(&flattenPath, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
-	downloadCmd.Flags().BoolVar(&deleteExtra, "delete", false, "Remove local files from the destination folder that are not present in Nexus")
-	downloadCmd.Flags().BoolVarP(&compressDownload, "compress", "z", false, "Download and extract a compressed archive")
-	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
-	downloadCmd.Flags().StringVar(&downloadKeyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
+	downloadCmd.Flags().StringVarP(&downloadOpts.checksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
+	downloadCmd.Flags().BoolVarP(&downloadOpts.skipChecksum, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
+	downloadCmd.Flags().BoolVarP(&downloadOpts.flatten, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
+	downloadCmd.Flags().BoolVar(&downloadOpts.deleteExtra, "delete", false, "Remove local files from the destination folder that are not present in Nexus")
+	downloadCmd.Flags().BoolVarP(&downloadOpts.compress, "compress", "z", false, "Download and extract a compressed archive")
+	downloadCmd.Flags().StringVar(&downloadOpts.compressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	downloadCmd.Flags().StringVar(&downloadOpts.keyFrom, "key-from", "", "Path to file to compute hash from for {key} template in src")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
