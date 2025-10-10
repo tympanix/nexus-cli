@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
@@ -100,35 +99,21 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	var filesToUpload []string
 	var filesToUploadSizes []int64
 	var skippedCount int
-	totalBytes := int64(0)
+	totalBytesToUpload := int64(0)
 
-	// First, calculate total bytes for checksum validation progress
-	var filesNeedingValidation []string
-	var validationTotalBytes int64
+	// Calculate total bytes for progress bar (validation + upload)
+	totalBytes := int64(0)
 	for _, filePath := range filePaths {
-		relPath, _ := filepath.Rel(src, filePath)
-		relPath = filepath.ToSlash(relPath)
 		info, err := os.Stat(filePath)
 		if err != nil {
 			return err
 		}
-
-		// Check if file needs checksum validation
-		if remoteAssets != nil {
-			if _, exists := remoteAssets[relPath]; exists {
-				if !opts.SkipChecksum && opts.checksumValidator != nil {
-					filesNeedingValidation = append(filesNeedingValidation, filePath)
-					validationTotalBytes += info.Size()
-				}
-			}
-		}
+		totalBytes += info.Size()
 	}
 
-	// Create progress bar for checksum validation if needed
-	var validationBar *progressbar.ProgressBar
-	if len(filesNeedingValidation) > 0 {
-		validationBar = progress.NewProgressBar(validationTotalBytes, "Validating checksums", 0, len(filesNeedingValidation), opts.QuietMode)
-	}
+	// Create a single progress bar for all operations
+	bar := progress.NewProgressBar(totalBytes, "Processing files", 0, len(filePaths), opts.QuietMode)
+	currentFile := 0
 
 	for _, filePath := range filePaths {
 		relPath, _ := filepath.Rel(src, filePath)
@@ -145,15 +130,13 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		if remoteAssets != nil {
 			if asset, exists := remoteAssets[relPath]; exists {
 				if opts.SkipChecksum {
+					// For skip-checksum, just check existence and add file size to progress
 					shouldSkip = true
 					skipReason = "Skipped (file exists): %s\n"
+					bar.Add64(info.Size())
 				} else if opts.checksumValidator != nil {
-					// Use progress bar for checksum validation
-					var progressWriter io.Writer = io.Discard
-					if validationBar != nil {
-						progressWriter = validationBar
-					}
-					valid, err := opts.checksumValidator.ValidateWithProgress(filePath, asset.Checksum, progressWriter)
+					// Validate checksum with progress tracking
+					valid, err := opts.checksumValidator.ValidateWithProgress(filePath, asset.Checksum, bar)
 					if err == nil && valid {
 						shouldSkip = true
 						skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
@@ -165,27 +148,23 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		if shouldSkip {
 			opts.Logger.VerbosePrintf(skipReason, filePath)
 			skippedCount++
+			currentFile++
+			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Processing files", currentFile, len(filePaths)))
 		} else {
 			filesToUpload = append(filesToUpload, filePath)
 			filesToUploadSizes = append(filesToUploadSizes, info.Size())
-			totalBytes += info.Size()
-		}
-	}
-
-	// Finish the validation progress bar if it was created
-	if validationBar != nil {
-		validationBar.Finish()
-		if util.IsATTY() && !opts.QuietMode {
-			fmt.Println()
+			totalBytesToUpload += info.Size()
 		}
 	}
 
 	if len(filesToUpload) == 0 {
+		bar.Finish()
+		if util.IsATTY() && !opts.QuietMode {
+			fmt.Println()
+		}
 		opts.Logger.Printf("All %d files already exist with matching checksums\n", len(filePaths))
 		return nil
 	}
-
-	bar := progress.NewProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
 
 	// Prepare file upload information
 	files := make([]nexusapi.FileUpload, len(filesToUpload))
@@ -203,11 +182,14 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 	// Write multipart form in a goroutine
 	errChan := make(chan error, 1)
+	// Capture currentFile for use in goroutine
+	fileCounter := currentFile
 	go func() {
 		defer pw.Close()
 		// Callback to update progress bar description when each file completes
 		onFileComplete := func(idx, total int) {
-			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, total))
+			fileCounter++
+			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Processing files", fileCounter, len(filePaths)))
 		}
 		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, nil, onFileComplete)
 		writer.Close()
