@@ -1,4 +1,4 @@
-package nexus
+package operations
 
 import (
 	"fmt"
@@ -8,123 +8,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bmatcuk/doublestar/v4"
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/progress"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
-// UploadOptions holds options for upload operations
-type UploadOptions struct {
-	ChecksumAlgorithm string
-	SkipChecksum      bool
-	Logger            Logger
-	QuietMode         bool
-	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
-	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
-	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
-	KeyFromFile       string            // Path to file to compute hash from for {key} template
-	checksumValidator ChecksumValidator // Internal validator instance
-}
-
-// SetChecksumAlgorithm validates and sets the checksum algorithm
-// Returns an error if the algorithm is not supported
-func (opts *UploadOptions) SetChecksumAlgorithm(algorithm string) error {
-	validator, err := NewChecksumValidator(algorithm)
-	if err != nil {
-		return err
-	}
-	opts.ChecksumAlgorithm = validator.Algorithm()
-	opts.checksumValidator = validator
-	return nil
-}
-
 func collectFiles(src string) ([]string, error) {
-	return collectFilesWithGlob(src, "")
+	return archive.CollectFilesWithGlob(src, "")
 }
 
-func collectFilesWithGlob(src string, globPattern string) ([]string, error) {
-	var files []string
-
-	// Parse glob patterns - split by comma and separate positive from negative patterns
-	var positivePatterns []string
-	var negativePatterns []string
-
-	if globPattern != "" {
-		patterns := strings.Split(globPattern, ",")
-		for _, pattern := range patterns {
-			pattern = strings.TrimSpace(pattern)
-			if pattern == "" {
-				continue
-			}
-			if strings.HasPrefix(pattern, "!") {
-				// Negative pattern - remove the ! prefix
-				negativePatterns = append(negativePatterns, strings.TrimPrefix(pattern, "!"))
-			} else {
-				// Positive pattern
-				positivePatterns = append(positivePatterns, pattern)
-			}
-		}
-	}
-
-	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(src, path)
-			if err != nil {
-				return err
-			}
-			// Normalize to forward slashes for consistent matching
-			relPath = filepath.ToSlash(relPath)
-
-			// If we have glob patterns, filter files
-			if len(positivePatterns) > 0 || len(negativePatterns) > 0 {
-				// Check positive patterns first (at least one must match if any exist)
-				matchesPositive := len(positivePatterns) == 0 // If no positive patterns, default to true
-				for _, pattern := range positivePatterns {
-					matched, err := doublestar.Match(pattern, relPath)
-					if err != nil {
-						return fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
-					}
-					if matched {
-						matchesPositive = true
-						break
-					}
-				}
-
-				// If no positive match, skip this file
-				if !matchesPositive {
-					return nil
-				}
-
-				// Check negative patterns (none should match)
-				for _, pattern := range negativePatterns {
-					matched, err := doublestar.Match(pattern, relPath)
-					if err != nil {
-						return fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
-					}
-					if matched {
-						// File matches a negative pattern, exclude it
-						return nil
-					}
-				}
-			}
-
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files, err
-}
-
-func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOptions) error {
+func uploadFiles(src, repository, subdir string, config *config.Config, opts *UploadOptions) error {
 	// If compression is enabled, use compressed upload
 	if opts.Compress {
 		return uploadFilesCompressed(src, repository, subdir, config, opts)
 	}
 
 	// Original uncompressed upload logic
-	filePaths, err := collectFilesWithGlob(src, opts.GlobPattern)
+	filePaths, err := archive.CollectFilesWithGlob(src, opts.GlobPattern)
 	if err != nil {
 		return err
 	}
@@ -203,7 +105,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return nil
 	}
 
-	bar := newProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
+	bar := progress.NewProgressBar(totalBytes, "Uploading files", 0, len(filePaths), opts.QuietMode)
 
 	// Prepare file upload information
 	files := make([]nexusapi.FileUpload, len(filesToUpload))
@@ -243,7 +145,7 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		return goroutineErr
 	}
 	bar.Finish()
-	if isatty() && !opts.QuietMode {
+	if util.IsATTY() && !opts.QuietMode {
 		fmt.Println()
 	}
 	if skippedCount > 0 {
@@ -255,13 +157,13 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 }
 
 // uploadFilesCompressed creates a tar.gz archive and uploads it as a single file
-func uploadFilesCompressed(src, repository, subdir string, config *Config, opts *UploadOptions) error {
+func uploadFilesCompressed(src, repository, subdir string, config *config.Config, opts *UploadOptions) error {
 	return uploadFilesCompressedWithArchiveName(src, repository, subdir, "", config, opts)
 }
 
 // uploadFilesCompressedWithArchiveName creates a compressed archive and uploads it as a single file with optional explicit name
-func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName string, config *Config, opts *UploadOptions) error {
-	filePaths, err := collectFilesWithGlob(src, opts.GlobPattern)
+func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName string, config *config.Config, opts *UploadOptions) error {
+	filePaths, err := archive.CollectFilesWithGlob(src, opts.GlobPattern)
 	if err != nil {
 		return err
 	}
@@ -290,7 +192,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	}
 
 	// Create progress bar using uncompressed size as approximation
-	bar := newProgressBar(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode)
+	bar := progress.NewProgressBar(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -309,7 +211,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 
 		// Wrap part with capping writer and progress bar
 		// Use io.MultiWriter to send bytes to both the form part and progress bar
-		cappedBar := newCappingWriter(bar, totalBytes)
+		cappedBar := progress.NewCappingWriter(bar, totalBytes)
 		progressWriter := io.MultiWriter(part, cappedBar)
 
 		// Create compressed archive with progress tracking
@@ -341,15 +243,15 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		return goroutineErr
 	}
 	bar.Finish()
-	if isatty() && !opts.QuietMode {
+	if util.IsATTY() && !opts.QuietMode {
 		fmt.Println()
 	}
 	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil
 }
 
-func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
-	processedDest, err := processKeyTemplate(dest, opts.KeyFromFile)
+func UploadMain(src, dest string, config *config.Config, opts *UploadOptions) {
+	processedDest, err := processKeyTemplateWrapper(dest, opts.KeyFromFile)
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
@@ -365,7 +267,7 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 
 	if strings.Contains(processedDest, "/") {
 		var ok bool
-		repository, subdir, ok = ParseRepositoryPath(processedDest)
+		repository, subdir, ok = util.ParseRepositoryPath(processedDest)
 		if !ok {
 			fmt.Println("Error: The dest argument must be in the form 'repository' or 'repository/folder'.")
 			os.Exit(1)
@@ -385,7 +287,7 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 			}
 			// Detect compression format from filename if not explicitly set
 			if explicitArchiveName != "" && opts.CompressionFormat == "" {
-				opts.CompressionFormat = DetectCompressionFromFilename(explicitArchiveName)
+				opts.CompressionFormat = archive.DetectFromFilename(explicitArchiveName)
 			}
 		}
 	} else if opts.Compress && (strings.HasSuffix(processedDest, ".tar.gz") || strings.HasSuffix(processedDest, ".tar.zst") || strings.HasSuffix(processedDest, ".zip")) {
@@ -398,13 +300,13 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 		subdir = ""
 		// Detect compression format from filename if not explicitly set
 		if opts.CompressionFormat == "" {
-			opts.CompressionFormat = DetectCompressionFromFilename(explicitArchiveName)
+			opts.CompressionFormat = archive.DetectFromFilename(explicitArchiveName)
 		}
 	}
 
 	// Default compression format if not set
 	if opts.Compress && opts.CompressionFormat == "" {
-		opts.CompressionFormat = CompressionGzip
+		opts.CompressionFormat = archive.FormatGzip
 	}
 
 	err = uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
@@ -414,7 +316,7 @@ func UploadMain(src, dest string, config *Config, opts *UploadOptions) {
 	}
 }
 
-func uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName string, config *Config, opts *UploadOptions) error {
+func uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName string, config *config.Config, opts *UploadOptions) error {
 	// If compression is enabled, use compressed upload
 	if opts.Compress {
 		return uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)

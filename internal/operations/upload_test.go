@@ -1,6 +1,9 @@
-package nexus
+package operations
 
 import (
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/util"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,7 +35,7 @@ func TestUploadSingleFile(t *testing.T) {
 	defer server.Close()
 
 	// Create test config
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -40,7 +43,7 @@ func TestUploadSingleFile(t *testing.T) {
 
 	// Create test options
 	opts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
+		Logger:    util.NewLogger(io.Discard),
 		QuietMode: true,
 	}
 
@@ -88,7 +91,7 @@ func TestUploadLogging(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -96,7 +99,7 @@ func TestUploadLogging(t *testing.T) {
 
 	// Capture logger output
 	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+	logger := util.NewLogger(&logBuf)
 
 	opts := &UploadOptions{
 		Logger:    logger,
@@ -146,14 +149,14 @@ func TestUploadWithChecksumValidation(t *testing.T) {
 		},
 	})
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+	logger := util.NewLogger(&logBuf)
 
 	opts := &UploadOptions{
 		Logger:    logger,
@@ -214,14 +217,14 @@ func TestUploadWithChecksumMismatch(t *testing.T) {
 		},
 	})
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+	logger := util.NewLogger(&logBuf)
 
 	opts := &UploadOptions{
 		Logger:    logger,
@@ -282,14 +285,14 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 		},
 	})
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	var logBuf strings.Builder
-	logger := NewLogger(&logBuf)
+	logger := util.NewLogger(&logBuf)
 
 	opts := &UploadOptions{
 		Logger:       logger,
@@ -356,14 +359,14 @@ func TestUploadURLConstruction(t *testing.T) {
 			server := nexusapi.NewMockNexusServer()
 			defer server.Close()
 
-			config := &Config{
+			config := &config.Config{
 				NexusURL: server.URL,
 				Username: "test",
 				Password: "test",
 			}
 
 			opts := &UploadOptions{
-				Logger:    NewLogger(io.Discard),
+				Logger:    util.NewLogger(io.Discard),
 				QuietMode: true,
 			}
 
@@ -399,14 +402,14 @@ func TestUploadToNonExistentRepository(t *testing.T) {
 	// Mark the repository as not found
 	server.SetRepositoryNotFound("non-existent-repo")
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:    NewLogger(io.Discard),
+		Logger:    util.NewLogger(io.Discard),
 		QuietMode: true,
 	}
 
@@ -448,17 +451,17 @@ func TestUploadCompressedGzipWithProgressBar(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionGzip,
+		CompressionFormat: archive.FormatGzip,
 	}
 
 	err = uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.tar.gz", config, opts)
@@ -500,17 +503,17 @@ func TestUploadCompressedZstdWithProgressBar(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionZstd,
+		CompressionFormat: archive.FormatZstd,
 	}
 
 	err = uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.tar.zst", config, opts)
@@ -552,17 +555,17 @@ func TestUploadCompressedZipWithProgressBar(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
 	}
 
 	opts := &UploadOptions{
-		Logger:            NewLogger(io.Discard),
+		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
 		Compress:          true,
-		CompressionFormat: CompressionZip,
+		CompressionFormat: archive.FormatZip,
 	}
 
 	err = uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.zip", config, opts)

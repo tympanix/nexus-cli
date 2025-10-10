@@ -1,4 +1,4 @@
-package nexus
+package checksum
 
 import (
 	"crypto/md5"
@@ -14,22 +14,23 @@ import (
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
-type ChecksumValidator interface {
+// Validator interface for checksum validation
+type Validator interface {
 	Validate(filePath string, expected nexusapi.Checksum) (bool, error)
 	Algorithm() string
 }
 
-type checksumValidator struct {
+type validator struct {
 	algorithm string
 	hashFunc  func() hash.Hash
 	extractor func(nexusapi.Checksum) string
 }
 
-func (v *checksumValidator) Algorithm() string {
+func (v *validator) Algorithm() string {
 	return v.algorithm
 }
 
-func (v *checksumValidator) Validate(filePath string, expected nexusapi.Checksum) (bool, error) {
+func (v *validator) Validate(filePath string, expected nexusapi.Checksum) (bool, error) {
 	expectedChecksum := v.extractor(expected)
 	if expectedChecksum == "" {
 		return false, fmt.Errorf("no %s checksum available for validation", v.algorithm)
@@ -43,7 +44,7 @@ func (v *checksumValidator) Validate(filePath string, expected nexusapi.Checksum
 	return strings.EqualFold(actualChecksum, expectedChecksum), nil
 }
 
-func (v *checksumValidator) computeChecksum(filePath string) (string, error) {
+func (v *validator) computeChecksum(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -57,29 +58,30 @@ func (v *checksumValidator) computeChecksum(filePath string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-func NewChecksumValidator(algorithm string) (ChecksumValidator, error) {
+// NewValidator creates a new checksum validator for the specified algorithm
+func NewValidator(algorithm string) (Validator, error) {
 	alg := strings.ToLower(algorithm)
 	switch alg {
 	case "sha1":
-		return &checksumValidator{
+		return &validator{
 			algorithm: "sha1",
 			hashFunc:  sha1.New,
 			extractor: func(c nexusapi.Checksum) string { return c.SHA1 },
 		}, nil
 	case "sha256":
-		return &checksumValidator{
+		return &validator{
 			algorithm: "sha256",
 			hashFunc:  sha256.New,
 			extractor: func(c nexusapi.Checksum) string { return c.SHA256 },
 		}, nil
 	case "sha512":
-		return &checksumValidator{
+		return &validator{
 			algorithm: "sha512",
 			hashFunc:  sha512.New,
 			extractor: func(c nexusapi.Checksum) string { return c.SHA512 },
 		}, nil
 	case "md5":
-		return &checksumValidator{
+		return &validator{
 			algorithm: "md5",
 			hashFunc:  md5.New,
 			extractor: func(c nexusapi.Checksum) string { return c.MD5 },
@@ -89,7 +91,8 @@ func NewChecksumValidator(algorithm string) (ChecksumValidator, error) {
 	}
 }
 
-func computeChecksum(filePath string, algorithm string) (string, error) {
+// ComputeChecksum computes the checksum of a file using the specified algorithm
+func ComputeChecksum(filePath string, algorithm string) (string, error) {
 	var h hash.Hash
 	switch strings.ToLower(algorithm) {
 	case "sha1":

@@ -1,4 +1,4 @@
-package nexus
+package archive
 
 import (
 	"fmt"
@@ -6,28 +6,28 @@ import (
 	"strings"
 )
 
-// CompressionFormat represents the compression format for archives
-type CompressionFormat string
+// Format represents the compression format for archives
+type Format string
 
 const (
-	CompressionGzip CompressionFormat = "gzip"
-	CompressionZstd CompressionFormat = "zstd"
-	CompressionZip  CompressionFormat = "zip"
+	FormatGzip Format = "gzip"
+	FormatZstd Format = "zstd"
+	FormatZip  Format = "zip"
 )
 
 // String returns the string representation of the compression format
-func (f CompressionFormat) String() string {
+func (f Format) String() string {
 	return string(f)
 }
 
 // Extension returns the file extension for the compression format
-func (f CompressionFormat) Extension() string {
+func (f Format) Extension() string {
 	switch f {
-	case CompressionGzip:
+	case FormatGzip:
 		return ".tar.gz"
-	case CompressionZstd:
+	case FormatZstd:
 		return ".tar.zst"
-	case CompressionZip:
+	case FormatZip:
 		return ".zip"
 	default:
 		return ".tar.gz"
@@ -35,18 +35,18 @@ func (f CompressionFormat) Extension() string {
 }
 
 // CreateArchive creates a compressed archive based on the format
-func (f CompressionFormat) CreateArchive(srcDir string, writer io.Writer) error {
+func (f Format) CreateArchive(srcDir string, writer io.Writer) error {
 	return f.CreateArchiveWithGlob(srcDir, writer, "")
 }
 
 // CreateArchiveWithGlob creates a compressed archive based on the format with optional glob filtering
-func (f CompressionFormat) CreateArchiveWithGlob(srcDir string, writer io.Writer, globPattern string) error {
+func (f Format) CreateArchiveWithGlob(srcDir string, writer io.Writer, globPattern string) error {
 	switch f {
-	case CompressionGzip:
+	case FormatGzip:
 		return CreateTarGzWithGlob(srcDir, writer, globPattern)
-	case CompressionZstd:
+	case FormatZstd:
 		return CreateTarZstWithGlob(srcDir, writer, globPattern)
-	case CompressionZip:
+	case FormatZip:
 		return CreateZipWithGlob(srcDir, writer, globPattern)
 	default:
 		return fmt.Errorf("unsupported compression format: %s", f)
@@ -54,41 +54,41 @@ func (f CompressionFormat) CreateArchiveWithGlob(srcDir string, writer io.Writer
 }
 
 // ExtractArchive extracts a compressed archive based on the format
-func (f CompressionFormat) ExtractArchive(reader io.Reader, destDir string) error {
+func (f Format) ExtractArchive(reader io.Reader, destDir string) error {
 	switch f {
-	case CompressionGzip:
+	case FormatGzip:
 		return ExtractTarGz(reader, destDir)
-	case CompressionZstd:
+	case FormatZstd:
 		return ExtractTarZst(reader, destDir)
-	case CompressionZip:
+	case FormatZip:
 		return ExtractZip(reader, destDir)
 	default:
 		return fmt.Errorf("unsupported compression format: %s", f)
 	}
 }
 
-// ParseCompressionFormat parses a string into a CompressionFormat
-func ParseCompressionFormat(s string) (CompressionFormat, error) {
+// Parse parses a string into a Format
+func Parse(s string) (Format, error) {
 	switch strings.ToLower(s) {
 	case "gzip", "gz":
-		return CompressionGzip, nil
+		return FormatGzip, nil
 	case "zstd", "zst":
-		return CompressionZstd, nil
+		return FormatZstd, nil
 	case "zip":
-		return CompressionZip, nil
+		return FormatZip, nil
 	default:
 		return "", fmt.Errorf("unsupported compression format '%s': must be one of: gzip, zstd, zip", s)
 	}
 }
 
-// DetectCompressionFromFilename detects the compression format from a filename
-func DetectCompressionFromFilename(filename string) CompressionFormat {
+// DetectFromFilename detects the compression format from a filename
+func DetectFromFilename(filename string) Format {
 	if strings.HasSuffix(filename, ".tar.zst") {
-		return CompressionZstd
+		return FormatZstd
 	}
 	if strings.HasSuffix(filename, ".zip") {
-		return CompressionZip
+		return FormatZip
 	}
 	// Default to gzip for .tar.gz or any other case
-	return CompressionGzip
+	return FormatGzip
 }

@@ -1,4 +1,4 @@
-package nexus
+package operations
 
 import (
 	"crypto/rand"
@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
 // TestCompressedUploadWithProgressBar tests that progress bar works with compressed uploads
@@ -35,7 +38,7 @@ func TestCompressedUploadWithProgressBar(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	config := &Config{
+	config := &config.Config{
 		NexusURL: server.URL,
 		Username: "test",
 		Password: "test",
@@ -44,10 +47,10 @@ func TestCompressedUploadWithProgressBar(t *testing.T) {
 	// Test with Gzip compression
 	t.Run("gzip", func(t *testing.T) {
 		opts := &UploadOptions{
-			Logger:            NewLogger(io.Discard),
+			Logger:            util.NewLogger(io.Discard),
 			QuietMode:         true, // Quiet mode to avoid terminal output during test
 			Compress:          true,
-			CompressionFormat: CompressionGzip,
+			CompressionFormat: archive.FormatGzip,
 		}
 
 		err := uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.tar.gz", config, opts)
@@ -64,10 +67,10 @@ func TestCompressedUploadWithProgressBar(t *testing.T) {
 	// Test with Zstd compression
 	t.Run("zstd", func(t *testing.T) {
 		opts := &UploadOptions{
-			Logger:            NewLogger(io.Discard),
+			Logger:            util.NewLogger(io.Discard),
 			QuietMode:         true,
 			Compress:          true,
-			CompressionFormat: CompressionZstd,
+			CompressionFormat: archive.FormatZstd,
 		}
 
 		err := uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.tar.zst", config, opts)
@@ -79,10 +82,10 @@ func TestCompressedUploadWithProgressBar(t *testing.T) {
 	// Test with Zip compression
 	t.Run("zip", func(t *testing.T) {
 		opts := &UploadOptions{
-			Logger:            NewLogger(io.Discard),
+			Logger:            util.NewLogger(io.Discard),
 			QuietMode:         true,
 			Compress:          true,
-			CompressionFormat: CompressionZip,
+			CompressionFormat: archive.FormatZip,
 		}
 
 		err := uploadFilesWithArchiveName(testDir, "test-repo", "", "archive.zip", config, opts)

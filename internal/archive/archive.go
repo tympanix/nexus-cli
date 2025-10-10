@@ -1,4 +1,4 @@
-package nexus
+package archive
 
 import (
 	"archive/tar"
@@ -10,8 +10,86 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/klauspost/compress/zstd"
 )
+
+// CollectFilesWithGlob collects files from a directory with optional glob pattern filtering
+func CollectFilesWithGlob(src string, globPattern string) ([]string, error) {
+	var files []string
+
+	// Parse glob patterns - split by comma and separate positive from negative patterns
+	var positivePatterns []string
+	var negativePatterns []string
+
+	if globPattern != "" {
+		patterns := strings.Split(globPattern, ",")
+		for _, pattern := range patterns {
+			pattern = strings.TrimSpace(pattern)
+			if pattern == "" {
+				continue
+			}
+			if strings.HasPrefix(pattern, "!") {
+				// Negative pattern - remove the ! prefix
+				negativePatterns = append(negativePatterns, strings.TrimPrefix(pattern, "!"))
+			} else {
+				// Positive pattern
+				positivePatterns = append(positivePatterns, pattern)
+			}
+		}
+	}
+
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			relPath, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
+			// Normalize to forward slashes for consistent matching
+			relPath = filepath.ToSlash(relPath)
+
+			// If we have glob patterns, filter files
+			if len(positivePatterns) > 0 || len(negativePatterns) > 0 {
+				// Check positive patterns first (at least one must match if any exist)
+				matchesPositive := len(positivePatterns) == 0 // If no positive patterns, default to true
+				for _, pattern := range positivePatterns {
+					matched, err := doublestar.Match(pattern, relPath)
+					if err != nil {
+						return fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
+					}
+					if matched {
+						matchesPositive = true
+						break
+					}
+				}
+
+				// If no positive match, skip this file
+				if !matchesPositive {
+					return nil
+				}
+
+				// Check negative patterns (none should match)
+				for _, pattern := range negativePatterns {
+					matched, err := doublestar.Match(pattern, relPath)
+					if err != nil {
+						return fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
+					}
+					if matched {
+						// File matches a negative pattern, exclude it
+						return nil
+					}
+				}
+			}
+
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
+}
 
 // CreateTarGz creates a tar.gz archive containing all files from srcDir.
 // The archive is written to the provided writer on-the-fly.
@@ -145,7 +223,7 @@ func createTarArchive(srcDir string, writer io.Writer, globPattern string) error
 	tarWriter := tar.NewWriter(writer)
 	defer tarWriter.Close()
 
-	files, err := collectFilesWithGlob(srcDir, globPattern)
+	files, err := CollectFilesWithGlob(srcDir, globPattern)
 	if err != nil {
 		return fmt.Errorf("failed to collect files: %w", err)
 	}
@@ -210,7 +288,7 @@ func CreateZipWithGlob(srcDir string, writer io.Writer, globPattern string) erro
 	zipWriter := zip.NewWriter(writer)
 	defer zipWriter.Close()
 
-	files, err := collectFilesWithGlob(srcDir, globPattern)
+	files, err := CollectFilesWithGlob(srcDir, globPattern)
 	if err != nil {
 		return fmt.Errorf("failed to collect files: %w", err)
 	}
