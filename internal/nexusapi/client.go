@@ -272,5 +272,8 @@ func BuildYumUploadForm(writer *multipart.Writer, rpmFile string, progressWriter
 		return err
 	}
 
+	// YUM uploads require the filename field
+	_ = writer.WriteField("yum.asset.filename", filepath.Base(rpmFile))
+
 	return nil
 }
