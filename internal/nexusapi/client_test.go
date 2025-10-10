@@ -315,3 +315,52 @@ func TestBuildAptUploadFormFileNotFound(t *testing.T) {
 		t.Fatal("Expected error for non-existent file, got nil")
 	}
 }
+
+// TestBuildYumUploadForm tests building multipart form for YUM (RPM) package upload
+func TestBuildYumUploadForm(t *testing.T) {
+	// Create a test .rpm file
+	tempDir := t.TempDir()
+	rpmFilePath := tempDir + "/test-package-1.0.0-1.x86_64.rpm"
+
+	// Create test .rpm file with some content
+	rpmContent := []byte("fake rpm file content")
+	err := os.WriteFile(rpmFilePath, rpmContent, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test rpm file: %v", err)
+	}
+
+	// Build form
+	var buf strings.Builder
+	writer := multipart.NewWriter(&buf)
+
+	err = BuildYumUploadForm(writer, rpmFilePath, nil)
+	if err != nil {
+		t.Fatalf("BuildYumUploadForm failed: %v", err)
+	}
+	writer.Close()
+
+	// Parse the form
+	formData := buf.String()
+
+	// Verify form contains expected fields
+	if !strings.Contains(formData, "yum.asset") {
+		t.Error("Expected form to contain 'yum.asset'")
+	}
+	if !strings.Contains(formData, "test-package-1.0.0-1.x86_64.rpm") {
+		t.Error("Expected form to contain the rpm filename")
+	}
+	if !strings.Contains(formData, "fake rpm file content") {
+		t.Error("Expected form to contain the rpm file content")
+	}
+}
+
+// TestBuildYumUploadFormFileNotFound tests error handling when rpm file doesn't exist
+func TestBuildYumUploadFormFileNotFound(t *testing.T) {
+	var buf strings.Builder
+	writer := multipart.NewWriter(&buf)
+
+	err := BuildYumUploadForm(writer, "/non/existent/file.rpm", nil)
+	if err == nil {
+		t.Fatal("Expected error for non-existent file, got nil")
+	}
+}
