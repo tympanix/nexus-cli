@@ -236,12 +236,11 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 	contentType := nexusapi.GetFormDataContentType(writer)
 
 	err = client.UploadComponent(repository, pr, contentType)
+	if err != nil {
+		return err
+	}
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
-	}
-	if err != nil {
-		opts.Logger.Printf("Failed to upload files: %v\n", err)
-		return err
 	}
 	bar.Finish()
 	if isatty() && !opts.QuietMode {
@@ -335,12 +334,11 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	contentType := nexusapi.GetFormDataContentType(writer)
 
 	err = client.UploadComponent(repository, pr, contentType)
+	if err != nil {
+		return err
+	}
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
-	}
-	if err != nil {
-		opts.Logger.Printf("Failed to upload archive: %v\n", err)
-		return err
 	}
 	bar.Finish()
 	if isatty() && !opts.QuietMode {
