@@ -351,7 +351,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	return nil
 }
 
-func UploadMain(src, dest string, config *config.Config, opts *UploadOptions) {
+func UploadMain(srcs []string, dest string, config *config.Config, opts *UploadOptions) {
 	processedDest, err := processKeyTemplateWrapper(dest, opts.KeyFromFile)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -362,44 +362,48 @@ func UploadMain(src, dest string, config *config.Config, opts *UploadOptions) {
 		opts.Logger.Printf("Using key template: %s -> %s\n", dest, processedDest)
 	}
 
-	// Check if src is a single .deb file for APT package upload
-	if info, err := os.Stat(src); err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(src), ".deb") {
-		// APT package upload - repository is the destination
-		repository := processedDest
-		if strings.Contains(processedDest, "/") {
-			fmt.Println("Error: APT package upload does not support subdirectories. Use only repository name as destination.")
-			os.Exit(1)
+	// For special package types (.deb, .rpm), only allow single source
+	if len(srcs) == 1 {
+		src := srcs[0]
+		// Check if src is a single .deb file for APT package upload
+		if info, err := os.Stat(src); err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(src), ".deb") {
+			// APT package upload - repository is the destination
+			repository := processedDest
+			if strings.Contains(processedDest, "/") {
+				fmt.Println("Error: APT package upload does not support subdirectories. Use only repository name as destination.")
+				os.Exit(1)
+			}
+			if opts.Compress {
+				fmt.Println("Error: APT package upload does not support compression.")
+				os.Exit(1)
+			}
+			err := uploadAptPackage(src, repository, config, opts)
+			if err != nil {
+				fmt.Println("Upload error:", err)
+				os.Exit(1)
+			}
+			return
 		}
-		if opts.Compress {
-			fmt.Println("Error: APT package upload does not support compression.")
-			os.Exit(1)
-		}
-		err := uploadAptPackage(src, repository, config, opts)
-		if err != nil {
-			fmt.Println("Upload error:", err)
-			os.Exit(1)
-		}
-		return
-	}
 
-	// Check if src is a single .rpm file for YUM package upload
-	if info, err := os.Stat(src); err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(src), ".rpm") {
-		// YUM package upload - repository is the destination
-		repository := processedDest
-		if strings.Contains(processedDest, "/") {
-			fmt.Println("Error: YUM package upload does not support subdirectories. Use only repository name as destination.")
-			os.Exit(1)
+		// Check if src is a single .rpm file for YUM package upload
+		if info, err := os.Stat(src); err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(src), ".rpm") {
+			// YUM package upload - repository is the destination
+			repository := processedDest
+			if strings.Contains(processedDest, "/") {
+				fmt.Println("Error: YUM package upload does not support subdirectories. Use only repository name as destination.")
+				os.Exit(1)
+			}
+			if opts.Compress {
+				fmt.Println("Error: YUM package upload does not support compression.")
+				os.Exit(1)
+			}
+			err := uploadYumPackage(src, repository, config, opts)
+			if err != nil {
+				fmt.Println("Upload error:", err)
+				os.Exit(1)
+			}
+			return
 		}
-		if opts.Compress {
-			fmt.Println("Error: YUM package upload does not support compression.")
-			os.Exit(1)
-		}
-		err := uploadYumPackage(src, repository, config, opts)
-		if err != nil {
-			fmt.Println("Upload error:", err)
-			os.Exit(1)
-		}
-		return
 	}
 
 	repository := processedDest
@@ -450,10 +454,13 @@ func UploadMain(src, dest string, config *config.Config, opts *UploadOptions) {
 		opts.CompressionFormat = archive.FormatGzip
 	}
 
-	err = uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
-	if err != nil {
-		fmt.Println("Upload error:", err)
-		os.Exit(1)
+	// Upload each source
+	for _, src := range srcs {
+		err = uploadFilesWithArchiveName(src, repository, subdir, explicitArchiveName, config, opts)
+		if err != nil {
+			fmt.Println("Upload error:", err)
+			os.Exit(1)
+		}
 	}
 }
 

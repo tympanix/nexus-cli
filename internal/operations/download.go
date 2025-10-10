@@ -43,25 +43,25 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	shouldSkip := false
 	skipReason := ""
 
-  if !opts.Force {
-    if _, err := os.Stat(localPath); err == nil {
-      if opts.SkipChecksum {
-        // When checksum validation is skipped, only check if file exists and add to progress
-        shouldSkip = true
-        skipReason = "Skipped (file exists): %s\n"
-        if bar != nil {
-          bar.Add64(asset.FileSize)
-        }
-      } else if opts.checksumValidator != nil {
-        // Use the new checksum.Validator for validation with progress tracking
-        valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, bar)
-        if err == nil && valid {
-          shouldSkip = true
-          skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
-        }
-      }
-    }
-  }
+	if !opts.Force {
+		if _, err := os.Stat(localPath); err == nil {
+			if opts.SkipChecksum {
+				// When checksum validation is skipped, only check if file exists and add to progress
+				shouldSkip = true
+				skipReason = "Skipped (file exists): %s\n"
+				if bar != nil {
+					bar.Add64(asset.FileSize)
+				}
+			} else if opts.checksumValidator != nil {
+				// Use the new checksum.Validator for validation with progress tracking
+				valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, bar)
+				if err == nil && valid {
+					shouldSkip = true
+					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+				}
+			}
+		}
+	}
 
 	if shouldSkip {
 		opts.Logger.VerbosePrintf(skipReason, localPath)
@@ -369,19 +369,22 @@ func cleanupEmptyDirectories(destDir string, opts *DownloadOptions) {
 	})
 }
 
-func DownloadMain(src, dest string, config *config.Config, opts *DownloadOptions) {
-	processedSrc, err := processKeyTemplateWrapper(src, opts.KeyFromFile)
-	if err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
-	}
+func DownloadMain(srcs []string, dest string, config *config.Config, opts *DownloadOptions) {
+	// Download each source
+	for _, src := range srcs {
+		processedSrc, err := processKeyTemplateWrapper(src, opts.KeyFromFile)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
 
-	if opts.KeyFromFile != "" {
-		opts.Logger.Printf("Using key template: %s -> %s\n", src, processedSrc)
-	}
+		if opts.KeyFromFile != "" {
+			opts.Logger.Printf("Using key template: %s -> %s\n", src, processedSrc)
+		}
 
-	status := downloadFolder(processedSrc, dest, config, opts)
-	if status != DownloadSuccess {
-		os.Exit(int(status))
+		status := downloadFolder(processedSrc, dest, config, opts)
+		if status != DownloadSuccess {
+			os.Exit(int(status))
+		}
 	}
 }

@@ -70,10 +70,10 @@ func main() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 
 	var uploadCmd = &cobra.Command{
-		Use:   "upload <src> <dest>",
+		Use:   "upload <src>... <dest>",
 		Short: "Upload a directory to Nexus RAW",
-		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
-		Args:  cobra.ExactArgs(2),
+		Long:  "Upload one or more directories to Nexus RAW. The last argument is the destination.\n\nExit codes:\n  0 - Success\n  1 - General error",
+		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if uploadCompressionFormat != "" {
 				format, err := archive.Parse(uploadCompressionFormat)
@@ -83,15 +83,15 @@ func main() {
 				}
 				uploadOpts.CompressionFormat = format
 			}
-			src := args[0]
-			dest := args[1]
+			srcs := args[:len(args)-1]
+			dest := args[len(args)-1]
 			if !uploadOpts.SkipChecksum && uploadChecksumAlg != "" {
 				if err := uploadOpts.SetChecksumAlgorithm(uploadChecksumAlg); err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
 			}
-			operations.UploadMain(src, dest, cfg, uploadOpts)
+			operations.UploadMain(srcs, dest, cfg, uploadOpts)
 		},
 	}
 	uploadCmd.Flags().BoolVarP(&uploadOpts.Compress, "compress", "z", false, "Create and upload files as a compressed archive")
@@ -103,10 +103,10 @@ func main() {
 	uploadCmd.Flags().BoolVar(&uploadOpts.Force, "force", false, "Force upload all files regardless of existence or checksum match")
 
 	var downloadCmd = &cobra.Command{
-		Use:   "download <src> <dest>",
+		Use:   "download <src>... <dest>",
 		Short: "Download a folder from Nexus RAW",
-		Long:  "Download a folder from Nexus RAW\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
-		Args:  cobra.ExactArgs(2),
+		Long:  "Download one or more folders from Nexus RAW. The last argument is the destination.\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
+		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if downloadCompressionFormat != "" {
 				format, err := archive.Parse(downloadCompressionFormat)
@@ -116,13 +116,13 @@ func main() {
 				}
 				downloadOpts.CompressionFormat = format
 			}
-			src := args[0]
-			dest := args[1]
+			srcs := args[:len(args)-1]
+			dest := args[len(args)-1]
 			if err := downloadOpts.SetChecksumAlgorithm(downloadChecksumAlg); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			operations.DownloadMain(src, dest, cfg, downloadOpts)
+			operations.DownloadMain(srcs, dest, cfg, downloadOpts)
 		},
 	}
 	downloadCmd.Flags().StringVarP(&downloadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")

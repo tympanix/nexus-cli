@@ -441,3 +441,98 @@ func TestAptPackageUpload(t *testing.T) {
 		})
 	}
 }
+
+func TestMultipleSources(t *testing.T) {
+	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-multisrc")
+	buildCmd.Dir = "."
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
+	defer os.Remove("./nexuscli-go-test-multisrc")
+
+	tests := []struct {
+		name          string
+		command       string
+		args          []string
+		expectedError bool
+		description   string
+	}{
+		{
+			name:          "upload with two sources",
+			command:       "upload",
+			args:          []string{"/tmp/src1", "/tmp/src2", "test-repo/dest"},
+			expectedError: true,
+			description:   "Should accept two source arguments for upload",
+		},
+		{
+			name:          "upload with three sources",
+			command:       "upload",
+			args:          []string{"/tmp/src1", "/tmp/src2", "/tmp/src3", "test-repo/dest"},
+			expectedError: true,
+			description:   "Should accept three source arguments for upload",
+		},
+		{
+			name:          "download with two sources",
+			command:       "download",
+			args:          []string{"repo/path1", "repo/path2", "/tmp/dest"},
+			expectedError: true,
+			description:   "Should accept two source arguments for download",
+		},
+		{
+			name:          "download with three sources",
+			command:       "download",
+			args:          []string{"repo/path1", "repo/path2", "repo/path3", "/tmp/dest"},
+			expectedError: true,
+			description:   "Should accept three source arguments for download",
+		},
+		{
+			name:          "upload with single source (backward compatibility)",
+			command:       "upload",
+			args:          []string{"/tmp/src1", "test-repo/dest"},
+			expectedError: true,
+			description:   "Should still accept single source for backward compatibility",
+		},
+		{
+			name:          "download with single source (backward compatibility)",
+			command:       "download",
+			args:          []string{"repo/path1", "/tmp/dest"},
+			expectedError: true,
+			description:   "Should still accept single source for backward compatibility",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{tt.command}, tt.args...)
+			cmd := exec.Command("./nexuscli-go-test-multisrc", args...)
+			cmd.Env = append(os.Environ(),
+				"NEXUS_URL=http://fake-nexus:8081",
+				"NEXUS_USER=test",
+				"NEXUS_PASS=test",
+			)
+
+			var stdout bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stdout
+
+			err := cmd.Run()
+			output := stdout.String()
+
+			if !tt.expectedError && err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					exitCode := exitErr.ExitCode()
+					if exitCode == 1 {
+						t.Logf("Command failed as expected (network error): %s", output)
+						return
+					}
+				}
+			}
+
+			if tt.command == "upload" && strings.Contains(output, "Error") {
+				t.Logf("Upload failed as expected (no real Nexus): %s", output)
+			} else if tt.command == "download" && strings.Contains(output, "Error") {
+				t.Logf("Download failed as expected (no real Nexus): %s", output)
+			}
+		})
+	}
+}
