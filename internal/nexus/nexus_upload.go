@@ -14,15 +14,17 @@ import (
 
 // UploadOptions holds options for upload operations
 type UploadOptions struct {
-	ChecksumAlgorithm string
-	SkipChecksum      bool
-	Logger            Logger
-	QuietMode         bool
-	Compress          bool              // Enable compression (tar.gz, tar.zst, or zip)
-	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
-	GlobPattern       string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
-	KeyFromFile       string            // Path to file to compute hash from for {key} template
-	checksumValidator ChecksumValidator // Internal validator instance
+	ChecksumAlgorithm    string
+	SkipChecksum         bool
+	Logger               Logger
+	QuietMode            bool
+	Compress             bool              // Enable compression (tar.gz, tar.zst, or zip)
+	CompressionFormat    CompressionFormat // Compression format to use (gzip, zstd, or zip)
+	CompressionFormatStr string            // String representation of compression format from flag
+	ChecksumAlgorithmStr string            // String representation of checksum algorithm from flag
+	GlobPattern          string            // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
+	KeyFromFile          string            // Path to file to compute hash from for {key} template
+	checksumValidator    ChecksumValidator // Internal validator instance
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -34,6 +36,33 @@ func (opts *UploadOptions) SetChecksumAlgorithm(algorithm string) error {
 	}
 	opts.ChecksumAlgorithm = validator.Algorithm()
 	opts.checksumValidator = validator
+	return nil
+}
+
+// SetCompressionFormat validates and sets the compression format
+// Returns an error if the format is not supported
+func (opts *UploadOptions) SetCompressionFormat(format string) error {
+	parsed, err := ParseCompressionFormat(format)
+	if err != nil {
+		return err
+	}
+	opts.CompressionFormat = parsed
+	return nil
+}
+
+// Validate validates and configures all options
+// Returns an error if any option is invalid
+func (opts *UploadOptions) Validate() error {
+	if opts.CompressionFormatStr != "" {
+		if err := opts.SetCompressionFormat(opts.CompressionFormatStr); err != nil {
+			return err
+		}
+	}
+	if !opts.SkipChecksum && opts.ChecksumAlgorithmStr != "" {
+		if err := opts.SetChecksumAlgorithm(opts.ChecksumAlgorithmStr); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

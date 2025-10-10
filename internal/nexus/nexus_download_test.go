@@ -1066,3 +1066,100 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 		t.Error("Content from download with and without trailing slash should be identical")
 	}
 }
+
+func TestDownloadOptionsValidate(t *testing.T) {
+	tests := []struct {
+		name        string
+		opts        *DownloadOptions
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid compression format",
+			opts: &DownloadOptions{
+				CompressionFormatStr: "gzip",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid compression format",
+			opts: &DownloadOptions{
+				CompressionFormatStr: "invalid",
+			},
+			expectError: true,
+			errorMsg:    "unsupported compression format",
+		},
+		{
+			name: "valid checksum algorithm",
+			opts: &DownloadOptions{
+				ChecksumAlgorithmStr: "sha512",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid checksum algorithm",
+			opts: &DownloadOptions{
+				ChecksumAlgorithmStr: "invalid",
+			},
+			expectError: true,
+			errorMsg:    "unsupported checksum algorithm",
+		},
+		{
+			name:        "empty options",
+			opts:        &DownloadOptions{},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tt.errorMsg)
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestDownloadOptionsSetCompressionFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		format      string
+		expected    CompressionFormat
+		expectError bool
+	}{
+		{"gzip", "gzip", CompressionGzip, false},
+		{"gz", "gz", CompressionGzip, false},
+		{"zstd", "zstd", CompressionZstd, false},
+		{"zst", "zst", CompressionZstd, false},
+		{"zip", "zip", CompressionZip, false},
+		{"invalid", "invalid", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &DownloadOptions{}
+			err := opts.SetCompressionFormat(tt.format)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for format '%s', got nil", tt.format)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for format '%s': %v", tt.format, err)
+				}
+				if opts.CompressionFormat != tt.expected {
+					t.Errorf("Expected format %s, got %s", tt.expected, opts.CompressionFormat)
+				}
+			}
+		})
+	}
+}

@@ -18,14 +18,7 @@ func main() {
 	var verboseMode bool
 
 	uploadOpts := &nexus.UploadOptions{}
-	var uploadCompressionFormat string
-	var uploadChecksumAlg string
-
-	downloadOpts := &nexus.DownloadOptions{
-		ChecksumAlgorithm: "sha1",
-	}
-	var downloadCompressionFormat string
-	var downloadChecksumAlg string
+	downloadOpts := &nexus.DownloadOptions{}
 
 	var rootCmd = &cobra.Command{
 		Use:   "nexuscli-go",
@@ -72,30 +65,20 @@ func main() {
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			if uploadCompressionFormat != "" {
-				format, err := nexus.ParseCompressionFormat(uploadCompressionFormat)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				uploadOpts.CompressionFormat = format
-			}
 			src := args[0]
 			dest := args[1]
-			if !uploadOpts.SkipChecksum && uploadChecksumAlg != "" {
-				if err := uploadOpts.SetChecksumAlgorithm(uploadChecksumAlg); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
+			if err := uploadOpts.Validate(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
 			}
 			nexus.UploadMain(src, dest, config, uploadOpts)
 		},
 	}
 	uploadCmd.Flags().BoolVarP(&uploadOpts.Compress, "compress", "z", false, "Create and upload files as a compressed archive")
-	uploadCmd.Flags().StringVar(&uploadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	uploadCmd.Flags().StringVar(&uploadOpts.CompressionFormatStr, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	uploadCmd.Flags().StringVarP(&uploadOpts.GlobPattern, "glob", "g", "", "Glob pattern(s) to filter files (e.g., '**/*.go', '**/*.go,**/*.md', '**/*.go,!**/*_test.go')")
 	uploadCmd.Flags().StringVar(&uploadOpts.KeyFromFile, "key-from", "", "Path to file to compute hash from for {key} template in dest")
-	uploadCmd.Flags().StringVarP(&uploadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
+	uploadCmd.Flags().StringVarP(&uploadOpts.ChecksumAlgorithmStr, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	uploadCmd.Flags().BoolVarP(&uploadOpts.SkipChecksum, "skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
 
 	var downloadCmd = &cobra.Command{
@@ -104,29 +87,21 @@ func main() {
 		Long:  "Download a folder from Nexus RAW\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			if downloadCompressionFormat != "" {
-				format, err := nexus.ParseCompressionFormat(downloadCompressionFormat)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				downloadOpts.CompressionFormat = format
-			}
 			src := args[0]
 			dest := args[1]
-			if err := downloadOpts.SetChecksumAlgorithm(downloadChecksumAlg); err != nil {
+			if err := downloadOpts.Validate(); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 			nexus.DownloadMain(src, dest, config, downloadOpts)
 		},
 	}
-	downloadCmd.Flags().StringVarP(&downloadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
+	downloadCmd.Flags().StringVarP(&downloadOpts.ChecksumAlgorithmStr, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.SkipChecksum, "skip-checksum", "s", false, "Skip checksum validation and download files based on file existence")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.Flatten, "flatten", "f", false, "Download files without preserving the base path specified in the source argument")
 	downloadCmd.Flags().BoolVar(&downloadOpts.DeleteExtra, "delete", false, "Remove local files from the destination folder that are not present in Nexus")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.Compress, "compress", "z", false, "Download and extract a compressed archive")
-	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
+	downloadCmd.Flags().StringVar(&downloadOpts.CompressionFormatStr, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	downloadCmd.Flags().StringVar(&downloadOpts.KeyFromFile, "key-from", "", "Path to file to compute hash from for {key} template in src")
 
 	var versionCmd = &cobra.Command{

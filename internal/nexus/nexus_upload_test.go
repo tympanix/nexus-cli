@@ -579,3 +579,108 @@ func TestUploadCompressedZipWithProgressBar(t *testing.T) {
 		t.Errorf("Expected archive filename 'archive.zip', got '%s'", uploadedFiles[0].Filename)
 	}
 }
+
+func TestUploadOptionsValidate(t *testing.T) {
+	tests := []struct {
+		name        string
+		opts        *UploadOptions
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid compression format",
+			opts: &UploadOptions{
+				CompressionFormatStr: "gzip",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid compression format",
+			opts: &UploadOptions{
+				CompressionFormatStr: "invalid",
+			},
+			expectError: true,
+			errorMsg:    "unsupported compression format",
+		},
+		{
+			name: "valid checksum algorithm",
+			opts: &UploadOptions{
+				ChecksumAlgorithmStr: "sha256",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid checksum algorithm",
+			opts: &UploadOptions{
+				ChecksumAlgorithmStr: "invalid",
+			},
+			expectError: true,
+			errorMsg:    "unsupported checksum algorithm",
+		},
+		{
+			name: "skip checksum with algorithm",
+			opts: &UploadOptions{
+				SkipChecksum:         true,
+				ChecksumAlgorithmStr: "sha256",
+			},
+			expectError: false,
+		},
+		{
+			name:        "empty options",
+			opts:        &UploadOptions{},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tt.errorMsg)
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestUploadOptionsSetCompressionFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		format      string
+		expected    CompressionFormat
+		expectError bool
+	}{
+		{"gzip", "gzip", CompressionGzip, false},
+		{"gz", "gz", CompressionGzip, false},
+		{"zstd", "zstd", CompressionZstd, false},
+		{"zst", "zst", CompressionZstd, false},
+		{"zip", "zip", CompressionZip, false},
+		{"invalid", "invalid", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &UploadOptions{}
+			err := opts.SetCompressionFormat(tt.format)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for format '%s', got nil", tt.format)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for format '%s': %v", tt.format, err)
+				}
+				if opts.CompressionFormat != tt.expected {
+					t.Errorf("Expected format %s, got %s", tt.expected, opts.CompressionFormat)
+				}
+			}
+		})
+	}
+}

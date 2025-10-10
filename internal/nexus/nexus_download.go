@@ -13,16 +13,18 @@ import (
 
 // DownloadOptions holds options for download operations
 type DownloadOptions struct {
-	ChecksumAlgorithm string
-	SkipChecksum      bool
-	Logger            Logger
-	QuietMode         bool
-	Flatten           bool
-	DeleteExtra       bool
-	Compress          bool              // Enable decompression (tar.gz, tar.zst, or zip)
-	CompressionFormat CompressionFormat // Compression format to use (gzip, zstd, or zip)
-	KeyFromFile       string            // Path to file to compute hash from for {key} template
-	checksumValidator ChecksumValidator // Internal validator instance
+	ChecksumAlgorithm    string
+	SkipChecksum         bool
+	Logger               Logger
+	QuietMode            bool
+	Flatten              bool
+	DeleteExtra          bool
+	Compress             bool              // Enable decompression (tar.gz, tar.zst, or zip)
+	CompressionFormat    CompressionFormat // Compression format to use (gzip, zstd, or zip)
+	CompressionFormatStr string            // String representation of compression format from flag
+	ChecksumAlgorithmStr string            // String representation of checksum algorithm from flag
+	KeyFromFile          string            // Path to file to compute hash from for {key} template
+	checksumValidator    ChecksumValidator // Internal validator instance
 }
 
 // SetChecksumAlgorithm validates and sets the checksum algorithm
@@ -34,6 +36,33 @@ func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
 	}
 	opts.ChecksumAlgorithm = validator.Algorithm()
 	opts.checksumValidator = validator
+	return nil
+}
+
+// SetCompressionFormat validates and sets the compression format
+// Returns an error if the format is not supported
+func (opts *DownloadOptions) SetCompressionFormat(format string) error {
+	parsed, err := ParseCompressionFormat(format)
+	if err != nil {
+		return err
+	}
+	opts.CompressionFormat = parsed
+	return nil
+}
+
+// Validate validates and configures all options
+// Returns an error if any option is invalid
+func (opts *DownloadOptions) Validate() error {
+	if opts.CompressionFormatStr != "" {
+		if err := opts.SetCompressionFormat(opts.CompressionFormatStr); err != nil {
+			return err
+		}
+	}
+	if opts.ChecksumAlgorithmStr != "" {
+		if err := opts.SetChecksumAlgorithm(opts.ChecksumAlgorithmStr); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
