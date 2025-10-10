@@ -106,7 +106,7 @@ func (m *MockNexusServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Capture uploaded files
 	for key := range r.MultipartForm.File {
-		if strings.HasPrefix(key, "raw.asset") || strings.HasPrefix(key, "apt.asset") {
+		if strings.HasPrefix(key, "raw.asset") || strings.HasPrefix(key, "apt.asset") || strings.HasPrefix(key, "yum.asset") {
 			file, header, err := r.FormFile(key)
 			if err != nil {
 				continue
