@@ -20,7 +20,7 @@ func listAssets(repository, src string, config *config.Config) ([]nexusapi.Asset
 	return client.ListAssets(repository, src)
 }
 
-func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, skipCh chan bool, config *config.Config, opts *DownloadOptions) {
+func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, skipCh chan bool, validationBar *progress.ProgressBarWithCount, config *config.Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 
@@ -49,8 +49,12 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 			shouldSkip = true
 			skipReason = "Skipped (file exists): %s\n"
 		} else if opts.checksumValidator != nil {
-			// Use the new checksum.Validator for validation
-			valid, err := opts.checksumValidator.Validate(localPath, asset.Checksum)
+			// Use the new checksum.Validator for validation with progress tracking
+			var progressWriter io.Writer = io.Discard
+			if validationBar != nil {
+				progressWriter = validationBar
+			}
+			valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, progressWriter)
 			if err == nil && valid {
 				shouldSkip = true
 				skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
@@ -147,6 +151,38 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		remoteAssetPaths[filepath.Join(destDir, path)] = true
 	}
 
+	// Calculate total bytes for files that need checksum validation
+	var validationTotalBytes int64
+	var filesNeedingValidation int
+	if !opts.SkipChecksum && opts.checksumValidator != nil {
+		for _, asset := range assets {
+			path := strings.TrimLeft(asset.Path, "/")
+
+			// If flatten is enabled, strip the base path from the asset path
+			if opts.Flatten && src != "" {
+				normalizedBasePath := "/" + strings.TrimLeft(src, "/")
+				assetPath := "/" + path
+
+				if strings.HasPrefix(assetPath, normalizedBasePath+"/") {
+					path = strings.TrimPrefix(assetPath, normalizedBasePath+"/")
+				}
+			}
+
+			localPath := filepath.Join(destDir, path)
+			// Only count files that exist locally and need validation
+			if _, err := os.Stat(localPath); err == nil {
+				validationTotalBytes += asset.FileSize
+				filesNeedingValidation++
+			}
+		}
+	}
+
+	// Create progress bar for checksum validation if needed
+	var validationBar *progress.ProgressBarWithCount
+	if filesNeedingValidation > 0 {
+		validationBar = progress.NewProgressBarWithCount(validationTotalBytes, "Validating checksums", filesNeedingValidation, opts.QuietMode)
+	}
+
 	// Calculate total bytes to download using fileSize from search API
 	totalBytes := int64(0)
 	for _, asset := range assets {
@@ -161,12 +197,18 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset nexusapi.Asset) {
-			downloadAsset(asset, destDir, src, &wg, errCh, bar, skipCh, config, opts)
+			downloadAsset(asset, destDir, src, &wg, errCh, bar, skipCh, validationBar, config, opts)
 		}(asset)
 	}
 	wg.Wait()
 	close(errCh)
 	close(skipCh)
+
+	// Finish the validation progress bar if it was created
+	if validationBar != nil {
+		validationBar.Finish()
+	}
+
 	nErrors := 0
 	for err := range errCh {
 		opts.Logger.Println("Error downloading asset:", err)
