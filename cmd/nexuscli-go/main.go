@@ -100,6 +100,7 @@ func main() {
 	uploadCmd.Flags().StringVar(&uploadOpts.KeyFromFile, "key-from", "", "Path to file to compute hash from for {key} template in dest")
 	uploadCmd.Flags().StringVarP(&uploadChecksumAlg, "checksum", "c", "sha1", "Checksum algorithm to use for validation (sha1, sha256, sha512, md5)")
 	uploadCmd.Flags().BoolVarP(&uploadOpts.SkipChecksum, "skip-checksum", "s", false, "Skip checksum validation and upload files based on file existence")
+	uploadCmd.Flags().BoolVar(&uploadOpts.Force, "force", false, "Force upload all files regardless of existence or checksum match")
 
 	var downloadCmd = &cobra.Command{
 		Use:   "download <src> <dest>",
@@ -131,6 +132,7 @@ func main() {
 	downloadCmd.Flags().BoolVarP(&downloadOpts.Compress, "compress", "z", false, "Download and extract a compressed archive")
 	downloadCmd.Flags().StringVar(&downloadCompressionFormat, "compress-format", "", "Compression format to use: gzip (default), zstd, or zip")
 	downloadCmd.Flags().StringVar(&downloadOpts.KeyFromFile, "key-from", "", "Path to file to compute hash from for {key} template in src")
+	downloadCmd.Flags().BoolVar(&downloadOpts.Force, "force", false, "Force download all files regardless of existence or checksum match")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",

@@ -1069,3 +1069,74 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 		t.Error("Content from download with and without trailing slash should be identical")
 	}
 }
+
+// TestDownloadWithForce tests that download downloads all files when --force is used, regardless of existence or checksum
+func TestDownloadWithForce(t *testing.T) {
+	testContent := "Test content for force download"
+	testPath := "/test-folder/test.txt"
+
+	// Create mock Nexus server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data
+	downloadURL := server.URL + "/repository/test-repo" + testPath
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        testPath,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+
+	// Create test config
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create test options
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		Force:             true,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+	}
+
+	// Create temp directory for download
+	destDir, err := os.MkdirTemp("", "test-download-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Pre-create a file with different content to ensure it gets overwritten
+	existingPath := filepath.Join(destDir, "test-folder", "test.txt")
+	os.MkdirAll(filepath.Dir(existingPath), 0755)
+	err = os.WriteFile(existingPath, []byte("existing content"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create existing file: %v", err)
+	}
+
+	// Test download with Force flag - should download despite file existing
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatalf("Download failed with status %d", status)
+	}
+
+	// Verify file was overwritten with new content
+	downloadedPath := filepath.Join(destDir, "test-folder", "test.txt")
+	content, err := os.ReadFile(downloadedPath)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file: %v", err)
+	}
+
+	if string(content) != testContent {
+		t.Errorf("Expected content '%s', got '%s'. File should have been overwritten due to Force flag", testContent, string(content))
+	}
+}

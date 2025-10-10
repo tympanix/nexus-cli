@@ -108,8 +108,9 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	}
 
 	// Build a map of remote assets if checksum validation is enabled or skip-checksum is enabled
+	// Skip this step if Force is enabled (always upload all files)
 	var remoteAssets map[string]nexusapi.Asset
-	if opts.SkipChecksum || opts.checksumValidator != nil {
+	if !opts.Force && (opts.SkipChecksum || opts.checksumValidator != nil) {
 		basePath := subdir
 		if basePath == "" {
 			basePath = ""
@@ -150,8 +151,8 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		shouldSkip := false
 		skipReason := ""
 
-		// Check if file exists remotely and validate checksum
-		if remoteAssets != nil {
+		// Check if file exists remotely and validate checksum (skip this check if Force is enabled)
+		if !opts.Force && remoteAssets != nil {
 			if asset, exists := remoteAssets[relPath]; exists {
 				if opts.SkipChecksum {
 					shouldSkip = true
