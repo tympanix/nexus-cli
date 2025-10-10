@@ -643,3 +643,64 @@ func TestUploadAptPackage(t *testing.T) {
 		t.Errorf("Expected repository 'apt-repo', got '%s'", receivedRepository)
 	}
 }
+
+// TestUploadYumPackage tests uploading a single .rpm file to the Nexus API
+func TestUploadYumPackage(t *testing.T) {
+	// Create test directory and .rpm file in a real temp directory
+	testDir, err := os.MkdirTemp("", "test-yum-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	rpmFile := filepath.Join(testDir, "test-package-1.0.0-1.x86_64.rpm")
+	rpmContent := "fake rpm package content"
+
+	err = os.WriteFile(rpmFile, []byte(rpmContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test rpm file: %v", err)
+	}
+
+	// Create mock Nexus server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Create test config
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create test options
+	opts := &UploadOptions{
+		Logger:    util.NewLogger(io.Discard),
+		QuietMode: true,
+	}
+
+	// Test upload
+	err = uploadYumPackage(rpmFile, "yum-repo", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Validate uploaded content
+	uploadedFiles := server.GetUploadedFiles()
+	receivedRepository := server.LastUploadRepo
+
+	if len(uploadedFiles) != 1 {
+		t.Fatalf("Expected 1 uploaded file, got %d", len(uploadedFiles))
+	}
+
+	if string(uploadedFiles[0].Content) != rpmContent {
+		t.Errorf("Expected uploaded content '%s', got '%s'", rpmContent, string(uploadedFiles[0].Content))
+	}
+
+	if uploadedFiles[0].Filename != "test-package-1.0.0-1.x86_64.rpm" {
+		t.Errorf("Expected filename 'test-package-1.0.0-1.x86_64.rpm', got '%s'", uploadedFiles[0].Filename)
+	}
+
+	if receivedRepository != "yum-repo" {
+		t.Errorf("Expected repository 'yum-repo', got '%s'", receivedRepository)
+	}
+}
