@@ -288,6 +288,53 @@ func createRawRepository(config *config.Config, repoName string) error {
 	return nil
 }
 
+// createYumRepository creates a YUM repository in Nexus
+func createYumRepository(config *config.Config, repoName string) error {
+	time.Sleep(5 * time.Second)
+
+	repoConfig := map[string]interface{}{
+		"name":   repoName,
+		"online": true,
+		"storage": map[string]interface{}{
+			"blobStoreName":               "default",
+			"strictContentTypeValidation": true,
+			"writePolicy":                 "ALLOW",
+		},
+		"yum": map[string]interface{}{
+			"repodataDepth": 0,
+			"deployPolicy":  "STRICT",
+		},
+	}
+
+	jsonData, err := json.Marshal(repoConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal repository config: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", config.NexusURL+"/service/rest/v1/repositories/yum/hosted", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.SetBasicAuth(config.Username, config.Password)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create repository: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("Created YUM repository: %s\n", repoName)
+	return nil
+}
+
 // cleanupContainer stops and removes the Nexus container
 func cleanupContainer(containerID string) {
 	if containerID == "" {
@@ -610,4 +657,93 @@ func TestEndToEndUploadDownloadZip(t *testing.T) {
 			t.Errorf("Content mismatch for %s: expected %q, got %q", filename, expectedContent, string(content))
 		}
 	}
+}
+
+// TestEndToEndYumUpload tests uploading a real RPM file to a YUM repository in Nexus
+func TestEndToEndYumUpload(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping end-to-end test in short mode")
+	}
+
+	if !isDockerAvailable() {
+		t.Skip("Docker is not available, skipping end-to-end test")
+	}
+
+	config := e2eConfig
+
+	repoName := "test-yum-repo"
+	if err := createYumRepository(config, repoName); err != nil {
+		t.Fatalf("Failed to create YUM repository: %v", err)
+	}
+
+	testDir, err := os.MkdirTemp("", "test-rpm-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	rpmFilePath := filepath.Join(testDir, "test-package-1.0-1.noarch.rpm")
+
+	specContent := `Name: test-package
+Version: 1.0
+Release: 1
+Summary: A test package
+License: MIT
+BuildArch: noarch
+
+%description
+This is a test package for e2e testing.
+
+%files
+
+%changelog
+* Thu Jan 01 2024 Test User <test@example.com> - 1.0-1
+- Initial package
+`
+
+	specDir := filepath.Join(testDir, "rpmbuild", "SPECS")
+	if err := os.MkdirAll(specDir, 0755); err != nil {
+		t.Fatalf("Failed to create SPECS directory: %v", err)
+	}
+
+	specFile := filepath.Join(specDir, "test-package.spec")
+	if err := os.WriteFile(specFile, []byte(specContent), 0644); err != nil {
+		t.Fatalf("Failed to create spec file: %v", err)
+	}
+
+	buildDir := filepath.Join(testDir, "rpmbuild")
+	for _, dir := range []string{"BUILD", "RPMS", "SOURCES", "SRPMS"} {
+		if err := os.MkdirAll(filepath.Join(buildDir, dir), 0755); err != nil {
+			t.Fatalf("Failed to create %s directory: %v", dir, err)
+		}
+	}
+
+	cmd := exec.Command("rpmbuild", "-bb", "--define", "_topdir "+buildDir, specFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to build RPM: %v\nOutput: %s", err, string(output))
+	}
+
+	builtRPM := filepath.Join(buildDir, "RPMS", "noarch", "test-package-1.0-1.noarch.rpm")
+	if _, err := os.Stat(builtRPM); err != nil {
+		t.Fatalf("Built RPM not found at %s: %v", builtRPM, err)
+	}
+
+	if err := os.Rename(builtRPM, rpmFilePath); err != nil {
+		t.Fatalf("Failed to move RPM file: %v", err)
+	}
+
+	uploadOpts := &UploadOptions{
+		Logger:    util.NewLogger(os.Stdout),
+		QuietMode: false,
+	}
+
+	err = uploadYumPackage(rpmFilePath, repoName, config, uploadOpts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	t.Logf("Successfully uploaded RPM package %s to repository %s", filepath.Base(rpmFilePath), repoName)
 }

@@ -57,6 +57,44 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 	return nil
 }
 
+func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *UploadOptions) error {
+	info, err := os.Stat(rpmFile)
+	if err != nil {
+		return err
+	}
+
+	totalBytes := info.Size()
+	bar := progress.NewProgressBar(totalBytes, "Uploading yum package", 0, 1, opts.QuietMode)
+
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+		err := nexusapi.BuildYumUploadForm(writer, rpmFile, bar)
+		writer.Close()
+		errChan <- err
+	}()
+
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	contentType := nexusapi.GetFormDataContentType(writer)
+
+	err = client.UploadComponent(repository, pr, contentType)
+	if err != nil {
+		return err
+	}
+	if goroutineErr := <-errChan; goroutineErr != nil {
+		return goroutineErr
+	}
+	bar.Finish()
+	if util.IsATTY() && !opts.QuietMode {
+		fmt.Println()
+	}
+	opts.Logger.Printf("Uploaded yum package %s\n", filepath.Base(rpmFile))
+	return nil
+}
+
 func uploadFiles(src, repository, subdir string, config *config.Config, opts *UploadOptions) error {
 	// If compression is enabled, use compressed upload
 	if opts.Compress {
