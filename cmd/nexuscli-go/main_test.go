@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -328,6 +329,114 @@ func TestDownloadExitCodes(t *testing.T) {
 				}
 			} else if tt.expectedExit != 0 {
 				t.Errorf("Expected exit error with code %d, got: %v", tt.expectedExit, err)
+			}
+		})
+	}
+}
+
+func TestAptPackageUpload(t *testing.T) {
+	// Build the binary first
+	buildCmd := exec.Command("go", "build", "-o", "nexuscli-go-test-apt")
+	buildCmd.Dir = "."
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
+	defer os.Remove("./nexuscli-go-test-apt")
+
+	// Create a test .deb file
+	tempDir := t.TempDir()
+	debFilePath := tempDir + "/test-package_1.0.0_amd64.deb"
+
+	// Create test .deb file with some content
+	debContent := []byte("fake deb package content for testing")
+	err := os.WriteFile(debFilePath, debContent, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test deb file: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		args         []string
+		expectedExit int
+		checkOutput  func(output string) error
+		description  string
+	}{
+		{
+			name:         "upload deb file without repository",
+			args:         []string{"upload", debFilePath},
+			expectedExit: 1,
+			checkOutput: func(output string) error {
+				if !strings.Contains(output, "Error") {
+					return fmt.Errorf("expected error message in output")
+				}
+				return nil
+			},
+			description: "Should fail when repository is not specified",
+		},
+		{
+			name:         "upload deb file with subdirectory",
+			args:         []string{"upload", debFilePath, "apt-repo/subdir"},
+			expectedExit: 1,
+			checkOutput: func(output string) error {
+				if !strings.Contains(output, "subdirectories") {
+					return fmt.Errorf("expected subdirectories error in output")
+				}
+				return nil
+			},
+			description: "Should fail when destination includes subdirectories",
+		},
+		{
+			name:         "upload deb file with compress flag",
+			args:         []string{"upload", "--compress", debFilePath, "apt-repo"},
+			expectedExit: 1,
+			checkOutput: func(output string) error {
+				if !strings.Contains(output, "compression") {
+					return fmt.Errorf("expected compression error in output")
+				}
+				return nil
+			},
+			description: "Should fail when compression is enabled for apt packages",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := exec.Command("./nexuscli-go-test-apt", tt.args...)
+			cmd.Env = append(os.Environ(),
+				"NEXUS_URL=http://fake-nexus:8081",
+				"NEXUS_USER=test",
+				"NEXUS_PASS=test",
+			)
+
+			var stdout bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stdout
+
+			err := cmd.Run()
+			output := stdout.String()
+
+			if tt.expectedExit == 0 {
+				if err != nil {
+					t.Errorf("Expected command to succeed, got error: %v. Output: %s", err, output)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("Expected command to fail with exit code %d, but it succeeded. Output: %s", tt.expectedExit, output)
+					return
+				}
+
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					exitCode := exitErr.ExitCode()
+					if exitCode != tt.expectedExit {
+						t.Errorf("Expected exit code %d, got %d. Output: %s", tt.expectedExit, exitCode, output)
+					}
+				}
+			}
+
+			if tt.checkOutput != nil {
+				if err := tt.checkOutput(output); err != nil {
+					t.Errorf("Output check failed: %v. Output: %s", err, output)
+				}
 			}
 		})
 	}
