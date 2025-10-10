@@ -247,3 +247,30 @@ func BuildAptUploadForm(writer *multipart.Writer, debFile string, progressWriter
 
 	return nil
 }
+
+// BuildYumUploadForm builds a multipart form for uploading an .rpm file to a Nexus YUM repository
+// It writes the form data to the provided writer and returns any error encountered
+// The rpmFile parameter should contain the path to a single .rpm file
+// If progressWriter is provided, progress will be tracked during the upload
+func BuildYumUploadForm(writer *multipart.Writer, rpmFile string, progressWriter io.Writer) error {
+	f, err := os.Open(rpmFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	part, err := writer.CreateFormFile("yum.asset", filepath.Base(rpmFile))
+	if err != nil {
+		return err
+	}
+
+	var reader io.Reader = f
+	if progressWriter != nil {
+		reader = io.TeeReader(f, progressWriter)
+	}
+	if _, err := io.Copy(part, reader); err != nil {
+		return err
+	}
+
+	return nil
+}
