@@ -582,3 +582,64 @@ func TestUploadCompressedZipWithProgressBar(t *testing.T) {
 		t.Errorf("Expected archive filename 'archive.zip', got '%s'", uploadedFiles[0].Filename)
 	}
 }
+
+// TestUploadAptPackage tests uploading a single .deb file to the Nexus API
+func TestUploadAptPackage(t *testing.T) {
+	// Create test directory and .deb file in a real temp directory
+	testDir, err := os.MkdirTemp("", "test-apt-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	debFile := filepath.Join(testDir, "test-package_1.0.0_amd64.deb")
+	debContent := "fake deb package content"
+
+	err = os.WriteFile(debFile, []byte(debContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test deb file: %v", err)
+	}
+
+	// Create mock Nexus server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Create test config
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create test options
+	opts := &UploadOptions{
+		Logger:    util.NewLogger(io.Discard),
+		QuietMode: true,
+	}
+
+	// Test upload
+	err = uploadAptPackage(debFile, "apt-repo", config, opts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Validate uploaded content
+	uploadedFiles := server.GetUploadedFiles()
+	receivedRepository := server.LastUploadRepo
+
+	if len(uploadedFiles) != 1 {
+		t.Fatalf("Expected 1 uploaded file, got %d", len(uploadedFiles))
+	}
+
+	if string(uploadedFiles[0].Content) != debContent {
+		t.Errorf("Expected uploaded content '%s', got '%s'", debContent, string(uploadedFiles[0].Content))
+	}
+
+	if uploadedFiles[0].Filename != "test-package_1.0.0_amd64.deb" {
+		t.Errorf("Expected filename 'test-package_1.0.0_amd64.deb', got '%s'", uploadedFiles[0].Filename)
+	}
+
+	if receivedRepository != "apt-repo" {
+		t.Errorf("Expected repository 'apt-repo', got '%s'", receivedRepository)
+	}
+}

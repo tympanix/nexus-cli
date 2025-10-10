@@ -19,6 +19,44 @@ func collectFiles(src string) ([]string, error) {
 	return archive.CollectFilesWithGlob(src, "")
 }
 
+func uploadAptPackage(debFile, repository string, config *config.Config, opts *UploadOptions) error {
+	info, err := os.Stat(debFile)
+	if err != nil {
+		return err
+	}
+
+	totalBytes := info.Size()
+	bar := progress.NewProgressBar(totalBytes, "Uploading apt package", 0, 1, opts.QuietMode)
+
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+
+	errChan := make(chan error, 1)
+	go func() {
+		defer pw.Close()
+		err := nexusapi.BuildAptUploadForm(writer, debFile, bar)
+		writer.Close()
+		errChan <- err
+	}()
+
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+	contentType := nexusapi.GetFormDataContentType(writer)
+
+	err = client.UploadComponent(repository, pr, contentType)
+	if err != nil {
+		return err
+	}
+	if goroutineErr := <-errChan; goroutineErr != nil {
+		return goroutineErr
+	}
+	bar.Finish()
+	if util.IsATTY() && !opts.QuietMode {
+		fmt.Println()
+	}
+	opts.Logger.Printf("Uploaded apt package %s\n", filepath.Base(debFile))
+	return nil
+}
+
 func uploadFiles(src, repository, subdir string, config *config.Config, opts *UploadOptions) error {
 	// If compression is enabled, use compressed upload
 	if opts.Compress {
@@ -259,6 +297,26 @@ func UploadMain(src, dest string, config *config.Config, opts *UploadOptions) {
 
 	if opts.KeyFromFile != "" {
 		opts.Logger.Printf("Using key template: %s -> %s\n", dest, processedDest)
+	}
+
+	// Check if src is a single .deb file for APT package upload
+	if info, err := os.Stat(src); err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(src), ".deb") {
+		// APT package upload - repository is the destination
+		repository := processedDest
+		if strings.Contains(processedDest, "/") {
+			fmt.Println("Error: APT package upload does not support subdirectories. Use only repository name as destination.")
+			os.Exit(1)
+		}
+		if opts.Compress {
+			fmt.Println("Error: APT package upload does not support compression.")
+			os.Exit(1)
+		}
+		err := uploadAptPackage(src, repository, config, opts)
+		if err != nil {
+			fmt.Println("Upload error:", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	repository := processedDest
