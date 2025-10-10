@@ -220,3 +220,65 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 
 	return nil
 }
+
+// CreateRawUploadReader creates an io.Reader that builds a multipart form for uploading files
+// The form is built in a goroutine and streamed through a pipe
+// Returns the reader, content type, and an error channel that will receive any build errors
+func CreateRawUploadReader(files []FileUpload, subdir string, progressWriter io.Writer, onFileStart, onFileComplete FileProcessCallback) (io.Reader, string, <-chan error) {
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+	contentType := writer.FormDataContentType()
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer pw.Close()
+		err := BuildRawUploadForm(writer, files, subdir, progressWriter, onFileStart, onFileComplete)
+		writer.Close()
+		errChan <- err
+	}()
+
+	return pr, contentType, errChan
+}
+
+// ArchiveWriter is a function that writes archive content to a writer
+type ArchiveWriter func(w io.Writer) error
+
+// CreateRawArchiveUploadReader creates an io.Reader for uploading a single archive file
+// The archiveWriter function is called in a goroutine to build the archive content
+// Returns the reader, content type, and an error channel that will receive any build errors
+func CreateRawArchiveUploadReader(archiveName, subdir string, archiveWriter ArchiveWriter) (io.Reader, string, <-chan error) {
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+	contentType := writer.FormDataContentType()
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer pw.Close()
+
+		// Create form file for the archive
+		part, err := writer.CreateFormFile("raw.asset1", filepath.Base(archiveName))
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		// Write archive content
+		if err := archiveWriter(part); err != nil {
+			errChan <- err
+			return
+		}
+
+		// Set the filename field - archive goes to subdir if specified
+		if subdir != "" {
+			_ = writer.WriteField("raw.asset1.filename", archiveName)
+			_ = writer.WriteField("raw.directory", subdir)
+		} else {
+			_ = writer.WriteField("raw.asset1.filename", archiveName)
+		}
+
+		writer.Close()
+		errChan <- nil
+	}()
+
+	return pr, contentType, errChan
+}

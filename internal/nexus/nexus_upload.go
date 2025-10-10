@@ -3,7 +3,6 @@ package nexus
 import (
 	"fmt"
 	"io"
-	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strings"
@@ -216,26 +215,17 @@ func uploadFiles(src, repository, subdir string, config *Config, opts *UploadOpt
 		}
 	}
 
-	pr, pw := io.Pipe()
-	writer := multipart.NewWriter(pw)
+	// Callback to update progress bar description when each file completes
+	onFileComplete := func(idx, total int) {
+		bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, total))
+	}
 
-	// Write multipart form in a goroutine
-	errChan := make(chan error, 1)
-	go func() {
-		defer pw.Close()
-		// Callback to update progress bar description when each file completes
-		onFileComplete := func(idx, total int) {
-			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Uploading files", idx+1, total))
-		}
-		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, nil, onFileComplete)
-		writer.Close()
-		errChan <- err
-	}()
+	// Create upload reader with goroutine encapsulated
+	reader, contentType, errChan := nexusapi.CreateRawUploadReader(files, subdir, bar, nil, onFileComplete)
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	contentType := nexusapi.GetFormDataContentType(writer)
 
-	err = client.UploadComponent(repository, pr, contentType)
+	err = client.UploadComponent(repository, reader, contentType)
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
@@ -293,48 +283,21 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	// Create progress bar using uncompressed size as approximation
 	bar := newProgressBar(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode)
 
-	pr, pw := io.Pipe()
-	writer := multipart.NewWriter(pw)
+	// Wrap part with capping writer and progress bar
+	cappedBar := newCappingWriter(bar, totalBytes)
 
-	// Create archive and upload in a goroutine
-	errChan := make(chan error, 1)
-	go func() {
-		defer pw.Close()
+	// Create archive writer function
+	archiveWriter := func(w io.Writer) error {
+		progressWriter := io.MultiWriter(w, cappedBar)
+		return opts.CompressionFormat.CreateArchiveWithGlob(src, progressWriter, opts.GlobPattern)
+	}
 
-		// Create form file for the archive
-		part, err := writer.CreateFormFile("raw.asset1", archiveName)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		// Wrap part with capping writer and progress bar
-		// Use io.MultiWriter to send bytes to both the form part and progress bar
-		cappedBar := newCappingWriter(bar, totalBytes)
-		progressWriter := io.MultiWriter(part, cappedBar)
-
-		// Create compressed archive with progress tracking
-		if err := opts.CompressionFormat.CreateArchiveWithGlob(src, progressWriter, opts.GlobPattern); err != nil {
-			errChan <- fmt.Errorf("failed to create archive: %w", err)
-			return
-		}
-
-		// Set the filename field - archive goes to subdir if specified
-		if subdir != "" {
-			_ = writer.WriteField("raw.asset1.filename", archiveName)
-			_ = writer.WriteField("raw.directory", subdir)
-		} else {
-			_ = writer.WriteField("raw.asset1.filename", archiveName)
-		}
-
-		writer.Close()
-		errChan <- nil
-	}()
+	// Create upload reader with goroutine encapsulated
+	reader, contentType, errChan := nexusapi.CreateRawArchiveUploadReader(archiveName, subdir, archiveWriter)
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	contentType := nexusapi.GetFormDataContentType(writer)
 
-	err = client.UploadComponent(repository, pr, contentType)
+	err = client.UploadComponent(repository, reader, contentType)
 	if goroutineErr := <-errChan; goroutineErr != nil {
 		return goroutineErr
 	}
