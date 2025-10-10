@@ -266,3 +266,52 @@ func TestBuildRawUploadForm(t *testing.T) {
 		t.Error("Expected form to contain 'content2'")
 	}
 }
+
+// TestBuildAptUploadForm tests building multipart form for APT (Debian) package upload
+func TestBuildAptUploadForm(t *testing.T) {
+	// Create a test .deb file
+	tempDir := t.TempDir()
+	debFilePath := tempDir + "/test-package_1.0.0_amd64.deb"
+
+	// Create test .deb file with some content
+	debContent := []byte("fake deb file content")
+	err := os.WriteFile(debFilePath, debContent, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test deb file: %v", err)
+	}
+
+	// Build form
+	var buf strings.Builder
+	writer := multipart.NewWriter(&buf)
+
+	err = BuildAptUploadForm(writer, debFilePath, nil)
+	if err != nil {
+		t.Fatalf("BuildAptUploadForm failed: %v", err)
+	}
+	writer.Close()
+
+	// Parse the form
+	formData := buf.String()
+
+	// Verify form contains expected fields
+	if !strings.Contains(formData, "apt.asset") {
+		t.Error("Expected form to contain 'apt.asset'")
+	}
+	if !strings.Contains(formData, "test-package_1.0.0_amd64.deb") {
+		t.Error("Expected form to contain the deb filename")
+	}
+	if !strings.Contains(formData, "fake deb file content") {
+		t.Error("Expected form to contain the deb file content")
+	}
+}
+
+// TestBuildAptUploadFormFileNotFound tests error handling when deb file doesn't exist
+func TestBuildAptUploadFormFileNotFound(t *testing.T) {
+	var buf strings.Builder
+	writer := multipart.NewWriter(&buf)
+
+	err := BuildAptUploadForm(writer, "/non/existent/file.deb", nil)
+	if err == nil {
+		t.Fatal("Expected error for non-existent file, got nil")
+	}
+}

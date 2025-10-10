@@ -220,3 +220,30 @@ func BuildRawUploadForm(writer *multipart.Writer, files []FileUpload, subdir str
 
 	return nil
 }
+
+// BuildAptUploadForm builds a multipart form for uploading a .deb file to a Nexus APT repository
+// It writes the form data to the provided writer and returns any error encountered
+// The debFile parameter should contain the path to a single .deb file
+// If progressWriter is provided, progress will be tracked during the upload
+func BuildAptUploadForm(writer *multipart.Writer, debFile string, progressWriter io.Writer) error {
+	f, err := os.Open(debFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	part, err := writer.CreateFormFile("apt.asset", filepath.Base(debFile))
+	if err != nil {
+		return err
+	}
+
+	var reader io.Reader = f
+	if progressWriter != nil {
+		reader = io.TeeReader(f, progressWriter)
+	}
+	if _, err := io.Copy(part, reader); err != nil {
+		return err
+	}
+
+	return nil
+}
