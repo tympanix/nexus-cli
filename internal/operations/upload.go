@@ -19,14 +19,16 @@ func collectFiles(src string) ([]string, error) {
 	return archive.CollectFilesWithGlob(src, "")
 }
 
-func uploadAptPackage(debFile, repository string, config *config.Config, opts *UploadOptions) error {
-	info, err := os.Stat(debFile)
+type formBuilderFunc func(*multipart.Writer, string, io.Writer) error
+
+func uploadPackage(packageFile, repository, packageType string, config *config.Config, opts *UploadOptions, formBuilder formBuilderFunc) error {
+	info, err := os.Stat(packageFile)
 	if err != nil {
 		return err
 	}
 
 	totalBytes := info.Size()
-	bar := progress.NewProgressBar(totalBytes, "Uploading apt package", 0, 1, opts.QuietMode)
+	bar := progress.NewProgressBar(totalBytes, fmt.Sprintf("Uploading %s package", packageType), 0, 1, opts.QuietMode)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -34,7 +36,7 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 	errChan := make(chan error, 1)
 	go func() {
 		defer pw.Close()
-		err := nexusapi.BuildAptUploadForm(writer, debFile, bar)
+		err := formBuilder(writer, packageFile, bar)
 		writer.Close()
 		errChan <- err
 	}()
@@ -53,46 +55,16 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 	if util.IsATTY() && !opts.QuietMode {
 		fmt.Println()
 	}
-	opts.Logger.Printf("Uploaded apt package %s\n", filepath.Base(debFile))
+	opts.Logger.Printf("Uploaded %s package %s\n", packageType, filepath.Base(packageFile))
 	return nil
 }
 
+func uploadAptPackage(debFile, repository string, config *config.Config, opts *UploadOptions) error {
+	return uploadPackage(debFile, repository, "apt", config, opts, nexusapi.BuildAptUploadForm)
+}
+
 func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *UploadOptions) error {
-	info, err := os.Stat(rpmFile)
-	if err != nil {
-		return err
-	}
-
-	totalBytes := info.Size()
-	bar := progress.NewProgressBar(totalBytes, "Uploading yum package", 0, 1, opts.QuietMode)
-
-	pr, pw := io.Pipe()
-	writer := multipart.NewWriter(pw)
-
-	errChan := make(chan error, 1)
-	go func() {
-		defer pw.Close()
-		err := nexusapi.BuildYumUploadForm(writer, rpmFile, bar)
-		writer.Close()
-		errChan <- err
-	}()
-
-	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	contentType := nexusapi.GetFormDataContentType(writer)
-
-	err = client.UploadComponent(repository, pr, contentType)
-	if err != nil {
-		return err
-	}
-	if goroutineErr := <-errChan; goroutineErr != nil {
-		return goroutineErr
-	}
-	bar.Finish()
-	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
-	}
-	opts.Logger.Printf("Uploaded yum package %s\n", filepath.Base(rpmFile))
-	return nil
+	return uploadPackage(rpmFile, repository, "yum", config, opts, nexusapi.BuildYumUploadForm)
 }
 
 func uploadFiles(src, repository, subdir string, config *config.Config, opts *UploadOptions) error {

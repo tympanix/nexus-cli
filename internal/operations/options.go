@@ -23,13 +23,7 @@ type UploadOptions struct {
 // SetChecksumAlgorithm validates and sets the checksum algorithm
 // Returns an error if the algorithm is not supported
 func (opts *UploadOptions) SetChecksumAlgorithm(algorithm string) error {
-	validator, err := checksum.NewValidator(algorithm)
-	if err != nil {
-		return err
-	}
-	opts.ChecksumAlgorithm = validator.Algorithm()
-	opts.checksumValidator = validator
-	return nil
+	return setChecksumAlgorithm(algorithm, &opts.ChecksumAlgorithm, &opts.checksumValidator)
 }
 
 // DownloadOptions holds options for download operations
@@ -51,12 +45,18 @@ type DownloadOptions struct {
 // SetChecksumAlgorithm validates and sets the checksum algorithm
 // Returns an error if the algorithm is not supported
 func (opts *DownloadOptions) SetChecksumAlgorithm(algorithm string) error {
+	return setChecksumAlgorithm(algorithm, &opts.ChecksumAlgorithm, &opts.checksumValidator)
+}
+
+// setChecksumAlgorithm is a shared helper function that validates and sets the checksum algorithm
+// for both UploadOptions and DownloadOptions
+func setChecksumAlgorithm(algorithm string, algorithmField *string, validatorField *checksum.Validator) error {
 	validator, err := checksum.NewValidator(algorithm)
 	if err != nil {
 		return err
 	}
-	opts.ChecksumAlgorithm = validator.Algorithm()
-	opts.checksumValidator = validator
+	*algorithmField = validator.Algorithm()
+	*validatorField = validator
 	return nil
 }
 
