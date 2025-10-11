@@ -599,3 +599,110 @@ func TestCompletionBehavior(t *testing.T) {
 		})
 	}
 }
+
+func TestShellCompletionIntegration(t *testing.T) {
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	server.AddRepository(nexusapi.Repository{Name: "my-repo", Format: "raw", Type: "hosted"})
+	server.AddRepository(nexusapi.Repository{Name: "my-other-repo", Format: "raw", Type: "hosted"})
+
+	asset1 := nexusapi.Asset{
+		DownloadURL: server.URL + "/repository/my-repo/files/test.txt",
+		Path:        "/files/test.txt",
+		ID:          "asset-1",
+		Repository:  "my-repo",
+	}
+	server.AddAssetWithQuery("my-repo", "", asset1)
+	server.AddAssetWithQuery("my-repo", "/files*", asset1)
+
+	cfg := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	tests := []struct {
+		name                    string
+		toComplete              string
+		args                    []string
+		expectedCompletions     []string
+		expectedDirective       cobra.ShellCompDirective
+		expectsNoSpaceDirective bool
+	}{
+		{
+			name:                    "complete repository name",
+			toComplete:              "my",
+			args:                    []string{},
+			expectedCompletions:     []string{"my-repo/", "my-other-repo/"},
+			expectedDirective:       cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp,
+			expectsNoSpaceDirective: true,
+		},
+		{
+			name:                    "complete repository name exact match",
+			toComplete:              "my-repo",
+			args:                    []string{},
+			expectedCompletions:     []string{"my-repo/"},
+			expectedDirective:       cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp,
+			expectsNoSpaceDirective: true,
+		},
+		{
+			name:                    "complete path after slash",
+			toComplete:              "my-repo/",
+			args:                    []string{},
+			expectedCompletions:     []string{"/files/test.txt"},
+			expectedDirective:       cobra.ShellCompDirectiveNoFileComp,
+			expectsNoSpaceDirective: false,
+		},
+		{
+			name:                    "complete path with prefix",
+			toComplete:              "my-repo/files",
+			args:                    []string{},
+			expectedCompletions:     []string{"/files/test.txt"},
+			expectedDirective:       cobra.ShellCompDirectiveNoFileComp,
+			expectsNoSpaceDirective: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, pathPrefix := parseRepoAndPath(tt.toComplete)
+			var completions []string
+			var directive cobra.ShellCompDirective
+
+			if !strings.Contains(tt.toComplete, "/") {
+				completions = getRepositoryCompletions(cfg, repo)
+				for i := range completions {
+					completions[i] = completions[i] + "/"
+				}
+				directive = cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
+			} else {
+				completions = getPathCompletions(cfg, repo, pathPrefix)
+				directive = cobra.ShellCompDirectiveNoFileComp
+			}
+
+			if len(completions) != len(tt.expectedCompletions) {
+				t.Errorf("Expected %d completions, got %d: %v", len(tt.expectedCompletions), len(completions), completions)
+			}
+
+			for i, expected := range tt.expectedCompletions {
+				if i >= len(completions) {
+					break
+				}
+				if completions[i] != expected {
+					t.Errorf("Expected completion '%s', got '%s'", expected, completions[i])
+				}
+			}
+
+			if directive != tt.expectedDirective {
+				t.Errorf("Expected directive %v, got %v", tt.expectedDirective, directive)
+			}
+
+			if tt.expectsNoSpaceDirective {
+				if directive&cobra.ShellCompDirectiveNoSpace == 0 {
+					t.Errorf("Expected ShellCompDirectiveNoSpace to be set, but it wasn't")
+				}
+			}
+		})
+	}
+}
