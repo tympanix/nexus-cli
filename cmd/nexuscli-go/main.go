@@ -4,15 +4,49 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/nexusapi"
 	"github.com/tympanix/nexus-cli/internal/operations"
 	"github.com/tympanix/nexus-cli/internal/util"
 )
 
 var version = "dev"
+
+func getRepositoryCompletions(cfg *config.Config, toComplete string) []string {
+	client := nexusapi.NewClient(cfg.NexusURL, cfg.Username, cfg.Password)
+	repos, err := client.ListRepositories()
+	if err != nil {
+		return nil
+	}
+	var completions []string
+	for _, repo := range repos {
+		if strings.HasPrefix(repo.Name, toComplete) {
+			completions = append(completions, repo.Name)
+		}
+	}
+	return completions
+}
+
+func getPathCompletions(cfg *config.Config, repository, pathPrefix string) []string {
+	client := nexusapi.NewClient(cfg.NexusURL, cfg.Username, cfg.Password)
+	paths, err := client.SearchAssetsForCompletion(repository, pathPrefix)
+	if err != nil {
+		return nil
+	}
+	return paths
+}
+
+func parseRepoAndPath(arg string) (string, string) {
+	parts := strings.SplitN(arg, "/", 2)
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return parts[0], ""
+}
 
 func main() {
 	cfg := config.NewConfig()
@@ -74,6 +108,21 @@ func main() {
 		Short: "Upload a directory to Nexus RAW",
 		Long:  "Upload a directory to Nexus RAW\n\nExit codes:\n  0 - Success\n  1 - General error",
 		Args:  cobra.ExactArgs(2),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return nil, cobra.ShellCompDirectiveDefault | cobra.ShellCompDirectiveFilterDirs
+			}
+			if len(args) == 1 {
+				repo, pathPrefix := parseRepoAndPath(toComplete)
+				if pathPrefix == "" {
+					completions := getRepositoryCompletions(cfg, repo)
+					return completions, cobra.ShellCompDirectiveNoFileComp
+				}
+				completions := getPathCompletions(cfg, repo, pathPrefix)
+				return completions, cobra.ShellCompDirectiveNoFileComp
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if uploadCompressionFormat != "" {
 				format, err := archive.Parse(uploadCompressionFormat)
@@ -107,6 +156,21 @@ func main() {
 		Short: "Download a folder from Nexus RAW",
 		Long:  "Download a folder from Nexus RAW\n\nExit codes:\n  0  - Success\n  1  - General error\n  66 - No files found",
 		Args:  cobra.ExactArgs(2),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				repo, pathPrefix := parseRepoAndPath(toComplete)
+				if pathPrefix == "" {
+					completions := getRepositoryCompletions(cfg, repo)
+					return completions, cobra.ShellCompDirectiveNoFileComp
+				}
+				completions := getPathCompletions(cfg, repo, pathPrefix)
+				return completions, cobra.ShellCompDirectiveNoFileComp
+			}
+			if len(args) == 1 {
+				return nil, cobra.ShellCompDirectiveDefault | cobra.ShellCompDirectiveFilterDirs
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if downloadCompressionFormat != "" {
 				format, err := archive.Parse(downloadCompressionFormat)

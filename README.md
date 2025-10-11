@@ -8,6 +8,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 - Download all files from a Nexus RAW folder recursively
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
+- Shell autocompletion for bash, zsh, fish, and PowerShell with dynamic repository and path suggestions
 - Small container image size using multi-stage build with scratch base
 
 ## Building
@@ -131,6 +132,78 @@ Check the version of the CLI:
 
 ```bash
 nexuscli-go version
+```
+
+### Shell Autocompletion
+
+The CLI provides shell autocompletion support for bash, zsh, fish, and PowerShell. This includes:
+- Repository name completion from your Nexus server
+- Asset path completion for download commands
+- File/directory completion for local paths
+
+#### Setup
+
+Generate and load the autocompletion script for your shell:
+
+**Bash:**
+```bash
+# Generate completion script
+nexuscli-go completion bash > /tmp/nexuscli-go-completion.bash
+
+# Load in current session
+source /tmp/nexuscli-go-completion.bash
+
+# Add to your .bashrc for persistent completion
+echo 'source /tmp/nexuscli-go-completion.bash' >> ~/.bashrc
+```
+
+**Zsh:**
+```bash
+# Generate completion script
+nexuscli-go completion zsh > "${fpath[1]}/_nexuscli-go"
+
+# Reload completions
+autoload -U compinit && compinit
+```
+
+**Fish:**
+```bash
+# Generate and load completion
+nexuscli-go completion fish | source
+
+# Add to your fish config for persistent completion
+nexuscli-go completion fish > ~/.config/fish/completions/nexuscli-go.fish
+```
+
+**PowerShell:**
+```powershell
+# Generate completion script
+nexuscli-go completion powershell | Out-String | Invoke-Expression
+
+# Add to PowerShell profile for persistent completion
+nexuscli-go completion powershell >> $PROFILE
+```
+
+#### Features
+
+- **Repository completion**: When typing repository names, press Tab to see available repositories from your Nexus server
+- **Path completion**: When typing paths within repositories (e.g., `my-repo/path/`), press Tab to see available files and directories
+- **Smart context**: Completion adapts based on which command you're using (upload vs download) and which argument you're completing
+
+#### Example Usage
+
+```bash
+# Complete repository names
+nexuscli-go download my-<TAB>
+# Shows: my-repo, my-other-repo, my-backup-repo
+
+# Complete paths within a repository
+nexuscli-go download my-repo/ar<TAB>
+# Shows: my-repo/artifacts/, my-repo/archives/
+
+# Complete local paths for upload source
+nexuscli-go upload ./<TAB>
+# Shows local directories and files
 ```
 
 ### Authentication
