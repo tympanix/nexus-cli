@@ -5,7 +5,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
 - Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.go,!**/*_test.go`)
-- Download all files from a Nexus RAW folder recursively
+- Download all files from a Nexus RAW folder recursively with optional glob pattern filtering
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
 - Shell autocompletion for bash, zsh, fish, and PowerShell with dynamic repository and path suggestions
@@ -354,7 +354,7 @@ nexuscli-go upload --key-from go.sum ./vendor my-repo/go-deps/{key}/vendor
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder> <directory>
+nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--glob <pattern>] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder> <directory>
 ```
 
 #### Download options
@@ -362,6 +362,7 @@ nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--fl
 - `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
 - `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
+- `--glob <pattern>` or `-g <pattern>` - Glob pattern(s) to filter files (supports multiple patterns and negation)
 - `--delete` - Remove local files from the destination folder that are not present in Nexus
 - `--compress` or `-z` - Download and extract a compressed archive
 - `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
@@ -375,6 +376,47 @@ By default, when downloading from `repository/path/to/folder`, the entire path s
 With the `--flatten` flag enabled, the base path specified in the source argument is stripped:
 - File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/file.txt` locally
 - File at `/path/to/folder/subdir/file.txt` in Nexus → saved to `<dest>/subdir/file.txt` locally (subdirectories beyond the base path are preserved)
+
+#### About the `--glob` flag
+
+The `--glob` flag allows you to filter which files are downloaded using glob patterns, similar to the upload command. This is useful when you only want to download specific file types or exclude certain files. The pattern is matched against file paths relative to the source path in Nexus.
+
+##### Multiple patterns and negation
+
+You can combine multiple patterns using commas, and exclude files using the `!` prefix:
+- Multiple patterns: `--glob "**/*.go,**/*.md"` - downloads only .go and .md files
+- Negation: `--glob "**/*,!**/*_test.go"` - downloads all files except test files
+- Complex: `--glob "**/*.go,**/*.md,!**/*_test.go,!vendor/**"` - downloads .go and .md files, excluding tests and vendor directory
+
+##### Supported glob patterns
+
+- `*` - matches any sequence of characters (excluding `/`)
+- `**` - matches any sequence of characters (including `/`)
+- `?` - matches any single character
+- `[abc]` - matches any character in the set
+- `{go,md}` - matches any of the comma-separated alternatives
+
+##### Examples
+
+```bash
+# Download only .txt files
+nexuscli-go download --glob "**/*.txt" my-repo/files ./local-folder
+
+# Download all .go files
+nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
+
+# Download .go and .md files
+nexuscli-go download --glob "**/*.go,**/*.md" my-repo/src ./local-folder
+
+# Download all files except test files
+nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
+
+# Download all files except those in specific directories
+nexuscli-go download --glob "**/*,!vendor/**,!node_modules/**" my-repo/project ./local-folder
+
+# Combine with flatten to download filtered files without base path
+nexuscli-go download --flatten --glob "**/*.go" my-repo/src ./local-folder
+```
 
 #### About the `--compress` flag
 
@@ -438,6 +480,21 @@ nexuscli-go download --delete my-repo/path ./local-folder
 
 # Can be combined with other flags
 nexuscli-go download --flatten --delete my-repo/path ./local-folder
+```
+
+Download with glob pattern filtering:
+```bash
+# Download only .go files
+nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
+
+# Download .go and .md files
+nexuscli-go download --glob "**/*.go,**/*.md" my-repo/docs ./local-folder
+
+# Download all files except test files
+nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
+
+# Combine glob with flatten
+nexuscli-go download --flatten --glob "**/*.go" my-repo/src ./local-folder
 ```
 
 Upload and download with compression:

@@ -43,6 +43,7 @@ type DownloadOptions struct {
 	DeleteExtra       bool
 	Compress          bool           // Enable decompression (tar.gz, tar.zst, or zip)
 	CompressionFormat archive.Format // Compression format to use (gzip, zstd, or zip)
+	GlobPattern       string         // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 	KeyFromFile       string         // Path to file to compute hash from for {key} template
 	checksumValidator checksum.Validator
 }

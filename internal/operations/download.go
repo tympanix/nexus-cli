@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
@@ -18,6 +19,82 @@ import (
 func listAssets(repository, src string, config *config.Config) ([]nexusapi.Asset, error) {
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	return client.ListAssets(repository, src)
+}
+
+func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern string) ([]nexusapi.Asset, error) {
+	if globPattern == "" {
+		return assets, nil
+	}
+
+	// Parse glob patterns - split by comma and separate positive from negative patterns
+	var positivePatterns []string
+	var negativePatterns []string
+
+	patterns := strings.Split(globPattern, ",")
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+		if strings.HasPrefix(pattern, "!") {
+			negativePatterns = append(negativePatterns, strings.TrimPrefix(pattern, "!"))
+		} else {
+			positivePatterns = append(positivePatterns, pattern)
+		}
+	}
+
+	var filteredAssets []nexusapi.Asset
+	for _, asset := range assets {
+		path := strings.TrimLeft(asset.Path, "/")
+
+		// Strip the base path from the asset path for matching
+		if basePath != "" {
+			normalizedBasePath := strings.TrimLeft(basePath, "/")
+			if strings.HasPrefix(path, normalizedBasePath+"/") {
+				path = strings.TrimPrefix(path, normalizedBasePath+"/")
+			}
+		}
+
+		// Normalize to forward slashes for consistent matching
+		path = filepath.ToSlash(path)
+
+		// Check positive patterns first (at least one must match if any exist)
+		matchesPositive := len(positivePatterns) == 0
+		for _, pattern := range positivePatterns {
+			matched, err := doublestar.Match(pattern, path)
+			if err != nil {
+				return nil, fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
+			}
+			if matched {
+				matchesPositive = true
+				break
+			}
+		}
+
+		// If no positive match, skip this asset
+		if !matchesPositive {
+			continue
+		}
+
+		// Check negative patterns (none should match)
+		shouldExclude := false
+		for _, pattern := range negativePatterns {
+			matched, err := doublestar.Match(pattern, path)
+			if err != nil {
+				return nil, fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
+			}
+			if matched {
+				shouldExclude = true
+				break
+			}
+		}
+
+		if !shouldExclude {
+			filteredAssets = append(filteredAssets, asset)
+		}
+	}
+
+	return filteredAssets, nil
 }
 
 func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, skipCh chan bool, config *config.Config, opts *DownloadOptions) {
@@ -43,25 +120,25 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	shouldSkip := false
 	skipReason := ""
 
-  if !opts.Force {
-    if _, err := os.Stat(localPath); err == nil {
-      if opts.SkipChecksum {
-        // When checksum validation is skipped, only check if file exists and add to progress
-        shouldSkip = true
-        skipReason = "Skipped (file exists): %s\n"
-        if bar != nil {
-          bar.Add64(asset.FileSize)
-        }
-      } else if opts.checksumValidator != nil {
-        // Use the new checksum.Validator for validation with progress tracking
-        valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, bar)
-        if err == nil && valid {
-          shouldSkip = true
-          skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
-        }
-      }
-    }
-  }
+	if !opts.Force {
+		if _, err := os.Stat(localPath); err == nil {
+			if opts.SkipChecksum {
+				// When checksum validation is skipped, only check if file exists and add to progress
+				shouldSkip = true
+				skipReason = "Skipped (file exists): %s\n"
+				if bar != nil {
+					bar.Add64(asset.FileSize)
+				}
+			} else if opts.checksumValidator != nil {
+				// Use the new checksum.Validator for validation with progress tracking
+				valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, bar)
+				if err == nil && valid {
+					shouldSkip = true
+					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
+				}
+			}
+		}
+	}
 
 	if shouldSkip {
 		opts.Logger.VerbosePrintf(skipReason, localPath)
@@ -128,6 +205,16 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		opts.Logger.Println("Error listing assets:", err)
 		return DownloadError
 	}
+
+	// Apply glob filtering if specified
+	if opts.GlobPattern != "" {
+		assets, err = filterAssetsByGlob(assets, src, opts.GlobPattern)
+		if err != nil {
+			opts.Logger.Println("Error filtering assets:", err)
+			return DownloadError
+		}
+	}
+
 	if len(assets) == 0 {
 		opts.Logger.Printf("No assets found in folder '%s' in repository '%s'\n", src, repository)
 		return DownloadNoAssetsFound

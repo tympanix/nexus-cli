@@ -1140,3 +1140,187 @@ func TestDownloadWithForce(t *testing.T) {
 		t.Errorf("Expected content '%s', got '%s'. File should have been overwritten due to Force flag", testContent, string(content))
 	}
 }
+
+// TestDownloadWithGlobPattern tests downloading files with glob pattern filtering
+func TestDownloadWithGlobPattern(t *testing.T) {
+	testContent := "test content"
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Add multiple files with different extensions
+	files := map[string]string{
+		"/test-folder/file1.go":         testContent,
+		"/test-folder/file2.md":         testContent,
+		"/test-folder/file3.txt":        testContent,
+		"/test-folder/subdir/file4.go":  testContent,
+		"/test-folder/subdir/file5.txt": testContent,
+	}
+
+	for path := range files {
+		downloadURL := server.URL + "/repository/test-repo" + path
+		server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+			DownloadURL: downloadURL,
+			Path:        path,
+			ID:          "test-id-" + path,
+			Repository:  "test-repo",
+			FileSize:    int64(len(testContent)),
+			Checksum: nexusapi.Checksum{
+				SHA1: "abc123",
+			},
+		})
+		server.SetAssetContent("/repository/test-repo"+path, []byte(testContent))
+	}
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	tests := []struct {
+		name            string
+		globPattern     string
+		expectedFiles   []string
+		unexpectedFiles []string
+	}{
+		{
+			name:        "download only .go files",
+			globPattern: "**/*.go",
+			expectedFiles: []string{
+				"test-folder/file1.go",
+				"test-folder/subdir/file4.go",
+			},
+			unexpectedFiles: []string{
+				"test-folder/file2.md",
+				"test-folder/file3.txt",
+				"test-folder/subdir/file5.txt",
+			},
+		},
+		{
+			name:        "download .go and .md files",
+			globPattern: "**/*.go,**/*.md",
+			expectedFiles: []string{
+				"test-folder/file1.go",
+				"test-folder/file2.md",
+				"test-folder/subdir/file4.go",
+			},
+			unexpectedFiles: []string{
+				"test-folder/file3.txt",
+				"test-folder/subdir/file5.txt",
+			},
+		},
+		{
+			name:        "download all files except .txt",
+			globPattern: "**/*,!**/*.txt",
+			expectedFiles: []string{
+				"test-folder/file1.go",
+				"test-folder/file2.md",
+				"test-folder/subdir/file4.go",
+			},
+			unexpectedFiles: []string{
+				"test-folder/file3.txt",
+				"test-folder/subdir/file5.txt",
+			},
+		},
+		{
+			name:        "download only from root directory (not subdir)",
+			globPattern: "*.go,*.md,*.txt",
+			expectedFiles: []string{
+				"test-folder/file1.go",
+				"test-folder/file2.md",
+				"test-folder/file3.txt",
+			},
+			unexpectedFiles: []string{
+				"test-folder/subdir/file4.go",
+				"test-folder/subdir/file5.txt",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			destDir, err := os.MkdirTemp("", "test-download-glob-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp directory: %v", err)
+			}
+			defer os.RemoveAll(destDir)
+
+			opts := &DownloadOptions{
+				ChecksumAlgorithm: "sha1",
+				SkipChecksum:      false,
+				Logger:            util.NewLogger(io.Discard),
+				QuietMode:         true,
+				GlobPattern:       tt.globPattern,
+			}
+
+			status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+			if status != DownloadSuccess {
+				t.Fatalf("Download failed with status %d", status)
+			}
+
+			// Verify expected files were downloaded
+			for _, expectedFile := range tt.expectedFiles {
+				filePath := filepath.Join(destDir, expectedFile)
+				if _, err := os.Stat(filePath); os.IsNotExist(err) {
+					t.Errorf("Expected file %s was not downloaded", expectedFile)
+				}
+			}
+
+			// Verify unexpected files were NOT downloaded
+			for _, unexpectedFile := range tt.unexpectedFiles {
+				filePath := filepath.Join(destDir, unexpectedFile)
+				if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+					t.Errorf("File %s should not have been downloaded", unexpectedFile)
+				}
+			}
+		})
+	}
+}
+
+// TestDownloadWithGlobPatternNoMatch tests downloading with glob pattern that matches no files
+func TestDownloadWithGlobPatternNoMatch(t *testing.T) {
+	testContent := "test content"
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Add a file with .txt extension
+	downloadURL := server.URL + "/repository/test-repo/test-folder/file.txt"
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        "/test-folder/file.txt",
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo/test-folder/file.txt", []byte(testContent))
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-glob-nomatch-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		GlobPattern:       "**/*.go", // Pattern that won't match any files
+	}
+
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadNoAssetsFound {
+		t.Errorf("Expected DownloadNoAssetsFound status (66), got %d", status)
+	}
+}
