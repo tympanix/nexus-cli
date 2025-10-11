@@ -354,6 +354,56 @@ Expire-Date: 0
 	return string(privateKeyBytes), nil
 }
 
+// createYumRepository creates a YUM repository in Nexus
+func createYumRepository(config *config.Config, repoName string) error {
+	// Wait a bit to ensure Nexus is fully initialized
+	time.Sleep(5 * time.Second)
+
+	// Create repository configuration for YUM hosted repository
+	repoConfig := map[string]interface{}{
+		"name":   repoName,
+		"online": true,
+		"storage": map[string]interface{}{
+			"blobStoreName":               "default",
+			"strictContentTypeValidation": true,
+			"writePolicy":                 "ALLOW",
+		},
+		"yum": map[string]interface{}{
+			"repodataDepth": 0,
+			"deployPolicy":  "STRICT",
+		},
+	}
+
+	jsonData, err := json.Marshal(repoConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal repository config: %w", err)
+	}
+
+	// Create the repository via API
+	req, err := http.NewRequest("POST", config.NexusURL+"/service/rest/v1/repositories/yum/hosted", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.SetBasicAuth(config.Username, config.Password)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create repository: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("Created YUM repository: %s\n", repoName)
+	return nil
+}
+
 // createAptRepository creates an APT repository in Nexus
 func createAptRepository(config *config.Config, repoName string) error {
 	// Wait a bit to ensure Nexus is fully initialized
@@ -788,6 +838,113 @@ Description: Test package for nexus-cli e2e testing
 	return nil
 }
 
+// createRpmPackage creates a simple .rpm package for testing
+func createRpmPackage(outputPath, packageName, version, release, arch string) error {
+	// Create temporary directory for RPM build
+	tmpDir, err := os.MkdirTemp("", "rpm-build-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create RPM build directory structure
+	buildRoot := filepath.Join(tmpDir, "BUILD")
+	specsDir := filepath.Join(tmpDir, "SPECS")
+	rpmsDir := filepath.Join(tmpDir, "RPMS")
+
+	for _, dir := range []string{buildRoot, specsDir, rpmsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	// Create some dummy content in the build root
+	contentDir := filepath.Join(buildRoot, "usr", "share", "doc", packageName)
+	if err := os.MkdirAll(contentDir, 0755); err != nil {
+		return fmt.Errorf("failed to create content dir: %w", err)
+	}
+
+	readmeContent := fmt.Sprintf("This is a test package: %s version %s-%s\n", packageName, version, release)
+	readmeFile := filepath.Join(contentDir, "README")
+	if err := os.WriteFile(readmeFile, []byte(readmeContent), 0644); err != nil {
+		return fmt.Errorf("failed to create README: %w", err)
+	}
+
+	// Create spec file
+	// Get current date for changelog
+	now := time.Now()
+	dateStr := now.Format("Mon Jan 02 2006")
+
+	specContent := fmt.Sprintf(`Name: %s
+Version: %s
+Release: %s
+Summary: Test package for nexus-cli e2e testing
+License: MIT
+BuildArch: %s
+
+%%description
+This is a simple test package created for e2e testing purposes.
+
+%%install
+mkdir -p %%{buildroot}/usr/share/doc/%s
+cp %%{_builddir}/usr/share/doc/%s/README %%{buildroot}/usr/share/doc/%s/
+
+%%files
+/usr/share/doc/%s/README
+
+%%changelog
+* %s Test User <test@example.com> - %s-%s
+- Initial test package
+`, packageName, version, release, arch, packageName, packageName, packageName, packageName, dateStr, version, release)
+
+	specFile := filepath.Join(specsDir, packageName+".spec")
+	if err := os.WriteFile(specFile, []byte(specContent), 0644); err != nil {
+		return fmt.Errorf("failed to create spec file: %w", err)
+	}
+
+	// Build the RPM package using rpmbuild
+	cmd := exec.Command("rpmbuild",
+		"--define", "_topdir "+tmpDir,
+		"--define", "_builddir "+buildRoot,
+		"-bb", specFile)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to build rpm package: %w, output: %s", err, string(output))
+	}
+
+	// Find the generated RPM file
+	rpmPattern := filepath.Join(rpmsDir, arch, fmt.Sprintf("%s-%s-%s.%s.rpm", packageName, version, release, arch))
+	matches, err := filepath.Glob(rpmPattern)
+	if err != nil {
+		return fmt.Errorf("failed to search for rpm file: %w", err)
+	}
+
+	if len(matches) == 0 {
+		return fmt.Errorf("no rpm file found at %s", rpmPattern)
+	}
+
+	// Copy the RPM to the output path
+	sourceRpm := matches[0]
+	sourceFile, err := os.Open(sourceRpm)
+	if err != nil {
+		return fmt.Errorf("failed to open source rpm: %w", err)
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, sourceFile); err != nil {
+		return fmt.Errorf("failed to copy rpm file: %w", err)
+	}
+
+	return nil
+}
+
 // TestEndToEndAptPackageUpload tests the complete workflow of uploading a .deb file to an APT repository using a real Nexus instance
 func TestEndToEndAptPackageUpload(t *testing.T) {
 	// Skip if running in short mode
@@ -904,4 +1061,121 @@ func TestEndToEndAptPackageUpload(t *testing.T) {
 	}
 
 	t.Log("Successfully uploaded and verified .deb package to APT repository")
+}
+
+// TestEndToEndYumPackageUpload tests the complete workflow of uploading a .rpm file to a YUM repository using a real Nexus instance
+func TestEndToEndYumPackageUpload(t *testing.T) {
+	// Skip if running in short mode
+	if testing.Short() {
+		t.Skip("Skipping end-to-end test in short mode")
+	}
+
+	// Check if Docker is available
+	if !isDockerAvailable() {
+		t.Skip("Docker is not available, skipping end-to-end test")
+	}
+
+	// Use shared Nexus instance
+	config := e2eConfig
+
+	// Create a YUM repository
+	repoName := "test-yum-repo"
+	if err := createYumRepository(config, repoName); err != nil {
+		t.Fatalf("Failed to create YUM repository: %v", err)
+	}
+
+	// Create test directory
+	testDir, err := os.MkdirTemp("", "test-yum-upload-*")
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	// Create a real .rpm package
+	rpmFile := filepath.Join(testDir, "test-package-1.0.0-1.x86_64.rpm")
+	err = createRpmPackage(rpmFile, "test-package", "1.0.0", "1", "x86_64")
+	if err != nil {
+		t.Fatalf("Failed to create rpm package: %v", err)
+	}
+
+	// Verify the .rpm file was created
+	if _, err := os.Stat(rpmFile); os.IsNotExist(err) {
+		t.Fatalf("RPM file was not created: %s", rpmFile)
+	}
+
+	// Upload the .rpm package using the CLI
+	uploadOpts := &UploadOptions{
+		Logger:    util.NewLogger(os.Stdout),
+		QuietMode: false,
+	}
+
+	err = uploadYumPackage(rpmFile, repoName, config, uploadOpts)
+	if err != nil {
+		t.Fatalf("Upload failed: %v", err)
+	}
+
+	// Give Nexus a moment to process the upload
+	time.Sleep(2 * time.Second)
+
+	// Verify the package was uploaded by querying Nexus API
+	baseURL, err := url.Parse(config.NexusURL)
+	if err != nil {
+		t.Fatalf("Invalid Nexus URL: %v", err)
+	}
+	baseURL.Path = "/service/rest/v1/search/assets"
+	query := baseURL.Query()
+	query.Set("repository", repoName)
+	query.Set("name", "test-package")
+	baseURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(config.Username, config.Password)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to query assets: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to query assets: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Decode the response
+	var searchResp struct {
+		Items []struct {
+			Path       string `json:"path"`
+			Repository string `json:"repository"`
+			Format     string `json:"format"`
+		} `json:"items"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Verify that the package was found
+	if len(searchResp.Items) == 0 {
+		t.Fatal("Uploaded package not found in repository")
+	}
+
+	found := false
+	for _, item := range searchResp.Items {
+		if item.Repository == repoName && item.Format == "yum" {
+			found = true
+			t.Logf("Found uploaded package: %s in repository %s", item.Path, item.Repository)
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("Expected to find package in YUM repository %s, but it was not found", repoName)
+	}
+
+	t.Log("Successfully uploaded and verified .rpm package to YUM repository")
 }
