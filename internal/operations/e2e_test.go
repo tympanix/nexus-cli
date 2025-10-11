@@ -1,14 +1,13 @@
 package operations
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/tympanix/nexus-cli/internal/archive"
-	"github.com/tympanix/nexus-cli/internal/config"
-	"github.com/tympanix/nexus-cli/internal/util"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,6 +17,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/blakesmith/ar"
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/util"
 )
 
 var (
@@ -778,14 +782,182 @@ Description: Test package for nexus-cli e2e testing
 		return fmt.Errorf("failed to create README: %w", err)
 	}
 
-	// Build the .deb package using dpkg-deb
-	cmd := exec.Command("dpkg-deb", "--build", tmpDir, outputPath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to build deb package: %w, output: %s", err, string(output))
+	// Build the .deb package using native Go implementation
+	if err := buildDebPackage(tmpDir, outputPath); err != nil {
+		return fmt.Errorf("failed to build deb package: %w", err)
 	}
 
 	return nil
+}
+
+// buildDebPackage creates a .deb package from a directory structure using native Go
+func buildDebPackage(sourceDir, outputPath string) error {
+	// Create the output file
+	debFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer debFile.Close()
+
+	// Create ar archive writer
+	arWriter := ar.NewWriter(debFile)
+
+	// 1. Add debian-binary file
+	debianBinary := []byte("2.0\n")
+	if err := arWriter.WriteGlobalHeader(); err != nil {
+		return fmt.Errorf("failed to write ar global header: %w", err)
+	}
+	hdr := &ar.Header{
+		Name:    "debian-binary",
+		Size:    int64(len(debianBinary)),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := arWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write debian-binary header: %w", err)
+	}
+	if _, err := arWriter.Write(debianBinary); err != nil {
+		return fmt.Errorf("failed to write debian-binary content: %w", err)
+	}
+
+	// 2. Create and add control.tar.gz
+	controlTarGz := new(bytes.Buffer)
+	if err := createControlTarGz(filepath.Join(sourceDir, "DEBIAN"), controlTarGz); err != nil {
+		return fmt.Errorf("failed to create control.tar.gz: %w", err)
+	}
+	hdr = &ar.Header{
+		Name:    "control.tar.gz",
+		Size:    int64(controlTarGz.Len()),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := arWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write control.tar.gz header: %w", err)
+	}
+	if _, err := arWriter.Write(controlTarGz.Bytes()); err != nil {
+		return fmt.Errorf("failed to write control.tar.gz content: %w", err)
+	}
+
+	// 3. Create and add data.tar.gz
+	dataTarGz := new(bytes.Buffer)
+	if err := createDataTarGz(sourceDir, dataTarGz); err != nil {
+		return fmt.Errorf("failed to create data.tar.gz: %w", err)
+	}
+	hdr = &ar.Header{
+		Name:    "data.tar.gz",
+		Size:    int64(dataTarGz.Len()),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := arWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write data.tar.gz header: %w", err)
+	}
+	if _, err := arWriter.Write(dataTarGz.Bytes()); err != nil {
+		return fmt.Errorf("failed to write data.tar.gz content: %w", err)
+	}
+
+	return nil
+}
+
+// createControlTarGz creates a tar.gz archive containing the DEBIAN control files
+func createControlTarGz(debianDir string, writer io.Writer) error {
+	gzWriter := gzip.NewWriter(writer)
+	defer gzWriter.Close()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	return filepath.Walk(debianDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(debianDir, path)
+		if err != nil {
+			return err
+		}
+
+		header := &tar.Header{
+			Name:    "./" + relPath,
+			Size:    info.Size(),
+			Mode:    int64(info.Mode()),
+			ModTime: info.ModTime(),
+		}
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tarWriter, file)
+		return err
+	})
+}
+
+// createDataTarGz creates a tar.gz archive containing the package data files
+func createDataTarGz(sourceDir string, writer io.Writer) error {
+	gzWriter := gzip.NewWriter(writer)
+	defer gzWriter.Close()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the DEBIAN directory
+		if strings.HasPrefix(relPath, "DEBIAN") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = "./" + relPath
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			_, err = io.Copy(tarWriter, file)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 // TestEndToEndAptPackageUpload tests the complete workflow of uploading a .deb file to an APT repository using a real Nexus instance
