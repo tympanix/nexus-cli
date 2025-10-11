@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
@@ -22,32 +21,9 @@ func listAssets(repository, src string, config *config.Config) ([]nexusapi.Asset
 }
 
 func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern string) ([]nexusapi.Asset, error) {
-	if globPattern == "" {
-		return assets, nil
-	}
-
-	// Parse glob patterns - split by comma and separate positive from negative patterns
-	var positivePatterns []string
-	var negativePatterns []string
-
-	patterns := strings.Split(globPattern, ",")
-	for _, pattern := range patterns {
-		pattern = strings.TrimSpace(pattern)
-		if pattern == "" {
-			continue
-		}
-		if strings.HasPrefix(pattern, "!") {
-			negativePatterns = append(negativePatterns, strings.TrimPrefix(pattern, "!"))
-		} else {
-			positivePatterns = append(positivePatterns, pattern)
-		}
-	}
-
-	var filteredAssets []nexusapi.Asset
-	for _, asset := range assets {
+	return util.FilterWithGlob(assets, globPattern, func(asset nexusapi.Asset) string {
 		path := strings.TrimLeft(asset.Path, "/")
 
-		// Strip the base path from the asset path for matching
 		if basePath != "" {
 			normalizedBasePath := strings.TrimLeft(basePath, "/")
 			if strings.HasPrefix(path, normalizedBasePath+"/") {
@@ -55,46 +31,8 @@ func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern st
 			}
 		}
 
-		// Normalize to forward slashes for consistent matching
-		path = filepath.ToSlash(path)
-
-		// Check positive patterns first (at least one must match if any exist)
-		matchesPositive := len(positivePatterns) == 0
-		for _, pattern := range positivePatterns {
-			matched, err := doublestar.Match(pattern, path)
-			if err != nil {
-				return nil, fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
-			}
-			if matched {
-				matchesPositive = true
-				break
-			}
-		}
-
-		// If no positive match, skip this asset
-		if !matchesPositive {
-			continue
-		}
-
-		// Check negative patterns (none should match)
-		shouldExclude := false
-		for _, pattern := range negativePatterns {
-			matched, err := doublestar.Match(pattern, path)
-			if err != nil {
-				return nil, fmt.Errorf("invalid glob pattern '%s': %w", pattern, err)
-			}
-			if matched {
-				shouldExclude = true
-				break
-			}
-		}
-
-		if !shouldExclude {
-			filteredAssets = append(filteredAssets, asset)
-		}
-	}
-
-	return filteredAssets, nil
+		return path
+	})
 }
 
 func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, skipCh chan bool, config *config.Config, opts *DownloadOptions) {
