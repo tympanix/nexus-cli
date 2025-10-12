@@ -59,7 +59,7 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 	}
 	bar.Finish()
 	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
+		opts.Logger.Println("")
 	}
 	opts.Logger.Printf("Uploaded apt package %s\n", filepath.Base(debFile))
 	return nil
@@ -105,7 +105,7 @@ func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *U
 	}
 	bar.Finish()
 	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
+		opts.Logger.Println("")
 	}
 	opts.Logger.Printf("Uploaded yum package %s\n", filepath.Base(rpmFile))
 	return nil
@@ -215,7 +215,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	if len(filesToUpload) == 0 {
 		bar.Finish()
 		if util.IsATTY() && !opts.QuietMode {
-			fmt.Println()
+			opts.Logger.Println("")
 		}
 		opts.Logger.Printf("All %d files already exist with matching checksums\n", len(filePaths))
 		return nil
@@ -225,7 +225,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	if opts.DryRun {
 		bar.Finish()
 		if util.IsATTY() && !opts.QuietMode {
-			fmt.Println()
+			opts.Logger.Println("")
 		}
 		opts.Logger.Println("Dry-run mode: The following files would be uploaded:")
 		for _, filePath := range filesToUpload {
@@ -282,7 +282,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	}
 	bar.Finish()
 	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
+		opts.Logger.Println("")
 	}
 	if skippedCount > 0 {
 		opts.Logger.Printf("Uploaded %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
@@ -391,7 +391,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	}
 	bar.Finish()
 	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
+		opts.Logger.Println("")
 	}
 	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil

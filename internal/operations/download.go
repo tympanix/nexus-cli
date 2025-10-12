@@ -351,7 +351,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 
 	bar.Finish()
 	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
+		opts.Logger.Println("")
 	}
 	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
 		archiveName, src, repository, destDir)
