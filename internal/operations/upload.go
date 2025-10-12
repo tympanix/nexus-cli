@@ -27,7 +27,7 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 
 	totalBytes := info.Size()
 	showProgress := util.IsATTY() && !opts.QuietMode
-	bar := progress.NewProgressBar(totalBytes, "Uploading apt package", 0, 1, showProgress)
+	bar := progress.NewProgressBarWithCount(totalBytes, "Uploading apt package", 1, showProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -63,7 +63,7 @@ func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *U
 
 	totalBytes := info.Size()
 	showProgress := util.IsATTY() && !opts.QuietMode
-	bar := progress.NewProgressBar(totalBytes, "Uploading yum package", 0, 1, showProgress)
+	bar := progress.NewProgressBarWithCount(totalBytes, "Uploading yum package", 1, showProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -148,8 +148,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 	// Create a single progress bar for all operations
 	showProgress := util.IsATTY() && !opts.QuietMode
-	bar := progress.NewProgressBar(totalBytes, "Processing files", 0, len(filePaths), showProgress)
-	currentFile := 0
+	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(filePaths), showProgress)
 
 	for _, filePath := range filePaths {
 		relPath, _ := filepath.Rel(src, filePath)
@@ -184,8 +183,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		if shouldSkip {
 			opts.Logger.VerbosePrintf(skipReason, filePath)
 			skippedCount++
-			currentFile++
-			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Processing files", currentFile, len(filePaths)))
+			bar.IncrementFile()
 		} else {
 			filesToUpload = append(filesToUpload, filePath)
 			filesToUploadSizes = append(filesToUploadSizes, info.Size())
@@ -215,14 +213,11 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 	// Write multipart form in a goroutine
 	errChan := make(chan error, 1)
-	// Capture currentFile for use in goroutine
-	fileCounter := currentFile
 	go func() {
 		defer pw.Close()
 		// Callback to update progress bar description when each file completes
 		onFileComplete := func(idx, total int) {
-			fileCounter++
-			bar.Describe(fmt.Sprintf("[cyan][%d/%d][reset] Processing files", fileCounter, len(filePaths)))
+			bar.IncrementFile()
 		}
 		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, nil, onFileComplete)
 		writer.Close()
@@ -285,7 +280,7 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 
 	// Create progress bar using uncompressed size as approximation
 	showProgress := util.IsATTY() && !opts.QuietMode
-	bar := progress.NewProgressBar(totalBytes, "Uploading compressed archive", 0, 1, showProgress)
+	bar := progress.NewProgressBarWithCount(totalBytes, "Uploading compressed archive", 1, showProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
