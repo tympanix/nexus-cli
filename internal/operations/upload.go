@@ -167,7 +167,8 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	}
 
 	// Create a single progress bar for all operations
-	bar := progress.NewProgressBar(totalBytes, "Processing files", 0, len(filePaths), opts.QuietMode)
+	// In dry-run mode, suppress the progress bar to avoid interleaving with output
+	bar := progress.NewProgressBar(totalBytes, "Processing files", 0, len(filePaths), opts.QuietMode || opts.DryRun)
 	currentFile := 0
 
 	for _, filePath := range filePaths {
@@ -224,9 +225,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	// If dry-run is enabled, just report what would be uploaded
 	if opts.DryRun {
 		bar.Finish()
-		if util.IsATTY() && !opts.QuietMode {
-			opts.Logger.Println("")
-		}
+		// No need for blank line since progress bar was suppressed in dry-run mode
 		opts.Logger.Println("Dry-run mode: The following files would be uploaded:")
 		for _, filePath := range filesToUpload {
 			relPath, _ := filepath.Rel(src, filePath)

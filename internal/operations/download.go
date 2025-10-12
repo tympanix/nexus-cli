@@ -194,7 +194,7 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		totalBytes += asset.FileSize
 	}
 
-	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(assets), opts.QuietMode)
+	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(assets), opts.QuietMode || opts.DryRun)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
