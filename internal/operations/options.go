@@ -13,6 +13,7 @@ type UploadOptions struct {
 	Force             bool
 	Logger            util.Logger
 	QuietMode         bool
+	DryRun            bool           // Perform a dry-run without actual upload
 	Compress          bool           // Enable compression (tar.gz, tar.zst, or zip)
 	CompressionFormat archive.Format // Compression format to use (gzip, zstd, or zip)
 	GlobPattern       string         // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
@@ -39,6 +40,7 @@ type DownloadOptions struct {
 	Force             bool
 	Logger            util.Logger
 	QuietMode         bool
+	DryRun            bool // Perform a dry-run without actual download
 	Flatten           bool
 	DeleteExtra       bool
 	Compress          bool           // Enable decompression (tar.gz, tar.zst, or zip)

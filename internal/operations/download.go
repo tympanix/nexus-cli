@@ -52,7 +52,6 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	}
 
 	localPath := filepath.Join(destDir, path)
-	os.MkdirAll(filepath.Dir(localPath), 0755)
 
 	// Check if file exists and validate checksum or skip based on file existence (skip this check if Force is enabled)
 	shouldSkip := false
@@ -90,6 +89,19 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 		}
 		return
 	}
+
+	// If dry-run is enabled, just log what would be downloaded (without creating directories)
+	if opts.DryRun {
+		opts.Logger.VerbosePrintf("Would download: %s\n", localPath)
+		if bar != nil {
+			bar.Add64(asset.FileSize)
+			bar.IncrementFile()
+		}
+		return
+	}
+
+	// Create directory structure for actual download
+	os.MkdirAll(filepath.Dir(localPath), 0755)
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	f, err := os.Create(localPath)
@@ -208,18 +220,31 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 	nDownloaded := len(assets) - nErrors - nSkipped
 	bar.Finish()
 
-	// Delete extra files if requested
+	// Delete extra files if requested (but not in dry-run mode)
 	var nDeleted int
-	if opts.DeleteExtra {
+	if opts.DeleteExtra && !opts.DryRun {
 		nDeleted = deleteExtraFiles(destDir, remoteAssetPaths, opts)
+	} else if opts.DeleteExtra && opts.DryRun {
+		opts.Logger.Println("Dry-run mode: --delete flag ignored (no files would be deleted)")
 	}
 
-	if nDeleted > 0 {
-		opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n",
-			nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
+	// Adjust message for dry-run mode
+	if opts.DryRun {
+		if nDeleted > 0 {
+			opts.Logger.Printf("Dry-run mode: Would download %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n",
+				nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
+		} else {
+			opts.Logger.Printf("Dry-run mode: Would download %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
+				nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
+		}
 	} else {
-		opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
-			nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
+		if nDeleted > 0 {
+			opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n",
+				nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
+		} else {
+			opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
+				nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
+		}
 	}
 	if nErrors == 0 {
 		return DownloadSuccess
@@ -281,6 +306,13 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 			return DownloadNoAssetsFound
 		}
 		return DownloadError
+	}
+
+	// If dry-run is enabled, just report what would be downloaded
+	if opts.DryRun {
+		opts.Logger.Printf("Dry-run mode: Would download and extract archive '%s' from '%s' in repository '%s' to '%s'\n",
+			archiveName, src, repository, destDir)
+		return DownloadSuccess
 	}
 
 	bar := progress.NewProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
