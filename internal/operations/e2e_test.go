@@ -1,17 +1,13 @@
 package operations
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/tympanix/nexus-cli/internal/archive"
-	"github.com/tympanix/nexus-cli/internal/config"
-	"github.com/tympanix/nexus-cli/internal/util"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,6 +17,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/blakesmith/ar"
+	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/util"
+  "github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 var (
@@ -324,6 +328,56 @@ func generateGPGKey() (privateKey string, err error) {
 	}
 
 	return privateKeyBuf.String(), nil
+}
+
+// createYumRepository creates a YUM repository in Nexus
+func createYumRepository(config *config.Config, repoName string) error {
+	// Wait a bit to ensure Nexus is fully initialized
+	time.Sleep(5 * time.Second)
+
+	// Create repository configuration for YUM hosted repository
+	repoConfig := map[string]interface{}{
+		"name":   repoName,
+		"online": true,
+		"storage": map[string]interface{}{
+			"blobStoreName":               "default",
+			"strictContentTypeValidation": true,
+			"writePolicy":                 "ALLOW",
+		},
+		"yum": map[string]interface{}{
+			"repodataDepth": 0,
+			"deployPolicy":  "STRICT",
+		},
+	}
+
+	jsonData, err := json.Marshal(repoConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal repository config: %w", err)
+	}
+
+	// Create the repository via API
+	req, err := http.NewRequest("POST", config.NexusURL+"/service/rest/v1/repositories/yum/hosted", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.SetBasicAuth(config.Username, config.Password)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create repository: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("Created YUM repository: %s\n", repoName)
+	return nil
 }
 
 // createYumRepository creates a YUM repository in Nexus
@@ -800,11 +854,286 @@ Description: Test package for nexus-cli e2e testing
 		return fmt.Errorf("failed to create README: %w", err)
 	}
 
-	// Build the .deb package using dpkg-deb
-	cmd := exec.Command("dpkg-deb", "--build", tmpDir, outputPath)
+	// Build the .deb package using native Go implementation
+	if err := buildDebPackage(tmpDir, outputPath); err != nil {
+		return fmt.Errorf("failed to build deb package: %w", err)
+	}
+
+	return nil
+}
+
+// buildDebPackage creates a .deb package from a directory structure using native Go
+func buildDebPackage(sourceDir, outputPath string) error {
+	// Create the output file
+	debFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer debFile.Close()
+
+	// Create ar archive writer
+	arWriter := ar.NewWriter(debFile)
+
+	// 1. Add debian-binary file
+	debianBinary := []byte("2.0\n")
+	if err := arWriter.WriteGlobalHeader(); err != nil {
+		return fmt.Errorf("failed to write ar global header: %w", err)
+	}
+	hdr := &ar.Header{
+		Name:    "debian-binary",
+		Size:    int64(len(debianBinary)),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := arWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write debian-binary header: %w", err)
+	}
+	if _, err := arWriter.Write(debianBinary); err != nil {
+		return fmt.Errorf("failed to write debian-binary content: %w", err)
+	}
+
+	// 2. Create and add control.tar.gz
+	controlTarGz := new(bytes.Buffer)
+	if err := createControlTarGz(filepath.Join(sourceDir, "DEBIAN"), controlTarGz); err != nil {
+		return fmt.Errorf("failed to create control.tar.gz: %w", err)
+	}
+	hdr = &ar.Header{
+		Name:    "control.tar.gz",
+		Size:    int64(controlTarGz.Len()),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := arWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write control.tar.gz header: %w", err)
+	}
+	if _, err := arWriter.Write(controlTarGz.Bytes()); err != nil {
+		return fmt.Errorf("failed to write control.tar.gz content: %w", err)
+	}
+
+	// 3. Create and add data.tar.gz
+	dataTarGz := new(bytes.Buffer)
+	if err := createDataTarGz(sourceDir, dataTarGz); err != nil {
+		return fmt.Errorf("failed to create data.tar.gz: %w", err)
+	}
+	hdr = &ar.Header{
+		Name:    "data.tar.gz",
+		Size:    int64(dataTarGz.Len()),
+		Mode:    0644,
+		ModTime: time.Now(),
+	}
+	if err := arWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write data.tar.gz header: %w", err)
+	}
+	if _, err := arWriter.Write(dataTarGz.Bytes()); err != nil {
+		return fmt.Errorf("failed to write data.tar.gz content: %w", err)
+	}
+
+	return nil
+}
+
+// createControlTarGz creates a tar.gz archive containing the DEBIAN control files
+func createControlTarGz(debianDir string, writer io.Writer) error {
+	gzWriter := gzip.NewWriter(writer)
+	defer gzWriter.Close()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	return filepath.Walk(debianDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(debianDir, path)
+		if err != nil {
+			return err
+		}
+
+		header := &tar.Header{
+			Name:    "./" + relPath,
+			Size:    info.Size(),
+			Mode:    int64(info.Mode()),
+			ModTime: info.ModTime(),
+		}
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tarWriter, file)
+		return err
+	})
+}
+
+// createDataTarGz creates a tar.gz archive containing the package data files
+func createDataTarGz(sourceDir string, writer io.Writer) error {
+	gzWriter := gzip.NewWriter(writer)
+	defer gzWriter.Close()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the DEBIAN directory
+		if strings.HasPrefix(relPath, "DEBIAN") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = "./" + relPath
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			_, err = io.Copy(tarWriter, file)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// createRpmPackage creates a simple .rpm package for testing
+func createRpmPackage(outputPath, packageName, version, release, arch string) error {
+	// Create temporary directory for RPM build
+	tmpDir, err := os.MkdirTemp("", "rpm-build-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create RPM build directory structure
+	buildRoot := filepath.Join(tmpDir, "BUILD")
+	specsDir := filepath.Join(tmpDir, "SPECS")
+	rpmsDir := filepath.Join(tmpDir, "RPMS")
+
+	for _, dir := range []string{buildRoot, specsDir, rpmsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	// Create some dummy content in the build root
+	contentDir := filepath.Join(buildRoot, "usr", "share", "doc", packageName)
+	if err := os.MkdirAll(contentDir, 0755); err != nil {
+		return fmt.Errorf("failed to create content dir: %w", err)
+	}
+
+	readmeContent := fmt.Sprintf("This is a test package: %s version %s-%s\n", packageName, version, release)
+	readmeFile := filepath.Join(contentDir, "README")
+	if err := os.WriteFile(readmeFile, []byte(readmeContent), 0644); err != nil {
+		return fmt.Errorf("failed to create README: %w", err)
+	}
+
+	// Create spec file
+	// Get current date for changelog
+	now := time.Now()
+	dateStr := now.Format("Mon Jan 02 2006")
+
+	specContent := fmt.Sprintf(`Name: %s
+Version: %s
+Release: %s
+Summary: Test package for nexus-cli e2e testing
+License: MIT
+BuildArch: %s
+
+%%description
+This is a simple test package created for e2e testing purposes.
+
+%%install
+mkdir -p %%{buildroot}/usr/share/doc/%s
+cp %%{_builddir}/usr/share/doc/%s/README %%{buildroot}/usr/share/doc/%s/
+
+%%files
+/usr/share/doc/%s/README
+
+%%changelog
+* %s Test User <test@example.com> - %s-%s
+- Initial test package
+`, packageName, version, release, arch, packageName, packageName, packageName, packageName, dateStr, version, release)
+
+	specFile := filepath.Join(specsDir, packageName+".spec")
+	if err := os.WriteFile(specFile, []byte(specContent), 0644); err != nil {
+		return fmt.Errorf("failed to create spec file: %w", err)
+	}
+
+	// Build the RPM package using rpmbuild
+	cmd := exec.Command("rpmbuild",
+		"--define", "_topdir "+tmpDir,
+		"--define", "_builddir "+buildRoot,
+		"-bb", specFile)
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to build deb package: %w, output: %s", err, string(output))
+		return fmt.Errorf("failed to build rpm package: %w, output: %s", err, string(output))
+	}
+
+	// Find the generated RPM file
+	rpmPattern := filepath.Join(rpmsDir, arch, fmt.Sprintf("%s-%s-%s.%s.rpm", packageName, version, release, arch))
+	matches, err := filepath.Glob(rpmPattern)
+	if err != nil {
+		return fmt.Errorf("failed to search for rpm file: %w", err)
+	}
+
+	if len(matches) == 0 {
+		return fmt.Errorf("no rpm file found at %s", rpmPattern)
+	}
+
+	// Copy the RPM to the output path
+	sourceRpm := matches[0]
+	sourceFile, err := os.Open(sourceRpm)
+	if err != nil {
+		return fmt.Errorf("failed to open source rpm: %w", err)
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, sourceFile); err != nil {
+		return fmt.Errorf("failed to copy rpm file: %w", err)
 	}
 
 	return nil
