@@ -26,7 +26,8 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 	}
 
 	totalBytes := info.Size()
-	bar := progress.NewProgressBar(totalBytes, "Uploading apt package", 0, 1, opts.QuietMode)
+	showProgress := util.IsATTY() && !opts.QuietMode
+	bar := progress.NewProgressBar(totalBytes, "Uploading apt package", 0, 1, showProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -50,9 +51,6 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 		return goroutineErr
 	}
 	bar.Finish()
-	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
-	}
 	opts.Logger.Printf("Uploaded apt package %s\n", filepath.Base(debFile))
 	return nil
 }
@@ -64,7 +62,8 @@ func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *U
 	}
 
 	totalBytes := info.Size()
-	bar := progress.NewProgressBar(totalBytes, "Uploading yum package", 0, 1, opts.QuietMode)
+	showProgress := util.IsATTY() && !opts.QuietMode
+	bar := progress.NewProgressBar(totalBytes, "Uploading yum package", 0, 1, showProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -88,9 +87,6 @@ func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *U
 		return goroutineErr
 	}
 	bar.Finish()
-	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
-	}
 	opts.Logger.Printf("Uploaded yum package %s\n", filepath.Base(rpmFile))
 	return nil
 }
@@ -151,7 +147,8 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	}
 
 	// Create a single progress bar for all operations
-	bar := progress.NewProgressBar(totalBytes, "Processing files", 0, len(filePaths), opts.QuietMode)
+	showProgress := util.IsATTY() && !opts.QuietMode
+	bar := progress.NewProgressBar(totalBytes, "Processing files", 0, len(filePaths), showProgress)
 	currentFile := 0
 
 	for _, filePath := range filePaths {
@@ -198,9 +195,6 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 	if len(filesToUpload) == 0 {
 		bar.Finish()
-		if util.IsATTY() && !opts.QuietMode {
-			fmt.Println()
-		}
 		opts.Logger.Printf("All %d files already exist with matching checksums\n", len(filePaths))
 		return nil
 	}
@@ -246,9 +240,6 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		return goroutineErr
 	}
 	bar.Finish()
-	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
-	}
 	if skippedCount > 0 {
 		opts.Logger.Printf("Uploaded %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
 	} else {
@@ -293,7 +284,8 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 	}
 
 	// Create progress bar using uncompressed size as approximation
-	bar := progress.NewProgressBar(totalBytes, "Uploading compressed archive", 0, 1, opts.QuietMode)
+	showProgress := util.IsATTY() && !opts.QuietMode
+	bar := progress.NewProgressBar(totalBytes, "Uploading compressed archive", 0, 1, showProgress)
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -344,9 +336,6 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 		return goroutineErr
 	}
 	bar.Finish()
-	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
-	}
 	opts.Logger.Printf("Uploaded compressed archive containing %d files from %s\n", len(filePaths), src)
 	return nil
 }

@@ -182,7 +182,8 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		totalBytes += asset.FileSize
 	}
 
-	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(assets), opts.QuietMode)
+	showProgress := util.IsATTY() && !opts.QuietMode
+	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(assets), showProgress)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
@@ -283,7 +284,8 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 		return DownloadError
 	}
 
-	bar := progress.NewProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, opts.QuietMode)
+	showProgress := util.IsATTY() && !opts.QuietMode
+	bar := progress.NewProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, showProgress)
 
 	// Download and extract archive
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
@@ -318,9 +320,6 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	}
 
 	bar.Finish()
-	if util.IsATTY() && !opts.QuietMode {
-		fmt.Println()
-	}
 	opts.Logger.Printf("Downloaded and extracted archive '%s' from '%s' in repository '%s' to '%s'\n",
 		archiveName, src, repository, destDir)
 	return DownloadSuccess
