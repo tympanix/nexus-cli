@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/util"
@@ -289,69 +292,38 @@ func createRawRepository(config *config.Config, repoName string) error {
 	return nil
 }
 
-// generateGPGKey generates a GPG key pair for APT repository signing
+// generateGPGKey generates a GPG key pair for APT repository signing using native Go implementation
 func generateGPGKey() (privateKey string, err error) {
-	// Create a temporary GPG home directory
-	gnupgHome, err := os.MkdirTemp("", "gnupg-*")
+	// Create entity configuration
+	config := &packet.Config{
+		RSABits: 2048,
+	}
+
+	// Generate the entity (key pair)
+	entity, err := openpgp.NewEntity("Test Nexus Repository", "", "test@nexus.local", config)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GPG home directory: %w", err)
-	}
-	defer os.RemoveAll(gnupgHome)
-
-	// Generate GPG key batch configuration
-	batchConfig := `%no-protection
-Key-Type: RSA
-Key-Length: 2048
-Name-Real: Test Nexus Repository
-Name-Email: test@nexus.local
-Expire-Date: 0
-`
-
-	// Write batch config to a temporary file
-	batchFile := filepath.Join(gnupgHome, "batch.txt")
-	if err := os.WriteFile(batchFile, []byte(batchConfig), 0600); err != nil {
-		return "", fmt.Errorf("failed to write GPG batch config: %w", err)
+		return "", fmt.Errorf("failed to generate GPG key: %w", err)
 	}
 
-	// Generate the key
-	cmd := exec.Command("gpg", "--homedir", gnupgHome, "--batch", "--gen-key", batchFile)
-	output, err := cmd.CombinedOutput()
+	// Export the private key in ASCII armored format
+	var privateKeyBuf bytes.Buffer
+	armorWriter, err := armor.Encode(&privateKeyBuf, openpgp.PrivateKeyType, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate GPG key: %w, output: %s", err, string(output))
+		return "", fmt.Errorf("failed to create armor encoder: %w", err)
 	}
 
-	// List keys to get the key ID
-	cmd = exec.Command("gpg", "--homedir", gnupgHome, "--list-keys", "--with-colons")
-	output, err = cmd.Output()
+	err = entity.SerializePrivate(armorWriter, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to list GPG keys: %w", err)
+		armorWriter.Close()
+		return "", fmt.Errorf("failed to serialize private key: %w", err)
 	}
 
-	// Parse the key ID from the output
-	var keyID string
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "pub:") {
-			fields := strings.Split(line, ":")
-			if len(fields) > 4 {
-				keyID = fields[4]
-				break
-			}
-		}
-	}
-
-	if keyID == "" {
-		return "", fmt.Errorf("failed to find generated key ID")
-	}
-
-	// Export the private key
-	cmd = exec.Command("gpg", "--homedir", gnupgHome, "--armor", "--export-secret-keys", keyID)
-	privateKeyBytes, err := cmd.Output()
+	err = armorWriter.Close()
 	if err != nil {
-		return "", fmt.Errorf("failed to export private key: %w", err)
+		return "", fmt.Errorf("failed to close armor encoder: %w", err)
 	}
 
-	return string(privateKeyBytes), nil
+	return privateKeyBuf.String(), nil
 }
 
 // createYumRepository creates a YUM repository in Nexus
