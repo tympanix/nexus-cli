@@ -125,6 +125,16 @@ func main() {
 				for i := range completions {
 					completions[i] = repo + completions[i]
 				}
+				hasDir := false
+				for _, comp := range completions {
+					if strings.HasSuffix(comp, "/") {
+						hasDir = true
+						break
+					}
+				}
+				if hasDir {
+					return completions, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
+				}
 				return completions, cobra.ShellCompDirectiveNoFileComp
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -175,6 +185,16 @@ func main() {
 				completions := getPathCompletions(cfg, repo, pathPrefix)
 				for i := range completions {
 					completions[i] = repo + completions[i]
+				}
+				hasDir := false
+				for _, comp := range completions {
+					if strings.HasSuffix(comp, "/") {
+						hasDir = true
+						break
+					}
+				}
+				if hasDir {
+					return completions, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 				}
 				return completions, cobra.ShellCompDirectiveNoFileComp
 			}
