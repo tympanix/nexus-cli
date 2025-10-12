@@ -8,15 +8,43 @@ import (
 
 	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
-	"github.com/tympanix/nexus-cli/internal/util"
 )
+
+// ProgressBar wraps a progress bar to track whether progress should be shown
+type ProgressBar struct {
+	bar          *progressbar.ProgressBar
+	showProgress bool
+}
+
+// Write implements io.Writer
+func (p *ProgressBar) Write(b []byte) (int, error) {
+	return p.bar.Write(b)
+}
+
+// Add64 adds to the progress bar
+func (p *ProgressBar) Add64(n int64) error {
+	return p.bar.Add64(n)
+}
+
+// Describe sets the description of the progress bar
+func (p *ProgressBar) Describe(description string) {
+	p.bar.Describe(description)
+}
+
+// Finish completes the progress bar and prints a newline if progress is shown
+func (p *ProgressBar) Finish() error {
+	err := p.bar.Finish()
+	if p.showProgress {
+		fmt.Println()
+	}
+	return err
+}
 
 // NewProgressBar creates a new progress bar with standard configuration
 // The description parameter should describe the operation (e.g., "Uploading", "Downloading")
 // The currentFile and totalFiles parameters track which file is being processed
-// The quietMode parameter controls whether progress should be shown
-func NewProgressBar(totalBytes int64, description string, currentFile, totalFiles int, quietMode bool) *progressbar.ProgressBar {
-	showProgress := util.IsATTY() && !quietMode
+// The showProgress parameter controls whether progress should be shown (typically util.IsATTY() && !quietMode)
+func NewProgressBar(totalBytes int64, description string, currentFile, totalFiles int, showProgress bool) *ProgressBar {
 	var writer io.Writer = ansi.NewAnsiStdout()
 	if !showProgress {
 		writer = io.Discard
@@ -24,7 +52,7 @@ func NewProgressBar(totalBytes int64, description string, currentFile, totalFile
 
 	descWithCount := fmt.Sprintf("[cyan][%d/%d][reset] %s", currentFile, totalFiles, description)
 
-	return progressbar.NewOptions64(totalBytes,
+	bar := progressbar.NewOptions64(totalBytes,
 		progressbar.OptionSetWriter(writer),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowBytes(true),
@@ -38,12 +66,17 @@ func NewProgressBar(totalBytes int64, description string, currentFile, totalFile
 			BarEnd:        "]",
 		}),
 	)
+
+	return &ProgressBar{
+		bar:          bar,
+		showProgress: showProgress,
+	}
 }
 
 // ProgressBarWithCount wraps a progress bar to track file count atomically
 // Used for parallel download operations where multiple goroutines update progress
 type ProgressBarWithCount struct {
-	bar          *progressbar.ProgressBar
+	bar          *ProgressBar
 	current      *int32
 	total        int
 	description  string
@@ -67,23 +100,20 @@ func (p *ProgressBarWithCount) IncrementFile() {
 }
 
 func (p *ProgressBarWithCount) Finish() error {
-	err := p.bar.Finish()
-	if p.showProgress {
-		fmt.Println()
-	}
-	return err
+	return p.bar.Finish()
 }
 
 // NewProgressBarWithCount creates a new progress bar with file count tracking
-func NewProgressBarWithCount(totalBytes int64, description string, total int, quietMode bool) *ProgressBarWithCount {
+// The showProgress parameter controls whether progress should be shown (typically util.IsATTY() && !quietMode)
+func NewProgressBarWithCount(totalBytes int64, description string, total int, showProgress bool) *ProgressBarWithCount {
 	var current int32
-	baseBar := NewProgressBar(totalBytes, description, 0, total, quietMode)
+	baseBar := NewProgressBar(totalBytes, description, 0, total, showProgress)
 	return &ProgressBarWithCount{
 		bar:          baseBar,
 		current:      &current,
 		total:        total,
 		description:  description,
-		showProgress: util.IsATTY() && !quietMode,
+		showProgress: showProgress,
 	}
 }
 
