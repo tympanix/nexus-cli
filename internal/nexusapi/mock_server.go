@@ -20,6 +20,8 @@ type MockNexusServer struct {
 	AssetContent map[string][]byte
 	// ContinuationTokens maps request IDs to continuation tokens for pagination
 	ContinuationTokens map[string]string
+	// Repositories stores the repositories that will be returned by ListRepositories
+	Repositories []Repository
 
 	// Captured data from requests
 	UploadedFiles  []UploadedFile
@@ -47,6 +49,7 @@ func NewMockNexusServer() *MockNexusServer {
 		ContinuationTokens:     make(map[string]string),
 		UploadedFiles:          make([]UploadedFile, 0),
 		RepositoryNotFoundList: make(map[string]bool),
+		Repositories:           make([]Repository, 0),
 	}
 
 	mock.Server = httptest.NewServer(http.HandlerFunc(mock.handler))
@@ -62,6 +65,12 @@ func (m *MockNexusServer) handler(w http.ResponseWriter, r *http.Request) {
 	// Handle upload requests
 	if r.Method == "POST" && strings.Contains(r.URL.Path, "/service/rest/v1/components") {
 		m.handleUpload(w, r)
+		return
+	}
+
+	// Handle repository listing requests
+	if r.Method == "GET" && strings.Contains(r.URL.Path, "/service/rest/v1/repositories") {
+		m.handleListRepositories(w, r)
 		return
 	}
 
@@ -128,6 +137,16 @@ func (m *MockNexusServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleListRepositories handles repository listing requests
+func (m *MockNexusServer) handleListRepositories(w http.ResponseWriter, r *http.Request) {
+	m.mu.RLock()
+	repos := m.Repositories
+	m.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(repos)
 }
 
 // handleListAssets handles asset listing requests
@@ -210,9 +229,19 @@ func (m *MockNexusServer) AddAsset(repository, path string, asset Asset) {
 	m.mu.Unlock()
 }
 
+// AddRepository adds a repository to the mock server's repository list
+func (m *MockNexusServer) AddRepository(repo Repository) {
+	m.mu.Lock()
+	m.Repositories = append(m.Repositories, repo)
+	m.mu.Unlock()
+}
+
 // AddAssetWithQuery adds an asset to the mock server using a custom query string
 func (m *MockNexusServer) AddAssetWithQuery(repository, query string, asset Asset) {
-	key := repository + ":" + query
+	key := repository
+	if query != "" {
+		key = repository + ":" + query
+	}
 	m.mu.Lock()
 	m.Assets[key] = append(m.Assets[key], asset)
 	m.mu.Unlock()

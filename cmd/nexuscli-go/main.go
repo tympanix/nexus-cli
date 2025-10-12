@@ -114,11 +114,17 @@ func main() {
 			}
 			if len(args) == 1 {
 				repo, pathPrefix := parseRepoAndPath(toComplete)
-				if pathPrefix == "" {
+				if !strings.Contains(toComplete, "/") {
 					completions := getRepositoryCompletions(cfg, repo)
-					return completions, cobra.ShellCompDirectiveNoFileComp
+					for i := range completions {
+						completions[i] = completions[i] + "/"
+					}
+					return completions, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 				}
 				completions := getPathCompletions(cfg, repo, pathPrefix)
+				for i := range completions {
+					completions[i] = repo + completions[i]
+				}
 				return completions, cobra.ShellCompDirectiveNoFileComp
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -159,11 +165,17 @@ func main() {
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) == 0 {
 				repo, pathPrefix := parseRepoAndPath(toComplete)
-				if pathPrefix == "" {
+				if !strings.Contains(toComplete, "/") {
 					completions := getRepositoryCompletions(cfg, repo)
-					return completions, cobra.ShellCompDirectiveNoFileComp
+					for i := range completions {
+						completions[i] = completions[i] + "/"
+					}
+					return completions, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 				}
 				completions := getPathCompletions(cfg, repo, pathPrefix)
+				for i := range completions {
+					completions[i] = repo + completions[i]
+				}
 				return completions, cobra.ShellCompDirectiveNoFileComp
 			}
 			if len(args) == 1 {
