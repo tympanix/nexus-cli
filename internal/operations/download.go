@@ -285,7 +285,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	}
 
 	showProgress := util.IsATTY() && !opts.QuietMode
-	bar := progress.NewProgressBar(archiveAsset.FileSize, "Downloading archive", 1, 1, showProgress)
+	bar := progress.NewProgressBarWithCount(archiveAsset.FileSize, "Downloading archive", 1, showProgress)
 
 	// Download and extract archive
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
