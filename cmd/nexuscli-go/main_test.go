@@ -548,14 +548,14 @@ func TestCompletionBehavior(t *testing.T) {
 		{
 			name:                    "path completion after slash",
 			toComplete:              "myrepo/",
-			expectedCompletions:     []string{"/artifacts/file1.txt", "/archives/file2.txt"},
+			expectedCompletions:     []string{"myrepo/artifacts/file1.txt", "myrepo/archives/file2.txt"},
 			expectsSlash:            false,
 			expectsNoSpaceDirective: false,
 		},
 		{
 			name:                    "path completion with prefix",
 			toComplete:              "myrepo/ar",
-			expectedCompletions:     []string{"/artifacts/file1.txt", "/archives/file2.txt"},
+			expectedCompletions:     []string{"myrepo/artifacts/file1.txt", "myrepo/archives/file2.txt"},
 			expectsSlash:            false,
 			expectsNoSpaceDirective: false,
 		},
@@ -575,6 +575,9 @@ func TestCompletionBehavior(t *testing.T) {
 				directive = cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 			} else {
 				completions = getPathCompletions(cfg, repo, pathPrefix)
+				for i := range completions {
+					completions[i] = repo + completions[i]
+				}
 				directive = cobra.ShellCompDirectiveNoFileComp
 			}
 
@@ -650,7 +653,7 @@ func TestShellCompletionIntegration(t *testing.T) {
 			name:                    "complete path after slash",
 			toComplete:              "my-repo/",
 			args:                    []string{},
-			expectedCompletions:     []string{"/files/test.txt"},
+			expectedCompletions:     []string{"my-repo/files/test.txt"},
 			expectedDirective:       cobra.ShellCompDirectiveNoFileComp,
 			expectsNoSpaceDirective: false,
 		},
@@ -658,7 +661,7 @@ func TestShellCompletionIntegration(t *testing.T) {
 			name:                    "complete path with prefix",
 			toComplete:              "my-repo/files",
 			args:                    []string{},
-			expectedCompletions:     []string{"/files/test.txt"},
+			expectedCompletions:     []string{"my-repo/files/test.txt"},
 			expectedDirective:       cobra.ShellCompDirectiveNoFileComp,
 			expectsNoSpaceDirective: false,
 		},
@@ -678,6 +681,9 @@ func TestShellCompletionIntegration(t *testing.T) {
 				directive = cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 			} else {
 				completions = getPathCompletions(cfg, repo, pathPrefix)
+				for i := range completions {
+					completions[i] = repo + completions[i]
+				}
 				directive = cobra.ShellCompDirectiveNoFileComp
 			}
 

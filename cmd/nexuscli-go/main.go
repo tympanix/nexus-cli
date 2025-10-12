@@ -122,6 +122,9 @@ func main() {
 					return completions, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 				}
 				completions := getPathCompletions(cfg, repo, pathPrefix)
+				for i := range completions {
+					completions[i] = repo + completions[i]
+				}
 				return completions, cobra.ShellCompDirectiveNoFileComp
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -170,6 +173,9 @@ func main() {
 					return completions, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 				}
 				completions := getPathCompletions(cfg, repo, pathPrefix)
+				for i := range completions {
+					completions[i] = repo + completions[i]
+				}
 				return completions, cobra.ShellCompDirectiveNoFileComp
 			}
 			if len(args) == 1 {
