@@ -22,6 +22,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/blakesmith/ar"
+	"github.com/google/rpmpack"
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/util"
@@ -328,56 +329,6 @@ func generateGPGKey() (privateKey string, err error) {
 	}
 
 	return privateKeyBuf.String(), nil
-}
-
-// createYumRepository creates a YUM repository in Nexus
-func createYumRepository(config *config.Config, repoName string) error {
-	// Wait a bit to ensure Nexus is fully initialized
-	time.Sleep(5 * time.Second)
-
-	// Create repository configuration for YUM hosted repository
-	repoConfig := map[string]interface{}{
-		"name":   repoName,
-		"online": true,
-		"storage": map[string]interface{}{
-			"blobStoreName":               "default",
-			"strictContentTypeValidation": true,
-			"writePolicy":                 "ALLOW",
-		},
-		"yum": map[string]interface{}{
-			"repodataDepth": 0,
-			"deployPolicy":  "STRICT",
-		},
-	}
-
-	jsonData, err := json.Marshal(repoConfig)
-	if err != nil {
-		return fmt.Errorf("failed to marshal repository config: %w", err)
-	}
-
-	// Create the repository via API
-	req, err := http.NewRequest("POST", config.NexusURL+"/service/rest/v1/repositories/yum/hosted", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.SetBasicAuth(config.Username, config.Password)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to create repository: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to create repository: status %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	fmt.Printf("Created YUM repository: %s\n", repoName)
-	return nil
 }
 
 // createYumRepository creates a YUM repository in Nexus
@@ -1032,215 +983,43 @@ func createDataTarGz(sourceDir string, writer io.Writer) error {
 	})
 }
 
-// createRpmPackage creates a simple .rpm package for testing
+// createRpmPackage creates a simple .rpm package for testing using native Go implementation
 func createRpmPackage(outputPath, packageName, version, release, arch string) error {
-	// Create temporary directory for RPM build
-	tmpDir, err := os.MkdirTemp("", "rpm-build-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create RPM build directory structure
-	buildRoot := filepath.Join(tmpDir, "BUILD")
-	specsDir := filepath.Join(tmpDir, "SPECS")
-	rpmsDir := filepath.Join(tmpDir, "RPMS")
-
-	for _, dir := range []string{buildRoot, specsDir, rpmsDir} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
-	}
-
-	// Create some dummy content in the build root
-	contentDir := filepath.Join(buildRoot, "usr", "share", "doc", packageName)
-	if err := os.MkdirAll(contentDir, 0755); err != nil {
-		return fmt.Errorf("failed to create content dir: %w", err)
-	}
-
 	readmeContent := fmt.Sprintf("This is a test package: %s version %s-%s\n", packageName, version, release)
-	readmeFile := filepath.Join(contentDir, "README")
-	if err := os.WriteFile(readmeFile, []byte(readmeContent), 0644); err != nil {
-		return fmt.Errorf("failed to create README: %w", err)
-	}
 
-	// Create spec file
-	// Get current date for changelog
-	now := time.Now()
-	dateStr := now.Format("Mon Jan 02 2006")
-
-	specContent := fmt.Sprintf(`Name: %s
-Version: %s
-Release: %s
-Summary: Test package for nexus-cli e2e testing
-License: MIT
-BuildArch: %s
-
-%%description
-This is a simple test package created for e2e testing purposes.
-
-%%install
-mkdir -p %%{buildroot}/usr/share/doc/%s
-cp %%{_builddir}/usr/share/doc/%s/README %%{buildroot}/usr/share/doc/%s/
-
-%%files
-/usr/share/doc/%s/README
-
-%%changelog
-* %s Test User <test@example.com> - %s-%s
-- Initial test package
-`, packageName, version, release, arch, packageName, packageName, packageName, packageName, dateStr, version, release)
-
-	specFile := filepath.Join(specsDir, packageName+".spec")
-	if err := os.WriteFile(specFile, []byte(specContent), 0644); err != nil {
-		return fmt.Errorf("failed to create spec file: %w", err)
-	}
-
-	// Build the RPM package using rpmbuild
-	cmd := exec.Command("rpmbuild",
-		"--define", "_topdir "+tmpDir,
-		"--define", "_builddir "+buildRoot,
-		"-bb", specFile)
-
-	output, err := cmd.CombinedOutput()
+	rpm, err := rpmpack.NewRPM(rpmpack.RPMMetaData{
+		Name:        packageName,
+		Version:     version,
+		Release:     release,
+		Arch:        arch,
+		Summary:     "Test package for nexus-cli e2e testing",
+		Description: "This is a simple test package created for e2e testing purposes.",
+		Licence:     "MIT",
+		Vendor:      "nexus-cli",
+		BuildHost:   "localhost",
+		BuildTime:   time.Now(),
+	})
 	if err != nil {
-		return fmt.Errorf("failed to build rpm package: %w, output: %s", err, string(output))
+		return fmt.Errorf("failed to create rpm: %w", err)
 	}
 
-	// Find the generated RPM file
-	rpmPattern := filepath.Join(rpmsDir, arch, fmt.Sprintf("%s-%s-%s.%s.rpm", packageName, version, release, arch))
-	matches, err := filepath.Glob(rpmPattern)
+	rpm.AddFile(rpmpack.RPMFile{
+		Name:  "/usr/share/doc/" + packageName + "/README",
+		Body:  []byte(readmeContent),
+		Mode:  0644,
+		Owner: "root",
+		Group: "root",
+		MTime: uint32(time.Now().Unix()),
+	})
+
+	outputFile, err := os.Create(outputPath)
 	if err != nil {
-		return fmt.Errorf("failed to search for rpm file: %w", err)
+		return fmt.Errorf("failed to create output file: %w", err)
 	}
+	defer outputFile.Close()
 
-	if len(matches) == 0 {
-		return fmt.Errorf("no rpm file found at %s", rpmPattern)
-	}
-
-	// Copy the RPM to the output path
-	sourceRpm := matches[0]
-	sourceFile, err := os.Open(sourceRpm)
-	if err != nil {
-		return fmt.Errorf("failed to open source rpm: %w", err)
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destFile.Close()
-
-	if _, err := io.Copy(destFile, sourceFile); err != nil {
-		return fmt.Errorf("failed to copy rpm file: %w", err)
-	}
-
-	return nil
-}
-
-// createRpmPackage creates a simple .rpm package for testing
-func createRpmPackage(outputPath, packageName, version, release, arch string) error {
-	// Create temporary directory for RPM build
-	tmpDir, err := os.MkdirTemp("", "rpm-build-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create RPM build directory structure
-	buildRoot := filepath.Join(tmpDir, "BUILD")
-	specsDir := filepath.Join(tmpDir, "SPECS")
-	rpmsDir := filepath.Join(tmpDir, "RPMS")
-
-	for _, dir := range []string{buildRoot, specsDir, rpmsDir} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
-	}
-
-	// Create some dummy content in the build root
-	contentDir := filepath.Join(buildRoot, "usr", "share", "doc", packageName)
-	if err := os.MkdirAll(contentDir, 0755); err != nil {
-		return fmt.Errorf("failed to create content dir: %w", err)
-	}
-
-	readmeContent := fmt.Sprintf("This is a test package: %s version %s-%s\n", packageName, version, release)
-	readmeFile := filepath.Join(contentDir, "README")
-	if err := os.WriteFile(readmeFile, []byte(readmeContent), 0644); err != nil {
-		return fmt.Errorf("failed to create README: %w", err)
-	}
-
-	// Create spec file
-	// Get current date for changelog
-	now := time.Now()
-	dateStr := now.Format("Mon Jan 02 2006")
-
-	specContent := fmt.Sprintf(`Name: %s
-Version: %s
-Release: %s
-Summary: Test package for nexus-cli e2e testing
-License: MIT
-BuildArch: %s
-
-%%description
-This is a simple test package created for e2e testing purposes.
-
-%%install
-mkdir -p %%{buildroot}/usr/share/doc/%s
-cp %%{_builddir}/usr/share/doc/%s/README %%{buildroot}/usr/share/doc/%s/
-
-%%files
-/usr/share/doc/%s/README
-
-%%changelog
-* %s Test User <test@example.com> - %s-%s
-- Initial test package
-`, packageName, version, release, arch, packageName, packageName, packageName, packageName, dateStr, version, release)
-
-	specFile := filepath.Join(specsDir, packageName+".spec")
-	if err := os.WriteFile(specFile, []byte(specContent), 0644); err != nil {
-		return fmt.Errorf("failed to create spec file: %w", err)
-	}
-
-	// Build the RPM package using rpmbuild
-	cmd := exec.Command("rpmbuild",
-		"--define", "_topdir "+tmpDir,
-		"--define", "_builddir "+buildRoot,
-		"-bb", specFile)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to build rpm package: %w, output: %s", err, string(output))
-	}
-
-	// Find the generated RPM file
-	rpmPattern := filepath.Join(rpmsDir, arch, fmt.Sprintf("%s-%s-%s.%s.rpm", packageName, version, release, arch))
-	matches, err := filepath.Glob(rpmPattern)
-	if err != nil {
-		return fmt.Errorf("failed to search for rpm file: %w", err)
-	}
-
-	if len(matches) == 0 {
-		return fmt.Errorf("no rpm file found at %s", rpmPattern)
-	}
-
-	// Copy the RPM to the output path
-	sourceRpm := matches[0]
-	sourceFile, err := os.Open(sourceRpm)
-	if err != nil {
-		return fmt.Errorf("failed to open source rpm: %w", err)
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destFile.Close()
-
-	if _, err := io.Copy(destFile, sourceFile); err != nil {
-		return fmt.Errorf("failed to copy rpm file: %w", err)
+	if err := rpm.Write(outputFile); err != nil {
+		return fmt.Errorf("failed to write rpm: %w", err)
 	}
 
 	return nil
