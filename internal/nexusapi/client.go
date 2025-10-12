@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Client represents a Nexus API client
@@ -99,7 +100,7 @@ func (c *Client) ListRepositories() ([]Repository, error) {
 }
 
 // SearchAssetsForCompletion searches for assets matching a prefix for autocompletion
-// Returns a list of asset paths that match the given prefix
+// Returns a list of unique path segments (directories and files) at the next level after pathPrefix
 func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]string, error) {
 	if repository == "" {
 		return nil, nil
@@ -134,9 +135,54 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
 		return nil, err
 	}
-	var paths []string
+
+	pathSet := make(map[string]bool)
 	for _, asset := range sr.Items {
-		paths = append(paths, asset.Path)
+		path := strings.TrimPrefix(asset.Path, "/")
+		if path == "" {
+			continue
+		}
+
+		var nextSegment string
+		if pathPrefix == "" {
+			idx := strings.Index(path, "/")
+			if idx >= 0 {
+				nextSegment = "/" + path[:idx] + "/"
+			} else {
+				nextSegment = "/" + path
+			}
+		} else {
+			cleanPrefix := strings.TrimSuffix(pathPrefix, "/")
+			endsWithSlash := strings.HasSuffix(pathPrefix, "/")
+
+			var prefixDepth int
+			if endsWithSlash && cleanPrefix != "" {
+				prefixDepth = strings.Count(cleanPrefix, "/") + 1
+			} else {
+				prefixDepth = strings.Count(cleanPrefix, "/")
+			}
+
+			pathParts := strings.Split(path, "/")
+			if len(pathParts) > prefixDepth {
+				completePath := strings.Join(pathParts[:prefixDepth+1], "/")
+				if strings.HasPrefix(completePath, cleanPrefix) {
+					if len(pathParts) > prefixDepth+1 {
+						nextSegment = "/" + completePath + "/"
+					} else {
+						nextSegment = "/" + completePath
+					}
+				}
+			}
+		}
+
+		if nextSegment != "" {
+			pathSet[nextSegment] = true
+		}
+	}
+
+	var paths []string
+	for path := range pathSet {
+		paths = append(paths, path)
 	}
 	return paths, nil
 }

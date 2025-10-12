@@ -548,16 +548,16 @@ func TestCompletionBehavior(t *testing.T) {
 		{
 			name:                    "path completion after slash",
 			toComplete:              "myrepo/",
-			expectedCompletions:     []string{"myrepo/artifacts/file1.txt", "myrepo/archives/file2.txt"},
+			expectedCompletions:     []string{"myrepo/artifacts/", "myrepo/archives/"},
 			expectsSlash:            false,
-			expectsNoSpaceDirective: false,
+			expectsNoSpaceDirective: true,
 		},
 		{
 			name:                    "path completion with prefix",
 			toComplete:              "myrepo/ar",
-			expectedCompletions:     []string{"myrepo/artifacts/file1.txt", "myrepo/archives/file2.txt"},
+			expectedCompletions:     []string{"myrepo/artifacts/", "myrepo/archives/"},
 			expectsSlash:            false,
-			expectsNoSpaceDirective: false,
+			expectsNoSpaceDirective: true,
 		},
 	}
 
@@ -578,19 +578,32 @@ func TestCompletionBehavior(t *testing.T) {
 				for i := range completions {
 					completions[i] = repo + completions[i]
 				}
-				directive = cobra.ShellCompDirectiveNoFileComp
+				hasDir := false
+				for _, comp := range completions {
+					if strings.HasSuffix(comp, "/") {
+						hasDir = true
+						break
+					}
+				}
+				if hasDir {
+					directive = cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
+				} else {
+					directive = cobra.ShellCompDirectiveNoFileComp
+				}
 			}
 
 			if len(completions) != len(tt.expectedCompletions) {
 				t.Errorf("Expected %d completions, got %d: %v", len(tt.expectedCompletions), len(completions), completions)
 			}
 
-			for i, expected := range tt.expectedCompletions {
-				if i >= len(completions) {
-					break
-				}
-				if completions[i] != expected {
-					t.Errorf("Expected completion '%s', got '%s'", expected, completions[i])
+			completionSet := make(map[string]bool)
+			for _, comp := range completions {
+				completionSet[comp] = true
+			}
+
+			for _, expected := range tt.expectedCompletions {
+				if !completionSet[expected] {
+					t.Errorf("Expected completion '%s' not found in completions: %v", expected, completions)
 				}
 			}
 
@@ -618,6 +631,7 @@ func TestShellCompletionIntegration(t *testing.T) {
 	}
 	server.AddAssetWithQuery("my-repo", "", asset1)
 	server.AddAssetWithQuery("my-repo", "/files*", asset1)
+	server.AddAssetWithQuery("my-repo", "/files/*", asset1)
 
 	cfg := &config.Config{
 		NexusURL: server.URL,
@@ -653,13 +667,21 @@ func TestShellCompletionIntegration(t *testing.T) {
 			name:                    "complete path after slash",
 			toComplete:              "my-repo/",
 			args:                    []string{},
-			expectedCompletions:     []string{"my-repo/files/test.txt"},
-			expectedDirective:       cobra.ShellCompDirectiveNoFileComp,
-			expectsNoSpaceDirective: false,
+			expectedCompletions:     []string{"my-repo/files/"},
+			expectedDirective:       cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp,
+			expectsNoSpaceDirective: true,
 		},
 		{
 			name:                    "complete path with prefix",
 			toComplete:              "my-repo/files",
+			args:                    []string{},
+			expectedCompletions:     []string{"my-repo/files/"},
+			expectedDirective:       cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp,
+			expectsNoSpaceDirective: true,
+		},
+		{
+			name:                    "complete file inside directory",
+			toComplete:              "my-repo/files/",
 			args:                    []string{},
 			expectedCompletions:     []string{"my-repo/files/test.txt"},
 			expectedDirective:       cobra.ShellCompDirectiveNoFileComp,
@@ -684,19 +706,32 @@ func TestShellCompletionIntegration(t *testing.T) {
 				for i := range completions {
 					completions[i] = repo + completions[i]
 				}
-				directive = cobra.ShellCompDirectiveNoFileComp
+				hasDir := false
+				for _, comp := range completions {
+					if strings.HasSuffix(comp, "/") {
+						hasDir = true
+						break
+					}
+				}
+				if hasDir {
+					directive = cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
+				} else {
+					directive = cobra.ShellCompDirectiveNoFileComp
+				}
 			}
 
 			if len(completions) != len(tt.expectedCompletions) {
 				t.Errorf("Expected %d completions, got %d: %v", len(tt.expectedCompletions), len(completions), completions)
 			}
 
-			for i, expected := range tt.expectedCompletions {
-				if i >= len(completions) {
-					break
-				}
-				if completions[i] != expected {
-					t.Errorf("Expected completion '%s', got '%s'", expected, completions[i])
+			completionSet := make(map[string]bool)
+			for _, comp := range completions {
+				completionSet[comp] = true
+			}
+
+			for _, expected := range tt.expectedCompletions {
+				if !completionSet[expected] {
+					t.Errorf("Expected completion '%s' not found in completions: %v", expected, completions)
 				}
 			}
 
