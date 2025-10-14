@@ -25,6 +25,14 @@ func uploadAptPackage(debFile, repository string, config *config.Config, opts *U
 		return err
 	}
 
+	// If dry-run is enabled, just report what would be uploaded
+	if opts.DryRun {
+		opts.Logger.Println("Dry-run mode: The following APT package would be uploaded:")
+		opts.Logger.Printf("  - %s\n", filepath.Base(debFile))
+		opts.Logger.Printf("Would upload apt package %s\n", filepath.Base(debFile))
+		return nil
+	}
+
 	totalBytes := info.Size()
 	showProgress := util.IsATTY() && !opts.QuietMode
 	bar := progress.NewProgressBarWithCount(totalBytes, "Uploading apt package", 1, showProgress)
@@ -59,6 +67,14 @@ func uploadYumPackage(rpmFile, repository string, config *config.Config, opts *U
 	info, err := os.Stat(rpmFile)
 	if err != nil {
 		return err
+	}
+
+	// If dry-run is enabled, just report what would be uploaded
+	if opts.DryRun {
+		opts.Logger.Println("Dry-run mode: The following YUM package would be uploaded:")
+		opts.Logger.Printf("  - %s\n", filepath.Base(rpmFile))
+		opts.Logger.Printf("Would upload yum package %s\n", filepath.Base(rpmFile))
+		return nil
 	}
 
 	totalBytes := info.Size()
@@ -147,7 +163,8 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	}
 
 	// Create a single progress bar for all operations
-	showProgress := util.IsATTY() && !opts.QuietMode
+	// In dry-run mode, suppress the progress bar to avoid interleaving with output
+	showProgress := util.IsATTY() && !opts.QuietMode && !opts.DryRun
 	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(filePaths), showProgress)
 
 	for _, filePath := range filePaths {
@@ -194,6 +211,22 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	if len(filesToUpload) == 0 {
 		bar.Finish()
 		opts.Logger.Printf("All %d files already exist with matching checksums\n", len(filePaths))
+		return nil
+	}
+
+	// If dry-run is enabled, just report what would be uploaded
+	if opts.DryRun {
+		bar.Finish()
+		opts.Logger.Println("Dry-run mode: The following files would be uploaded:")
+		for _, filePath := range filesToUpload {
+			relPath, _ := filepath.Rel(src, filePath)
+			opts.Logger.Printf("  - %s\n", relPath)
+		}
+		if skippedCount > 0 {
+			opts.Logger.Printf("Would upload %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
+		} else {
+			opts.Logger.Printf("Would upload %d files from %s\n", len(filesToUpload), src)
+		}
 		return nil
 	}
 
@@ -267,6 +300,17 @@ func uploadFilesCompressedWithArchiveName(src, repository, subdir, explicitArchi
 
 	archiveName := explicitArchiveName
 	opts.Logger.VerbosePrintf("Creating compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
+
+	// If dry-run is enabled, just report what would be uploaded
+	if opts.DryRun {
+		opts.Logger.Println("Dry-run mode: The following files would be compressed and uploaded:")
+		for _, filePath := range filePaths {
+			relPath, _ := filepath.Rel(src, filePath)
+			opts.Logger.Printf("  - %s\n", relPath)
+		}
+		opts.Logger.Printf("Would upload compressed archive containing %d files from %s\n", len(filePaths), src)
+		return nil
+	}
 
 	// Calculate total uncompressed size for progress bar
 	totalBytes := int64(0)
