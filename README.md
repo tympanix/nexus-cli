@@ -222,22 +222,51 @@ You can authenticate with Nexus using environment variables or CLI flags:
 - `--username <username>` - Username for Nexus authentication
 - `--password <password>` - Password for Nexus authentication
 
-### Upload
+### Global Options
 
-```bash
-nexuscli-go upload [--url <url>] [--username <user>] [--password <pass>] [--compress] [--compress-format <format>] [--glob <pattern>] [--key-from <file>] <directory> <repository[/subdir]>
-```
+These options are available for all commands:
 
-#### Upload options
+- `--quiet` or `-q` - Suppress all output (no progress bars or informational messages)
+- `--verbose` or `-v` - Enable verbose output with detailed information about operations
 
-- `--compress` or `-z` - Create and upload files as a compressed archive
+### Common Options
+
+The following options are available for both upload and download commands:
+
+#### Checksum validation
+
+- `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
+- `--skip-checksum` or `-s` - Skip checksum validation and process files based on file existence only
+- `--force` - Force processing all files regardless of existence or checksum match
+
+#### Compression
+
+- `--compress` or `-z` - Create/extract compressed archives
 - `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
+
+##### Compression formats
+
+- `gzip` (default) - Creates/extracts `.tar.gz` archives (widely compatible)
+- `zstd` - Creates/extracts `.tar.zst` archives (better compression ratio and speed)
+- `zip` - Creates/extracts `.zip` archives (widely compatible, no tar wrapper)
+
+**For upload:** All files in the source directory are compressed into a single archive before uploading. This is useful for:
+- Uploading many small files more efficiently
+- Reducing network overhead
+- Storing files as a single artifact in Nexus
+
+**For download:** The CLI looks for a compressed archive in the specified path and extracts it to the destination directory. This is useful for:
+- Downloading files that were uploaded with compression
+- Extracting archives on-the-fly without storing the compressed file locally
+- Faster downloads when dealing with many small files
+
+You must specify the archive filename (with extension) as part of the path. The format is auto-detected from the file extension if `--compress-format` is not specified.
+
+#### File filtering with glob patterns
+
 - `--glob <pattern>` or `-g <pattern>` - Glob pattern(s) to filter files (supports multiple patterns and negation)
-- `--key-from <file>` - Path to file to compute hash from for `{key}` template in dest
 
-#### About the `--glob` flag
-
-The `--glob` flag allows you to filter which files are uploaded using glob patterns. This works for both regular uploads and compressed uploads. The pattern is matched against file paths relative to the source directory.
+The `--glob` flag allows you to filter which files are processed using glob patterns. This works for both regular operations and compressed archives. The pattern is matched against file paths relative to the source directory.
 
 ##### Multiple patterns and negation
 
@@ -256,117 +285,118 @@ The `--glob` flag allows you to filter which files are uploaded using glob patte
 ##### Examples
 
 ```bash
-# Upload only .txt files from root directory
+# Filter only .txt files
 nexuscli-go upload --glob "*.txt" ./files my-repo
+nexuscli-go download --glob "**/*.txt" my-repo/files ./local-folder
 
-# Upload all .go files anywhere in the directory tree
+# Filter all .go files anywhere in the directory tree
 nexuscli-go upload --glob "**/*.go" ./files my-repo
+nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
 
-# Upload all files from a specific subdirectory
-nexuscli-go upload --glob "src/**" ./files my-repo
-
-# Upload files with multiple extensions (comma-separated)
-nexuscli-go upload --glob "**/*.{go,md}" ./files my-repo
-
-# Upload multiple file types using multiple patterns
+# Multiple file types using multiple patterns
 nexuscli-go upload --glob "**/*.go,**/*.md,**/*.txt" ./files my-repo
 
-# Upload all .go files except test files (using negation)
+# Exclude test files (using negation)
 nexuscli-go upload --glob "**/*.go,!**/*_test.go" ./files my-repo
+nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
 
-# Upload all files except those in a specific directory
+# Exclude specific directories
 nexuscli-go upload --glob "!vendor/**,!node_modules/**" ./files my-repo
+nexuscli-go download --glob "**/*,!vendor/**,!node_modules/**" my-repo/project ./local-folder
 
-# Complex pattern: upload source files but exclude tests and vendor
+# Complex pattern: include source files but exclude tests and vendor
 nexuscli-go upload --glob "**/*.go,**/*.md,!**/*_test.go,!vendor/**" ./files my-repo
 
-# Create compressed archive with only .go files
-nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
-
-# Create compressed archive excluding test files
+# With compressed archives
 nexuscli-go upload --compress --glob "**/*.go,!**/*_test.go" ./files my-repo/archive.tar.gz
 ```
 
-#### About the `--compress` flag
+#### Content-based caching with key templates
 
-When the `--compress` flag is used, all files in the source directory are compressed into a single archive before uploading. This is useful for:
-- Uploading many small files more efficiently
-- Reducing network overhead
-- Storing files as a single artifact in Nexus
+- `--key-from <file>` - Path to file to compute hash from for `{key}` template in path
 
-##### Compression formats
-
-- `gzip` (default) - Creates `.tar.gz` archives (widely compatible)
-- `zstd` - Creates `.tar.zst` archives (better compression ratio and speed)
-- `zip` - Creates `.zip` archives (widely compatible, no tar wrapper)
-
-**Important:** You must specify the archive filename (with extension) as part of the destination path:
-
-```bash
-# Using gzip (default)
-nexuscli-go upload --compress ./files my-repo/path/custom-name.tar.gz
-# Creates and uploads: custom-name.tar.gz to my-repo/path/
-
-# Using zstd
-nexuscli-go upload --compress --compress-format zstd ./files my-repo/path/custom-name.tar.zst
-# Creates and uploads: custom-name.tar.zst to my-repo/path/
-
-# Auto-detect format from extension
-nexuscli-go upload --compress ./files my-repo/path/archive.tar.zst
-# Automatically uses zstd compression based on .tar.zst extension
-
-# Using zip
-nexuscli-go upload --compress --compress-format zip ./files my-repo/path/archive.zip
-# Creates and uploads: archive.zip to my-repo/path/
-
-# Auto-detect zip from extension
-nexuscli-go upload --compress ./files my-repo/path/backup.zip
-# Automatically uses zip compression based on .zip extension
-```
-
-#### About the `--key-from` flag
-
-The `--key-from` flag enables content-based caching by computing a hash from a specified file and using it in the destination path. This is particularly useful for:
+The `--key-from` flag enables content-based caching by computing a SHA256 hash from a specified file and using it in the path. This is particularly useful for:
 - Caching build artifacts based on dependency files (e.g., `package-lock.json`, `go.sum`)
-- Versioning uploads automatically based on file content
+- Versioning artifacts automatically based on file content
 - Avoiding overwrites of existing cached artifacts
 
-When using `--key-from`, you must include the `{key}` template placeholder in your destination path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value.
+When using `--key-from`, you must include the `{key}` template placeholder in your path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value.
+
+**Important:** The `{key}` placeholder is required when `--key-from` is specified. If the template is missing, the CLI will exit with an error.
 
 ##### Examples
 
 ```bash
-# Upload node_modules with hash from package-lock.json
+# Upload with hash from dependency file
 nexuscli-go upload --key-from package-lock.json ./node_modules my-repo/cache-{key}
 # Uploads to: my-repo/cache-<sha256-hash>/
 
-# Upload with compression and key-based naming
-nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
-# Creates: cache-<sha256-hash>.tar.gz in my-repo/
+# Download with same key to retrieve cached version
+nexuscli-go download --key-from package-lock.json my-repo/cache-{key} ./node_modules
+# Downloads from: my-repo/cache-<sha256-hash>/
 
-# Upload with key in subdirectory
+# With compression and key-based naming
+nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
+nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
+
+# Key in subdirectory path
 nexuscli-go upload --key-from go.sum ./vendor my-repo/go-deps/{key}/vendor
-# Uploads to: my-repo/go-deps/<sha256-hash>/vendor/
+nexuscli-go download --key-from go.sum my-repo/go-deps/{key}/vendor ./vendor
 ```
 
-**Important:** The `{key}` placeholder is required when `--key-from` is specified. If the template is missing, the CLI will exit with an error.
+### Upload
+
+```bash
+nexuscli-go upload [options] <directory> <repository[/subdir]>
+```
+
+Uploads all files from a local directory to a Nexus RAW repository. Files can be uploaded individually or as a compressed archive.
+
+See [Common Options](#common-options) for available flags: `--checksum`, `--skip-checksum`, `--force`, `--compress`, `--compress-format`, `--glob`, `--key-from`.
+
+#### Examples
+
+```bash
+# Basic upload
+nexuscli-go upload ./files my-repo/path
+
+# Upload with compression
+nexuscli-go upload --compress ./files my-repo/path/backup.tar.gz
+nexuscli-go upload --compress --compress-format zstd ./files my-repo/path/backup.tar.zst
+nexuscli-go upload --compress --compress-format zip ./files my-repo/path/backup.zip
+
+# Upload filtered files
+nexuscli-go upload --glob "**/*.go,!**/*_test.go" ./files my-repo
+nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
+
+# Upload with content-based caching
+nexuscli-go upload --key-from package-lock.json ./node_modules my-repo/cache-{key}
+nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
+
+# Force upload all files (ignore checksums)
+nexuscli-go upload --force ./files my-repo/path
+
+# Skip checksum validation (faster, but less safe)
+nexuscli-go upload --skip-checksum ./files my-repo/path
+
+# Use custom checksum algorithm
+nexuscli-go upload --checksum sha256 ./files my-repo/path
+```
 
 ### Download
 
 ```bash
-nexuscli-go download [--url <url>] [--username <user>] [--password <pass>] [--flatten] [--glob <pattern>] [--compress] [--compress-format <format>] [--key-from <file>] <repository/folder> <directory>
+nexuscli-go download [options] <repository/folder> <directory>
 ```
 
-#### Download options
+Downloads all files from a Nexus RAW repository folder recursively. Files can be downloaded individually or as a compressed archive that gets extracted.
 
-- `--checksum <algorithm>` or `-c <algorithm>` - Checksum algorithm to use for validation (sha1, sha256, sha512, md5). Default: sha1
-- `--skip-checksum` or `-s` - Skip checksum validation and download files based on file existence only
+See [Common Options](#common-options) for available flags: `--checksum`, `--skip-checksum`, `--force`, `--compress`, `--compress-format`, `--glob`, `--key-from`.
+
+#### Download-specific options
+
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
-- `--glob <pattern>` or `-g <pattern>` - Glob pattern(s) to filter files (supports multiple patterns and negation)
 - `--delete` - Remove local files from the destination folder that are not present in Nexus
-- `--compress` or `-z` - Download and extract a compressed archive
-- `--compress-format <format>` - Compression format to use: `gzip` (default), `zstd`, or `zip`
-- `--key-from <file>` - Path to file to compute hash from for `{key}` template in src
 
 #### About the `--flatten` flag
 
@@ -377,200 +407,44 @@ With the `--flatten` flag enabled, the base path specified in the source argumen
 - File at `/path/to/folder/file.txt` in Nexus → saved to `<dest>/file.txt` locally
 - File at `/path/to/folder/subdir/file.txt` in Nexus → saved to `<dest>/subdir/file.txt` locally (subdirectories beyond the base path are preserved)
 
-#### About the `--glob` flag
-
-The `--glob` flag allows you to filter which files are downloaded using glob patterns, similar to the upload command. This is useful when you only want to download specific file types or exclude certain files. The pattern is matched against file paths relative to the source path in Nexus.
-
-##### Multiple patterns and negation
-
-You can combine multiple patterns using commas, and exclude files using the `!` prefix:
-- Multiple patterns: `--glob "**/*.go,**/*.md"` - downloads only .go and .md files
-- Negation: `--glob "**/*,!**/*_test.go"` - downloads all files except test files
-- Complex: `--glob "**/*.go,**/*.md,!**/*_test.go,!vendor/**"` - downloads .go and .md files, excluding tests and vendor directory
-
-##### Supported glob patterns
-
-- `*` - matches any sequence of characters (excluding `/`)
-- `**` - matches any sequence of characters (including `/`)
-- `?` - matches any single character
-- `[abc]` - matches any character in the set
-- `{go,md}` - matches any of the comma-separated alternatives
-
-##### Examples
-
-```bash
-# Download only .txt files
-nexuscli-go download --glob "**/*.txt" my-repo/files ./local-folder
-
-# Download all .go files
-nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
-
-# Download .go and .md files
-nexuscli-go download --glob "**/*.go,**/*.md" my-repo/src ./local-folder
-
-# Download all files except test files
-nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
-
-# Download all files except those in specific directories
-nexuscli-go download --glob "**/*,!vendor/**,!node_modules/**" my-repo/project ./local-folder
-
-# Combine with flatten to download filtered files without base path
-nexuscli-go download --flatten --glob "**/*.go" my-repo/src ./local-folder
-```
-
-#### About the `--compress` flag
-
-When the `--compress` flag is used with download, the CLI looks for a compressed archive in the specified path and extracts it to the destination directory. This is useful for:
-- Downloading files that were uploaded with compression
-- Extracting archives on-the-fly without storing the compressed file locally
-- Faster downloads when dealing with many small files
-
-##### Compression formats
-
-- `gzip` (default) - Extracts `.tar.gz` archives
-- `zstd` - Extracts `.tar.zst` archives (better performance)
-- `zip` - Extracts `.zip` archives (widely compatible)
-
-**Important:** You must specify the archive filename (with extension) as part of the source path:
-
-```bash
-# Download gzip archive
-nexuscli-go download --compress my-repo/path/custom-name.tar.gz ./local-folder
-# Downloads and extracts: custom-name.tar.gz from my-repo/path/
-
-# Download zstd archive
-nexuscli-go download --compress my-repo/path/custom-name.tar.zst ./local-folder
-# Downloads and extracts: custom-name.tar.zst from my-repo/path/
-# Format is auto-detected from the .tar.zst extension
-
-# Download zip archive
-nexuscli-go download --compress my-repo/path/archive.zip ./local-folder
-# Downloads and extracts: archive.zip from my-repo/path/
-# Format is auto-detected from the .zip extension
-```
-
 #### Examples
 
-Using environment variables:
 ```bash
-export NEXUS_URL=http://your-nexus:8081
-export NEXUS_USER=myuser
-export NEXUS_PASS=mypassword
-nexuscli-go upload ./files my-repo/path
-```
-
-Using CLI flags:
-```bash
-nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword ./files my-repo/path
-```
-
-Download with flatten flag:
-```bash
-# Without flatten: files are saved with full path structure (my-repo/path/subdir/file.txt)
+# Basic download
 nexuscli-go download my-repo/path ./local-folder
 
-# With flatten: files are saved without the base path (subdir/file.txt)
+# Download with flatten (remove base path)
 nexuscli-go download --flatten my-repo/path ./local-folder
-```
 
-Download with delete flag:
-```bash
-# Downloads files from Nexus and removes local files that are not present in Nexus
+# Download with delete (sync local with remote)
 nexuscli-go download --delete my-repo/path ./local-folder
-
-# Can be combined with other flags
 nexuscli-go download --flatten --delete my-repo/path ./local-folder
-```
 
-Download with glob pattern filtering:
-```bash
-# Download only .go files
+# Download and extract compressed archive
+nexuscli-go download --compress my-repo/path/backup.tar.gz ./local-folder
+nexuscli-go download --compress my-repo/path/backup.tar.zst ./local-folder
+nexuscli-go download --compress my-repo/path/backup.zip ./local-folder
+
+# Download filtered files
 nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
-
-# Download .go and .md files
-nexuscli-go download --glob "**/*.go,**/*.md" my-repo/docs ./local-folder
-
-# Download all files except test files
 nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
-
-# Combine glob with flatten
 nexuscli-go download --flatten --glob "**/*.go" my-repo/src ./local-folder
-```
 
-Upload and download with compression:
-```bash
-# Upload files as a compressed gzip archive (default)
-nexuscli-go upload --compress ./files my-repo/artifacts/backup.tar.gz
-# Creates: backup.tar.gz in my-repo/artifacts/
-
-# Upload with explicit zstd compression
-nexuscli-go upload --compress --compress-format zstd ./files my-repo/artifacts/backup.tar.zst
-# Creates: backup.tar.zst in my-repo/artifacts/
-
-# Upload with auto-detected format (from extension)
-nexuscli-go upload --compress ./files my-repo/artifacts/backup.tar.zst
-# Automatically uses zstd based on .tar.zst extension
-
-# Download and extract gzip archive
-nexuscli-go download --compress my-repo/artifacts/backup.tar.gz ./local-folder
-# Downloads and extracts: backup.tar.gz from my-repo/artifacts/
-
-# Download and extract zstd archive (auto-detected)
-nexuscli-go download --compress my-repo/artifacts/backup.tar.zst ./local-folder
-# Downloads and extracts: backup.tar.zst from my-repo/artifacts/
-# Format is automatically detected from the .tar.zst extension
-
-# Upload with zip compression
-nexuscli-go upload --compress --compress-format zip ./files my-repo/artifacts/backup.zip
-# Creates: backup.zip in my-repo/artifacts/
-
-# Upload with auto-detected zip format
-nexuscli-go upload --compress ./files my-repo/artifacts/backup.zip
-# Automatically uses zip based on .zip extension
-
-# Download and extract zip archive
-nexuscli-go download --compress my-repo/artifacts/backup.zip ./local-folder
-# Downloads and extracts: backup.zip from my-repo/artifacts/
-```
-
-#### About the `--key-from` flag
-
-The `--key-from` flag enables content-based cache retrieval by computing a hash from a specified file and using it in the source path. This allows you to download cached artifacts that were uploaded with the same key-based naming.
-
-When using `--key-from`, you must include the `{key}` template placeholder in your source path. The CLI will compute a SHA256 hash of the specified file and replace `{key}` with the hash value to locate the correct artifact.
-
-##### Examples
-
-```bash
-# Download node_modules using hash from package-lock.json
+# Download with content-based caching
 nexuscli-go download --key-from package-lock.json my-repo/cache-{key} ./node_modules
-# Downloads from: my-repo/cache-<sha256-hash>/
-
-# Download compressed archive with key-based naming
 nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
-# Downloads and extracts: cache-<sha256-hash>.tar.gz from my-repo/
 
-# Download with key in subdirectory path
-nexuscli-go download --key-from go.sum my-repo/go-deps/{key}/vendor ./vendor
-# Downloads from: my-repo/go-deps/<sha256-hash>/vendor/
-```
+# Force download all files (ignore checksums)
+nexuscli-go download --force my-repo/path ./local-folder
 
-**Important:** The `{key}` placeholder is required when `--key-from` is specified. If the template is missing, the CLI will exit with an error.
+# Skip checksum validation (faster, but less safe)
+nexuscli-go download --skip-checksum my-repo/path ./local-folder
 
-##### Typical workflow for caching
+# Use custom checksum algorithm
+nexuscli-go download --checksum sha256 my-repo/path ./local-folder
 
-```bash
-# Upload cached dependencies
-nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
-
-# Later, download the same cached dependencies (if package-lock.json hasn't changed)
-nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
-```
-
-Using Docker with CLI flags:
-```bash
-docker run --rm -v $(pwd):/data \
-  nexuscli-go upload --url http://your-nexus:8081 --username myuser --password mypassword /data/<directory> <repository/subdir>
+# Using authentication flags
+nexuscli-go download --url http://your-nexus:8081 --username myuser --password mypassword my-repo/path ./local-folder
 ```
 
 ## Exit Codes
