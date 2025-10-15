@@ -65,11 +65,11 @@ func TestUploadDryRun(t *testing.T) {
 
 	// Verify log output contains dry-run message
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Dry-run mode") {
-		t.Errorf("Expected log to contain 'Dry-run mode', got: %s", logOutput)
+	if !strings.Contains(logOutput, "Files uploaded:") {
+		t.Errorf("Expected log to contain 'Files uploaded:', got: %s", logOutput)
 	}
-	if !strings.Contains(logOutput, "Would upload 2 files") {
-		t.Errorf("Expected log to contain 'Would upload 2 files', got: %s", logOutput)
+	if !strings.Contains(logOutput, "size:") {
+		t.Errorf("Expected log to contain 'size:', got: %s", logOutput)
 	}
 }
 
@@ -148,11 +148,11 @@ func TestDownloadDryRun(t *testing.T) {
 
 	// Verify log output contains dry-run message
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Dry-run mode") {
-		t.Errorf("Expected log to contain 'Dry-run mode', got: %s", logOutput)
+	if !strings.Contains(logOutput, "Files downloaded:") {
+		t.Errorf("Expected log to contain 'Files downloaded:', got: %s", logOutput)
 	}
-	if !strings.Contains(logOutput, "Would download 2/2 files") {
-		t.Errorf("Expected log to contain 'Would download 2/2 files', got: %s", logOutput)
+	if !strings.Contains(logOutput, "size:") {
+		t.Errorf("Expected log to contain 'size:', got: %s", logOutput)
 	}
 }
 

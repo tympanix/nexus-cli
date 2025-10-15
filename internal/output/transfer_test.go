@@ -128,8 +128,12 @@ func TestTransferTrackerQuietMode(t *testing.T) {
 	tracker.PrintSummary()
 
 	output := buf.String()
-	if output != "" {
-		t.Errorf("Expected no output in quiet mode, got: %s", output)
+	// In quiet mode, header is suppressed but summary is still shown
+	if strings.Contains(output, "Downloading from") {
+		t.Errorf("Expected no header in quiet mode, got: %s", output)
+	}
+	if !strings.Contains(output, "Files downloaded: 1") {
+		t.Errorf("Expected summary in quiet mode, got: %s", output)
 	}
 }
 

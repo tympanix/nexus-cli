@@ -127,11 +127,11 @@ func TestDownloadLogging(t *testing.T) {
 
 	// Check log output contains expected format with all metrics
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Downloaded 1/1 files") {
-		t.Errorf("Expected log message containing 'Downloaded 1/1 files', got: %s", logOutput)
+	if !strings.Contains(logOutput, "Files downloaded: 1") {
+		t.Errorf("Expected log message containing 'Files downloaded: 1', got: %s", logOutput)
 	}
-	if !strings.Contains(logOutput, "(skipped: 0, failed: 0)") {
-		t.Errorf("Expected log message containing '(skipped: 0, failed: 0)', got: %s", logOutput)
+	if !strings.Contains(logOutput, "size:") {
+		t.Errorf("Expected log message containing 'size:', got: %s", logOutput)
 	}
 }
 

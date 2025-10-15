@@ -107,9 +107,6 @@ func (t *TransferTracker) RecordFile(file FileTransfer) {
 
 func (t *TransferTracker) PrintSummary() {
 	t.endTime = time.Now()
-	if t.quietMode {
-		return
-	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -134,8 +131,6 @@ func (t *TransferTracker) PrintSummary() {
 	if elapsed.Seconds() > 0 {
 		avgSpeed = float64(totalBytes) / elapsed.Seconds()
 	}
-
-	t.logger.Println("")
 
 	action := "uploaded"
 	if t.transferType == TransferTypeDownload {

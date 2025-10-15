@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/output"
 	"github.com/tympanix/nexus-cli/internal/progress"
 	"github.com/tympanix/nexus-cli/internal/util"
 )
@@ -35,7 +37,7 @@ func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern st
 	})
 }
 
-func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, skipCh chan bool, config *config.Config, opts *DownloadOptions) {
+func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, tracker *output.TransferTracker, config *config.Config, opts *DownloadOptions) {
 	defer wg.Done()
 	path := strings.TrimLeft(asset.Path, "/")
 
@@ -52,17 +54,16 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	}
 
 	localPath := filepath.Join(destDir, path)
+	startTime := time.Now()
 
 	// Check if file exists and validate checksum or skip based on file existence (skip this check if Force is enabled)
 	shouldSkip := false
-	skipReason := ""
 
 	if !opts.Force {
 		if _, err := os.Stat(localPath); err == nil {
 			if opts.SkipChecksum {
 				// When checksum validation is skipped, only check if file exists and add to progress
 				shouldSkip = true
-				skipReason = "Skipped (file exists): %s\n"
 				if bar != nil {
 					bar.Add64(asset.FileSize)
 				}
@@ -71,28 +72,45 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 				valid, err := opts.checksumValidator.ValidateWithProgress(localPath, asset.Checksum, bar)
 				if err == nil && valid {
 					shouldSkip = true
-					skipReason = fmt.Sprintf("Skipped (%s match): %%s\n", strings.ToUpper(opts.ChecksumAlgorithm))
 				}
 			}
 		}
 	}
 
 	if shouldSkip {
-		opts.Logger.VerbosePrintf(skipReason, localPath)
+		relPath := path
+		if basePath != "" && strings.HasPrefix(asset.Path, basePath) {
+			relPath = strings.TrimPrefix(strings.TrimPrefix(asset.Path, basePath), "/")
+		}
+		opts.Logger.VerbosePrintf("Skipped: %s\n", relPath)
+		tracker.RecordFile(output.FileTransfer{
+			Path:      relPath,
+			Size:      asset.FileSize,
+			Status:    output.TransferStatusSkipped,
+			StartTime: startTime,
+			EndTime:   time.Now(),
+		})
 		// Increment file count for skipped files
 		if bar != nil {
 			bar.IncrementFile()
-		}
-		// Signal that this file was skipped
-		if skipCh != nil {
-			skipCh <- true
 		}
 		return
 	}
 
 	// If dry-run is enabled, just log what would be downloaded (without creating directories)
 	if opts.DryRun {
-		opts.Logger.VerbosePrintf("Would download: %s\n", localPath)
+		relPath := path
+		if basePath != "" && strings.HasPrefix(asset.Path, basePath) {
+			relPath = strings.TrimPrefix(strings.TrimPrefix(asset.Path, basePath), "/")
+		}
+		opts.Logger.VerbosePrintf("Would download: %s\n", relPath)
+		tracker.RecordFile(output.FileTransfer{
+			Path:      relPath,
+			Size:      asset.FileSize,
+			Status:    output.TransferStatusSuccess,
+			StartTime: startTime,
+			EndTime:   time.Now(),
+		})
 		if bar != nil {
 			bar.Add64(asset.FileSize)
 			bar.IncrementFile()
@@ -106,6 +124,18 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	f, err := os.Create(localPath)
 	if err != nil {
+		relPath := path
+		if basePath != "" && strings.HasPrefix(asset.Path, basePath) {
+			relPath = strings.TrimPrefix(strings.TrimPrefix(asset.Path, basePath), "/")
+		}
+		tracker.RecordFile(output.FileTransfer{
+			Path:      relPath,
+			Size:      asset.FileSize,
+			Status:    output.TransferStatusFailed,
+			Error:     err,
+			StartTime: startTime,
+			EndTime:   time.Now(),
+		})
 		errCh <- err
 		return
 	}
@@ -114,9 +144,31 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	// Use a tee reader to update progress bar while downloading
 	writer := io.MultiWriter(f, bar)
 	err = client.DownloadAsset(asset.DownloadURL, writer)
+	endTime := time.Now()
+
+	relPath := path
+	if basePath != "" && strings.HasPrefix(asset.Path, basePath) {
+		relPath = strings.TrimPrefix(strings.TrimPrefix(asset.Path, basePath), "/")
+	}
+
 	if err != nil {
+		tracker.RecordFile(output.FileTransfer{
+			Path:      relPath,
+			Size:      asset.FileSize,
+			Status:    output.TransferStatusFailed,
+			Error:     err,
+			StartTime: startTime,
+			EndTime:   endTime,
+		})
 		errCh <- err
 	} else {
+		tracker.RecordFile(output.FileTransfer{
+			Path:      relPath,
+			Size:      asset.FileSize,
+			Status:    output.TransferStatusSuccess,
+			StartTime: startTime,
+			EndTime:   endTime,
+		})
 		// Only increment file count on successful download
 		bar.IncrementFile()
 	}
@@ -194,31 +246,33 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		totalBytes += asset.FileSize
 	}
 
+	target := repository
+	if src != "" {
+		target = repository + "/" + src
+	}
 	showProgress := util.IsATTY() && !opts.QuietMode && !opts.DryRun
+	tracker := output.NewTransferTracker(output.TransferTypeDownload, target, opts.Logger, opts.QuietMode, opts.Logger.IsVerbose(), showProgress)
+	tracker.PrintHeader(len(assets), totalBytes)
+
 	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(assets), showProgress)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(assets))
-	skipCh := make(chan bool, len(assets))
 	for _, asset := range assets {
 		wg.Add(1)
 		go func(asset nexusapi.Asset) {
-			downloadAsset(asset, destDir, src, &wg, errCh, bar, skipCh, config, opts)
+			downloadAsset(asset, destDir, src, &wg, errCh, bar, tracker, config, opts)
 		}(asset)
 	}
 	wg.Wait()
 	close(errCh)
-	close(skipCh)
+
 	nErrors := 0
 	for err := range errCh {
 		opts.Logger.Println("Error downloading asset:", err)
 		nErrors++
 	}
-	nSkipped := 0
-	for range skipCh {
-		nSkipped++
-	}
-	nDownloaded := len(assets) - nErrors - nSkipped
+
 	bar.Finish()
 
 	// Delete extra files if requested (but not in dry-run mode)
@@ -229,24 +283,12 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 		opts.Logger.Println("Dry-run mode: --delete flag ignored (no files would be deleted)")
 	}
 
-	// Adjust message for dry-run mode
-	if opts.DryRun {
-		if nDeleted > 0 {
-			opts.Logger.Printf("Dry-run mode: Would download %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n",
-				nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
-		} else {
-			opts.Logger.Printf("Dry-run mode: Would download %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
-				nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
-		}
-	} else {
-		if nDeleted > 0 {
-			opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, deleted: %d, failed: %d)\n",
-				nDownloaded, len(assets), src, repository, destDir, nSkipped, nDeleted, nErrors)
-		} else {
-			opts.Logger.Printf("Downloaded %d/%d files from '%s' in repository '%s' to '%s' (skipped: %d, failed: %d)\n",
-				nDownloaded, len(assets), src, repository, destDir, nSkipped, nErrors)
-		}
+	if nDeleted > 0 {
+		opts.Logger.VerbosePrintf("Deleted %d extra files\n", nDeleted)
 	}
+
+	tracker.PrintSummary()
+
 	if nErrors == 0 {
 		return DownloadSuccess
 	}

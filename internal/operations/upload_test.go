@@ -113,8 +113,8 @@ func TestUploadLogging(t *testing.T) {
 
 	// Check log output contains expected message
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Uploaded 1 files from") {
-		t.Errorf("Expected log message containing 'Uploaded 1 files from', got: %s", logOutput)
+	if !strings.Contains(logOutput, "Files uploaded: 1") {
+		t.Errorf("Expected log message containing 'Files uploaded: 1', got: %s", logOutput)
 	}
 }
 
@@ -182,8 +182,11 @@ func TestUploadWithChecksumValidation(t *testing.T) {
 
 	// Check log output contains expected message about all files skipped
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "All 1 files already exist with matching checksums") {
-		t.Errorf("Expected log message about all files skipped, got: %s", logOutput)
+	if !strings.Contains(logOutput, "Files uploaded: 0") {
+		t.Errorf("Expected log message about 0 files uploaded, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "skipped: 1") {
+		t.Errorf("Expected log message about 1 file skipped, got: %s", logOutput)
 	}
 }
 
@@ -250,7 +253,7 @@ func TestUploadWithChecksumMismatch(t *testing.T) {
 
 	// Check log output
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Uploaded 1 files from") {
+	if !strings.Contains(logOutput, "Files uploaded: 1") {
 		t.Errorf("Expected log message about 1 file uploaded, got: %s", logOutput)
 	}
 }
@@ -313,8 +316,11 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 
 	// Check log output contains expected message about all files skipped
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "All 1 files already exist with matching checksums") {
-		t.Errorf("Expected log message about all files skipped, got: %s", logOutput)
+	if !strings.Contains(logOutput, "Files uploaded: 0") {
+		t.Errorf("Expected log message about 0 files uploaded, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "skipped: 1") {
+		t.Errorf("Expected log message about 1 file skipped, got: %s", logOutput)
 	}
 }
 
@@ -382,7 +388,7 @@ func TestUploadWithForce(t *testing.T) {
 
 	// Check log output
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "Uploaded 1 files from") {
+	if !strings.Contains(logOutput, "Files uploaded: 1") {
 		t.Errorf("Expected log message about 1 file uploaded, got: %s", logOutput)
 	}
 }
