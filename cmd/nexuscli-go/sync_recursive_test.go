@@ -34,7 +34,7 @@ recursive = true
 	}
 
 	testFileContent := []byte("test file content")
-	testFilePath := filepath.Join("local", "test1", "test1", "sub", "subfile13.out")
+	testFilePath := filepath.Join("local", "test1", "sub", "subfile13.out")
 	if err := os.MkdirAll(filepath.Dir(testFilePath), 0755); err != nil {
 		t.Fatal(err)
 	}

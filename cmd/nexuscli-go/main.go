@@ -93,6 +93,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 			Logger:            logger,
 			QuietMode:         false,
 			ChecksumAlgorithm: dep.Checksum,
+			Flatten:           dep.Recursive,
 		}
 		if err := downloadOpts.SetChecksumAlgorithm(dep.Checksum); err != nil {
 			fmt.Printf("Error setting checksum algorithm: %v\n", err)
@@ -102,11 +103,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		src := dep.Repository + "/" + strings.TrimSuffix(dep.ExpandedPath(), "/")
 		dest := dep.LocalPath()
 
-		if dep.Recursive {
-			operations.DownloadMain(src, dest, cfg, downloadOpts)
-		} else {
-			operations.DownloadMain(src, dest, cfg, downloadOpts)
-		}
+		operations.DownloadMain(src, dest, cfg, downloadOpts)
 
 		for filePath := range lockedFiles {
 			localPath := filepath.Join(dest, filePath)
