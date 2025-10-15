@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/tympanix/nexus-cli/internal/archive"
 	"github.com/tympanix/nexus-cli/internal/config"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
+	"github.com/tympanix/nexus-cli/internal/output"
 	"github.com/tympanix/nexus-cli/internal/progress"
 	"github.com/tympanix/nexus-cli/internal/util"
 )
@@ -147,7 +149,6 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	// Filter files based on checksum validation
 	var filesToUpload []string
 	var filesToUploadSizes []int64
-	var skippedCount int
 	totalBytesToUpload := int64(0)
 
 	// Calculate total bytes for progress bar (validation + upload)
@@ -160,9 +161,16 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		totalBytes += info.Size()
 	}
 
+	target := repository
+	if subdir != "" {
+		target = repository + "/" + subdir
+	}
+	showProgress := util.IsATTY() && !opts.QuietMode && !opts.DryRun
+	tracker := output.NewTransferTracker(output.TransferTypeUpload, target, opts.Logger, opts.QuietMode, opts.Logger.IsVerbose(), showProgress)
+	tracker.PrintHeader(len(filePaths), totalBytes)
+
 	// Create a single progress bar for all operations
 	// In dry-run mode, suppress the progress bar to avoid interleaving with output
-	showProgress := util.IsATTY() && !opts.QuietMode && !opts.DryRun
 	bar := progress.NewProgressBarWithCount(totalBytes, "Processing files", len(filePaths), showProgress)
 
 	for _, filePath := range filePaths {
@@ -197,7 +205,11 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 		if shouldSkip {
 			opts.Logger.VerbosePrintf(skipReason, filePath)
-			skippedCount++
+			tracker.RecordFile(output.FileTransfer{
+				Path:   relPath,
+				Size:   info.Size(),
+				Status: output.TransferStatusSkipped,
+			})
 			bar.IncrementFile()
 		} else {
 			filesToUpload = append(filesToUpload, filePath)
@@ -208,22 +220,23 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 	if len(filesToUpload) == 0 {
 		bar.Finish()
-		opts.Logger.Printf("All %d files already exist with matching checksums\n", len(filePaths))
+		tracker.PrintSummary()
 		return nil
 	}
 
 	// If dry-run is enabled, just report what would be uploaded
 	if opts.DryRun {
 		bar.Finish()
-		for _, filePath := range filesToUpload {
+		for i, filePath := range filesToUpload {
 			relPath, _ := filepath.Rel(src, filePath)
 			opts.Logger.VerbosePrintf("Would upload: %s\n", relPath)
+			tracker.RecordFile(output.FileTransfer{
+				Path:   relPath,
+				Size:   filesToUploadSizes[i],
+				Status: output.TransferStatusSuccess,
+			})
 		}
-		if skippedCount > 0 {
-			opts.Logger.Printf("Dry-run mode: Would upload %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
-		} else {
-			opts.Logger.Printf("Dry-run mode: Would upload %d files from %s\n", len(filesToUpload), src)
-		}
+		tracker.PrintSummary()
 		return nil
 	}
 
@@ -241,17 +254,37 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
 
+	uploadStartTime := time.Now()
+
 	// Write multipart form in a goroutine
 	errChan := make(chan error, 1)
+	fileCompleteChan := make(chan int, len(files))
 	go func() {
 		defer pw.Close()
 		// Callback to update progress bar description when each file completes
 		onFileComplete := func(idx, total int) {
 			bar.IncrementFile()
+			fileCompleteChan <- idx
 		}
 		err := nexusapi.BuildRawUploadForm(writer, files, subdir, bar, nil, onFileComplete)
 		writer.Close()
+		close(fileCompleteChan)
 		errChan <- err
+	}()
+
+	// Track completed files in another goroutine
+	go func() {
+		for idx := range fileCompleteChan {
+			if idx >= 0 && idx < len(files) {
+				tracker.RecordFile(output.FileTransfer{
+					Path:      files[idx].RelativePath,
+					Size:      filesToUploadSizes[idx],
+					Status:    output.TransferStatusSuccess,
+					StartTime: uploadStartTime,
+					EndTime:   time.Now(),
+				})
+			}
+		}
 	}()
 
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
@@ -265,11 +298,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		return goroutineErr
 	}
 	bar.Finish()
-	if skippedCount > 0 {
-		opts.Logger.Printf("Uploaded %d files from %s (skipped: %d)\n", len(filesToUpload), src, skippedCount)
-	} else {
-		opts.Logger.Printf("Uploaded %d files from %s\n", len(filesToUpload), src)
-	}
+	tracker.PrintSummary()
 	return nil
 }
 

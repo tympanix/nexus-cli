@@ -8,6 +8,8 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 - Download all files from a Nexus RAW folder recursively with optional glob pattern filtering
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
+- Clear Unix-style console output with transfer statistics (files transferred, size, time, speed)
+- Verbose and quiet output modes
 - Shell autocompletion for bash, zsh, fish, and PowerShell with dynamic repository and path suggestions
 - Small container image size using multi-stage build with scratch base
 
@@ -228,6 +230,34 @@ These options are available for all commands:
 
 - `--quiet` or `-q` - Suppress all output (no progress bars or informational messages)
 - `--verbose` or `-v` - Enable verbose output with detailed information about operations
+
+### Console Output
+
+The CLI provides clear, Unix-style output for file transfer operations, similar to tools like `rsync`, `scp`, and `wget`:
+
+**Normal mode** (default):
+- Shows a header line indicating the action and target repository
+- Displays per-file status when not showing a progress bar
+- Shows a single progress bar for all files during actual transfer (when connected to a TTY)
+- Provides a summary after completion with statistics: files transferred, skipped, failed, total size, elapsed time, and average speed
+
+**Verbose mode** (`--verbose` or `-v`):
+- Includes additional information such as total file count and total size in the header
+- Shows detailed per-file messages for skipped files (with reason)
+- Displays individual file paths as they are processed
+
+**Quiet mode** (`--quiet` or `-q`):
+- Suppresses all output including progress bars and summary
+
+Example output (normal mode):
+```
+Uploading to my-repo/path
+✓ file1.txt (1.2 KiB, 245.3 KiB/s)
+✓ file2.txt (856 B, 198.7 KiB/s)
+- file3.txt (skipped)
+
+Files uploaded: 2, skipped: 1, size: 2.0 KiB, time: 1.2s, speed: 1.7 KiB/s
+```
 
 ### Common Options
 

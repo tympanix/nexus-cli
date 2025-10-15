@@ -11,6 +11,7 @@ type Logger interface {
 	Println(v ...interface{})
 	VerbosePrintf(format string, v ...interface{})
 	VerbosePrintln(v ...interface{})
+	IsVerbose() bool
 }
 
 // SimpleLogger writes to the given writer
@@ -47,4 +48,8 @@ func (l *SimpleLogger) VerbosePrintln(v ...interface{}) {
 	if l.verbose {
 		fmt.Fprintln(l.writer, v...)
 	}
+}
+
+func (l *SimpleLogger) IsVerbose() bool {
+	return l.verbose
 }
