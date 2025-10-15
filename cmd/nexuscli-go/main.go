@@ -109,7 +109,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		}
 
 		for filePath := range lockedFiles {
-			localPath := filepath.Join(dest, filepath.Base(filePath))
+			localPath := filepath.Join(dest, filePath)
 			expectedChecksum := lockedFiles[filePath]
 			parts := strings.SplitN(expectedChecksum, ":", 2)
 			if len(parts) != 2 {
