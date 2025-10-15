@@ -399,3 +399,94 @@ func BuildYumUploadForm(writer *multipart.Writer, rpmFile string, progressWriter
 
 	return nil
 }
+
+// SearchAssets searches for assets in a repository with optional path prefix
+func (c *Client) SearchAssets(repository, pathPrefix string) ([]Asset, error) {
+	var assets []Asset
+	continuationToken := ""
+
+	for {
+		baseURL, err := url.Parse(c.BaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Nexus URL: %w", err)
+		}
+		baseURL.Path = "/service/rest/v1/search/assets"
+		query := baseURL.Query()
+		query.Set("repository", repository)
+		if pathPrefix != "" {
+			query.Set("q", fmt.Sprintf("/%s*", pathPrefix))
+		}
+		if continuationToken != "" {
+			query.Set("continuationToken", continuationToken)
+		}
+		baseURL.RawQuery = query.Encode()
+
+		req, err := http.NewRequest("GET", baseURL.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.SetBasicAuth(c.Username, c.Password)
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return nil, fmt.Errorf("failed to search assets: status %d", resp.StatusCode)
+		}
+		var sr SearchResponse
+		if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+			return nil, err
+		}
+		assets = append(assets, sr.Items...)
+		if sr.ContinuationToken == "" {
+			break
+		}
+		continuationToken = sr.ContinuationToken
+	}
+
+	return assets, nil
+}
+
+// GetAssetByPath gets a single asset by its exact path in a repository
+func (c *Client) GetAssetByPath(repository, path string) (*Asset, error) {
+	baseURL, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Nexus URL: %w", err)
+	}
+	baseURL.Path = "/service/rest/v1/search/assets"
+	query := baseURL.Query()
+	query.Set("repository", repository)
+	query.Set("q", fmt.Sprintf("/%s", path))
+	baseURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequest("GET", baseURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(c.Username, c.Password)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get asset: status %d", resp.StatusCode)
+	}
+	var sr SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return nil, err
+	}
+
+	if len(sr.Items) == 0 {
+		return nil, fmt.Errorf("asset not found: %s", path)
+	}
+
+	for _, asset := range sr.Items {
+		if asset.Path == path {
+			return &asset, nil
+		}
+	}
+
+	return nil, fmt.Errorf("asset not found: %s", path)
+}

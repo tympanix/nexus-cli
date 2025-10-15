@@ -4,17 +4,155 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tympanix/nexus-cli/internal/archive"
+	"github.com/tympanix/nexus-cli/internal/checksum"
 	"github.com/tympanix/nexus-cli/internal/config"
+	"github.com/tympanix/nexus-cli/internal/deps"
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 	"github.com/tympanix/nexus-cli/internal/operations"
 	"github.com/tympanix/nexus-cli/internal/util"
 )
 
 var version = "dev"
+
+func depsInitMain() {
+	filename := "deps.ini"
+	if _, err := os.Stat(filename); err == nil {
+		fmt.Printf("Error: %s already exists\n", filename)
+		os.Exit(1)
+	}
+	if err := deps.CreateTemplateIni(filename); err != nil {
+		fmt.Printf("Error creating %s: %v\n", filename, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Created %s\n", filename)
+}
+
+func depsLockMain(cfg *config.Config, logger util.Logger) {
+	manifest, err := deps.ParseDepsIni("deps.ini")
+	if err != nil {
+		fmt.Printf("Error parsing deps.ini: %v\n", err)
+		os.Exit(1)
+	}
+
+	client := nexusapi.NewClient(cfg.NexusURL, cfg.Username, cfg.Password)
+	resolver := deps.NewResolver(client)
+
+	lockFile := &deps.LockFile{
+		Dependencies: make(map[string]map[string]string),
+	}
+
+	logger.Printf("Resolving dependencies...\n")
+	for name, dep := range manifest.Dependencies {
+		logger.Printf("  Resolving %s...\n", name)
+		files, err := resolver.ResolveDependency(dep)
+		if err != nil {
+			fmt.Printf("Error resolving %s: %v\n", name, err)
+			os.Exit(1)
+		}
+		lockFile.Dependencies[name] = files
+		logger.Printf("    Found %d file(s)\n", len(files))
+	}
+
+	if err := deps.WriteLockFile("deps-lock.ini", lockFile); err != nil {
+		fmt.Printf("Error writing deps-lock.ini: %v\n", err)
+		os.Exit(1)
+	}
+
+	logger.Printf("Wrote deps-lock.ini\n")
+}
+
+func depsSyncMain(cfg *config.Config, logger util.Logger) {
+	manifest, err := deps.ParseDepsIni("deps.ini")
+	if err != nil {
+		fmt.Printf("Error parsing deps.ini: %v\n", err)
+		os.Exit(1)
+	}
+
+	lockFile, err := deps.ParseLockFile("deps-lock.ini")
+	if err != nil {
+		fmt.Printf("Error parsing deps-lock.ini: %v\n", err)
+		os.Exit(1)
+	}
+
+	logger.Printf("Syncing dependencies...\n")
+	for name, dep := range manifest.Dependencies {
+		logger.Printf("  Syncing %s...\n", name)
+
+		lockedFiles, ok := lockFile.Dependencies[name]
+		if !ok {
+			fmt.Printf("Error: dependency %s not found in deps-lock.ini\n", name)
+			os.Exit(1)
+		}
+
+		downloadOpts := &operations.DownloadOptions{
+			Logger:            logger,
+			QuietMode:         false,
+			ChecksumAlgorithm: dep.Checksum,
+		}
+		if err := downloadOpts.SetChecksumAlgorithm(dep.Checksum); err != nil {
+			fmt.Printf("Error setting checksum algorithm: %v\n", err)
+			os.Exit(1)
+		}
+
+		src := dep.Repository + "/" + strings.TrimSuffix(dep.ExpandedPath(), "/")
+		dest := dep.LocalPath()
+
+		if dep.Recursive {
+			operations.DownloadMain(src, dest, cfg, downloadOpts)
+		} else {
+			operations.DownloadMain(src, dest, cfg, downloadOpts)
+		}
+
+		for filePath := range lockedFiles {
+			localPath := filepath.Join(dest, filepath.Base(filePath))
+			expectedChecksum := lockedFiles[filePath]
+			parts := strings.SplitN(expectedChecksum, ":", 2)
+			if len(parts) != 2 {
+				fmt.Printf("Error: invalid checksum format in deps-lock.ini: %s\n", expectedChecksum)
+				os.Exit(1)
+			}
+			algorithm := parts[0]
+			expected := parts[1]
+
+			actualChecksum, err := checksum.ComputeChecksum(localPath, algorithm)
+			if err != nil {
+				fmt.Printf("Error computing checksum for %s: %v\n", localPath, err)
+				os.Exit(1)
+			}
+
+			if !strings.EqualFold(actualChecksum, expected) {
+				fmt.Printf("Error: checksum mismatch for %s\n", localPath)
+				fmt.Printf("  Expected: %s\n", expected)
+				fmt.Printf("  Got: %s\n", actualChecksum)
+				os.Exit(1)
+			}
+		}
+
+		logger.Printf("    Verified %d file(s)\n", len(lockedFiles))
+	}
+
+	logger.Printf("Sync complete\n")
+}
+
+func depsEnvMain(logger util.Logger) {
+	manifest, err := deps.ParseDepsIni("deps.ini")
+	if err != nil {
+		fmt.Printf("Error parsing deps.ini: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := deps.GenerateEnvFile("deps.env", manifest); err != nil {
+		fmt.Printf("Error generating deps.env: %v\n", err)
+		os.Exit(1)
+	}
+
+	logger.Printf("Generated deps.env\n")
+}
 
 func getRepositoryCompletions(cfg *config.Config, toComplete string) []string {
 	client := nexusapi.NewClient(cfg.NexusURL, cfg.Username, cfg.Password)
@@ -242,9 +380,57 @@ func main() {
 		},
 	}
 
+	var depsCmd = &cobra.Command{
+		Use:   "deps",
+		Short: "Dependency management commands",
+		Long:  "Manage dependencies using deps.ini, deps-lock.ini, and deps.env files",
+	}
+
+	var depsInitCmd = &cobra.Command{
+		Use:   "init",
+		Short: "Create a template deps.ini file",
+		Long:  "Create a template deps.ini file with example dependencies",
+		Run: func(cmd *cobra.Command, args []string) {
+			depsInitMain()
+		},
+	}
+
+	var depsLockCmd = &cobra.Command{
+		Use:   "lock",
+		Short: "Resolve and update deps-lock.ini from deps.ini",
+		Long:  "Resolve dependencies from Nexus and write checksums to deps-lock.ini",
+		Run: func(cmd *cobra.Command, args []string) {
+			depsLockMain(cfg, logger)
+		},
+	}
+
+	var depsSyncCmd = &cobra.Command{
+		Use:   "sync",
+		Short: "Download dependencies and verify against deps-lock.ini",
+		Long:  "Download dependencies from Nexus and verify checksums atomically (fails if out of sync)",
+		Run: func(cmd *cobra.Command, args []string) {
+			depsSyncMain(cfg, logger)
+		},
+	}
+
+	var depsEnvCmd = &cobra.Command{
+		Use:   "env",
+		Short: "Generate deps.env for shell/Makefile integration",
+		Long:  "Generate deps.env file with DEPS_ prefixed variables for shell and Makefile integration",
+		Run: func(cmd *cobra.Command, args []string) {
+			depsEnvMain(logger)
+		},
+	}
+
+	depsCmd.AddCommand(depsInitCmd)
+	depsCmd.AddCommand(depsLockCmd)
+	depsCmd.AddCommand(depsSyncCmd)
+	depsCmd.AddCommand(depsEnvCmd)
+
 	rootCmd.AddCommand(uploadCmd)
 	rootCmd.AddCommand(downloadCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(depsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
