@@ -217,3 +217,49 @@ func TestLockFileRoundTrip(t *testing.T) {
 		t.Error("Checksum mismatch for example_txt")
 	}
 }
+
+func TestLockFileDeterministicOutput(t *testing.T) {
+	lockFile := &LockFile{
+		Dependencies: map[string]map[string]string{
+			"zeta": {
+				"path/z.txt": "sha256:checksum_z",
+			},
+			"alpha": {
+				"path/a.txt": "sha256:checksum_a",
+			},
+			"beta": {
+				"path/c.txt": "sha256:checksum_c",
+				"path/b.txt": "sha256:checksum_b",
+				"path/a.txt": "sha256:checksum_a2",
+			},
+		},
+	}
+
+	var outputs []string
+	for i := 0; i < 10; i++ {
+		tmpfile, err := os.CreateTemp("", "deps-lock-*.ini")
+		if err != nil {
+			t.Fatal(err)
+		}
+		filename := tmpfile.Name()
+		tmpfile.Close()
+		defer os.Remove(filename)
+
+		if err := WriteLockFile(filename, lockFile); err != nil {
+			t.Fatalf("WriteLockFile failed: %v", err)
+		}
+
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		outputs = append(outputs, string(content))
+	}
+
+	for i := 1; i < len(outputs); i++ {
+		if outputs[i] != outputs[0] {
+			t.Errorf("Lock file output is not deterministic.\nFirst output:\n%s\n\nMismatched output:\n%s", outputs[0], outputs[i])
+			break
+		}
+	}
+}
