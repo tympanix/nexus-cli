@@ -106,7 +106,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		operations.DownloadMain(src, dest, cfg, downloadOpts)
 
 		for filePath := range lockedFiles {
-			localPath := filepath.Join(dest, filePath)
+			localPath := filepath.Join(dep.OutputDir, filePath)
 			expectedChecksum := lockedFiles[filePath]
 			parts := strings.SplitN(expectedChecksum, ":", 2)
 			if len(parts) != 2 {

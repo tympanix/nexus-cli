@@ -32,14 +32,7 @@ func (d *Dependency) LocalPath() string {
 		return d.Dest
 	}
 	expanded := d.ExpandedPath()
-	if d.Recursive {
-		parts := strings.Split(strings.TrimSuffix(expanded, "/"), "/")
-		if len(parts) > 0 {
-			return filepath.Join(d.OutputDir, parts[0]) + "/"
-		}
-		return filepath.Join(d.OutputDir, expanded)
-	}
-	return filepath.Join(d.OutputDir, filepath.Base(expanded))
+	return filepath.Join(d.OutputDir, expanded)
 }
 
 func (d *Dependency) NexusPath() string {
