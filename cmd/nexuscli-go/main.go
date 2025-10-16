@@ -101,12 +101,12 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		}
 
 		src := dep.Repository + "/" + strings.TrimSuffix(dep.ExpandedPath(), "/")
-		dest := dep.LocalPath()
+		dest := dep.OutputDir
 
 		operations.DownloadMain(src, dest, cfg, downloadOpts)
 
 		for filePath := range lockedFiles {
-			localPath := filepath.Join(dest, filePath)
+			localPath := filepath.Join(dep.OutputDir, filePath)
 			expectedChecksum := lockedFiles[filePath]
 			parts := strings.SplitN(expectedChecksum, ":", 2)
 			if len(parts) != 2 {

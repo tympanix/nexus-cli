@@ -204,7 +204,7 @@ docs/example-1.0.0.txt = sha256:` + testChecksum + `
 		t.Fatalf("deps sync failed: %v", err)
 	}
 
-	downloadedFile := filepath.Join("local", "example-1.0.0.txt", "docs", "example-1.0.0.txt")
+	downloadedFile := filepath.Join("local", "docs", "example-1.0.0.txt")
 	if _, err := os.Stat(downloadedFile); os.IsNotExist(err) {
 		t.Error("downloaded file does not exist")
 	}
@@ -372,12 +372,12 @@ thirdparty/libfoo-1.2.3.tar.gz = sha512:` + file2Checksum + `
 		t.Fatalf("deps sync failed: %v", err)
 	}
 
-	file1Path := filepath.Join("local", "example-1.0.0.txt", "docs", "example-1.0.0.txt")
+	file1Path := filepath.Join("local", "docs", "example-1.0.0.txt")
 	if _, err := os.Stat(file1Path); os.IsNotExist(err) {
 		t.Error("example-1.0.0.txt does not exist")
 	}
 
-	file2Path := filepath.Join("local", "libfoo-1.2.3.tar.gz", "thirdparty", "libfoo-1.2.3.tar.gz")
+	file2Path := filepath.Join("local", "thirdparty", "libfoo-1.2.3.tar.gz")
 	if _, err := os.Stat(file2Path); os.IsNotExist(err) {
 		t.Error("libfoo-1.2.3.tar.gz does not exist")
 	}
