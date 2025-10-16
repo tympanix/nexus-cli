@@ -10,6 +10,7 @@ type Defaults struct {
 	Repository string
 	Checksum   string
 	OutputDir  string
+	URL        string
 }
 
 type Dependency struct {
@@ -21,6 +22,7 @@ type Dependency struct {
 	OutputDir  string
 	Dest       string
 	Recursive  bool
+	URL        string
 }
 
 func (d *Dependency) ExpandedPath() string {

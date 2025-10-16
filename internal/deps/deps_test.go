@@ -7,6 +7,7 @@ import (
 
 func TestParseDepsIni(t *testing.T) {
 	content := `[defaults]
+url = http://nexus.example.com:8081
 repository = libs
 checksum = sha256
 output_dir = ./local
@@ -41,6 +42,9 @@ recursive = true
 		t.Fatalf("ParseDepsIni failed: %v", err)
 	}
 
+	if manifest.Defaults.URL != "http://nexus.example.com:8081" {
+		t.Errorf("Expected URL 'http://nexus.example.com:8081', got '%s'", manifest.Defaults.URL)
+	}
 	if manifest.Defaults.Repository != "libs" {
 		t.Errorf("Expected repository 'libs', got '%s'", manifest.Defaults.Repository)
 	}
@@ -80,6 +84,59 @@ recursive = true
 	}
 	if !docsFolder.Recursive {
 		t.Error("Expected docs_folder to be recursive")
+	}
+
+	if exampleTxt.URL != "http://nexus.example.com:8081" {
+		t.Errorf("Expected example_txt to inherit default URL, got '%s'", exampleTxt.URL)
+	}
+}
+
+func TestParseDepsIniWithPerDependencyURL(t *testing.T) {
+	content := `[defaults]
+url = http://nexus-default.example.com:8081
+repository = libs
+checksum = sha256
+output_dir = ./local
+
+[example_txt]
+path = docs/example-${version}.txt
+version = 1.0.0
+url = http://nexus-custom.example.com:8082
+
+[libfoo_tar]
+path = thirdparty/libfoo-${version}.tar.gz
+version = 1.2.3
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	manifest, err := ParseDepsIni(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("ParseDepsIni failed: %v", err)
+	}
+
+	exampleTxt := manifest.Dependencies["example_txt"]
+	if exampleTxt == nil {
+		t.Fatal("example_txt dependency not found")
+	}
+	if exampleTxt.URL != "http://nexus-custom.example.com:8082" {
+		t.Errorf("Expected custom URL for example_txt, got '%s'", exampleTxt.URL)
+	}
+
+	libfooTar := manifest.Dependencies["libfoo_tar"]
+	if libfooTar == nil {
+		t.Fatal("libfoo_tar dependency not found")
+	}
+	if libfooTar.URL != "http://nexus-default.example.com:8081" {
+		t.Errorf("Expected libfoo_tar to inherit default URL, got '%s'", libfooTar.URL)
 	}
 }
 

@@ -19,6 +19,7 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 			Repository: "",
 			Checksum:   "sha256",
 			OutputDir:  "./local",
+			URL:        "",
 		},
 		Dependencies: make(map[string]*Dependency),
 	}
@@ -47,6 +48,7 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 				Repository: manifest.Defaults.Repository,
 				Checksum:   manifest.Defaults.Checksum,
 				OutputDir:  manifest.Defaults.OutputDir,
+				URL:        manifest.Defaults.URL,
 			}
 			manifest.Dependencies[sectionName] = currentDep
 			continue
@@ -72,6 +74,8 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 				manifest.Defaults.Checksum = value
 			case "output_dir":
 				manifest.Defaults.OutputDir = value
+			case "url":
+				manifest.Defaults.URL = value
 			}
 		} else if currentDep != nil {
 			switch key {
@@ -89,6 +93,8 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 				currentDep.Dest = value
 			case "recursive":
 				currentDep.Recursive = strings.ToLower(value) == "true"
+			case "url":
+				currentDep.URL = value
 			}
 		}
 	}
@@ -116,8 +122,11 @@ func WriteDepsIni(filename string, manifest *DepsManifest) error {
 	}
 	defer file.Close()
 
-	if manifest.Defaults.Repository != "" || manifest.Defaults.Checksum != "" || manifest.Defaults.OutputDir != "" {
+	if manifest.Defaults.Repository != "" || manifest.Defaults.Checksum != "" || manifest.Defaults.OutputDir != "" || manifest.Defaults.URL != "" {
 		fmt.Fprintf(file, "[defaults]\n")
+		if manifest.Defaults.URL != "" {
+			fmt.Fprintf(file, "url = %s\n", manifest.Defaults.URL)
+		}
 		if manifest.Defaults.Repository != "" {
 			fmt.Fprintf(file, "repository = %s\n", manifest.Defaults.Repository)
 		}
@@ -135,6 +144,9 @@ func WriteDepsIni(filename string, manifest *DepsManifest) error {
 		fmt.Fprintf(file, "path = %s\n", dep.Path)
 		if dep.Version != "" {
 			fmt.Fprintf(file, "version = %s\n", dep.Version)
+		}
+		if dep.URL != manifest.Defaults.URL && dep.URL != "" {
+			fmt.Fprintf(file, "url = %s\n", dep.URL)
 		}
 		if dep.Repository != manifest.Defaults.Repository && dep.Repository != "" {
 			fmt.Fprintf(file, "repository = %s\n", dep.Repository)
