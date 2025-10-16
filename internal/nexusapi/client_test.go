@@ -364,3 +364,64 @@ func TestBuildYumUploadFormFileNotFound(t *testing.T) {
 		t.Fatal("Expected error for non-existent file, got nil")
 	}
 }
+
+// TestSearchAssets tests searching for assets with path prefix
+func TestSearchAssets(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data using the name parameter format
+	server.AddAssetWithQuery("test-repo", "/prefix*", Asset{
+		ID:       "asset1",
+		Path:     "/prefix/file1.txt",
+		FileSize: 100,
+	})
+	server.AddAssetWithQuery("test-repo", "/prefix*", Asset{
+		ID:       "asset2",
+		Path:     "/prefix/file2.txt",
+		FileSize: 200,
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	assets, err := client.SearchAssets("test-repo", "prefix")
+
+	if err != nil {
+		t.Fatalf("SearchAssets failed: %v", err)
+	}
+
+	if len(assets) != 2 {
+		t.Errorf("Expected 2 assets, got %d", len(assets))
+	}
+
+	if assets[0].ID != "asset1" {
+		t.Errorf("Expected asset ID 'asset1', got '%s'", assets[0].ID)
+	}
+}
+
+// TestGetAssetByPathUsesNameParameter tests that GetAssetByPath uses the name parameter
+func TestGetAssetByPathUsesNameParameter(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Add asset using the name parameter format
+	server.AddAssetByName("test-repo", "/exact/path.txt", Asset{
+		ID:       "asset1",
+		Path:     "/exact/path.txt",
+		FileSize: 100,
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	asset, err := client.GetAssetByPath("test-repo", "/exact/path.txt")
+
+	if err != nil {
+		t.Fatalf("GetAssetByPath failed: %v", err)
+	}
+
+	if asset.ID != "asset1" {
+		t.Errorf("Expected asset ID 'asset1', got '%s'", asset.ID)
+	}
+
+	if asset.Path != "/exact/path.txt" {
+		t.Errorf("Expected path '/exact/path.txt', got '%s'", asset.Path)
+	}
+}

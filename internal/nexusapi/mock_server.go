@@ -158,16 +158,25 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 
 	m.mu.Lock()
 	m.LastListRepo = repository
-	// Extract path from query (format: /path/*)
-	if len(query) > 2 && strings.HasPrefix(query, "/") && strings.HasSuffix(query, "/*") {
-		m.LastListPath = query[1 : len(query)-2]
+	// Extract path from name or query parameter (format: /path/*)
+	pathParam := name
+	if pathParam == "" {
+		pathParam = query
+	}
+	if len(pathParam) > 2 && strings.HasPrefix(pathParam, "/") && strings.HasSuffix(pathParam, "/*") {
+		m.LastListPath = pathParam[1 : len(pathParam)-2]
 	}
 	m.mu.Unlock()
 
 	// Build the key for looking up assets
+	// Try name parameter first, then fall back to q parameter for backwards compatibility
 	key := repository
 	if name != "" {
 		key = repository + ":name=" + name
+		// Also try with the old q format for test compatibility
+		if _, exists := m.Assets[key]; !exists {
+			key = repository + ":" + name
+		}
 	} else if query != "" {
 		key = repository + ":" + query
 	}
@@ -240,6 +249,7 @@ func (m *MockNexusServer) AddRepository(repo Repository) {
 }
 
 // AddAssetWithQuery adds an asset to the mock server using a custom query string
+// This function supports both old "q" parameter format and new "name" parameter format
 func (m *MockNexusServer) AddAssetWithQuery(repository, query string, asset Asset) {
 	key := repository
 	if query != "" {
