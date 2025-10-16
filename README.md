@@ -499,6 +499,7 @@ The `deps.ini` file defines your project's dependencies. It uses INI format with
 **Format:**
 ```ini
 [defaults]
+url = <default-nexus-url>
 repository = <default-repository-name>
 checksum = <default-checksum-algorithm>
 output_dir = <default-output-directory>
@@ -506,6 +507,7 @@ output_dir = <default-output-directory>
 [dependency-name]
 path = <path-in-nexus>
 version = <version-string>
+url = <nexus-url>                     # optional, overrides default
 repository = <repository-name>        # optional, overrides default
 checksum = <checksum-algorithm>       # optional, overrides default
 output_dir = <output-directory>       # optional, overrides default
@@ -514,6 +516,7 @@ recursive = <true|false>              # optional, download folder recursively
 ```
 
 **Fields:**
+- `url` - Nexus server URL (optional, defaults to environment variable `NEXUS_URL`)
 - `repository` - Nexus repository name (required in defaults or per-dependency)
 - `path` - Path to file or folder in Nexus, supports `${version}` variable substitution
 - `version` - Version string, substituted into `${version}` in path
@@ -525,6 +528,7 @@ recursive = <true|false>              # optional, download folder recursively
 **Example:**
 ```ini
 [defaults]
+url = http://localhost:8081
 repository = libs
 checksum = sha256
 output_dir = ./local
@@ -545,9 +549,32 @@ recursive = true
 ```
 
 In this example:
+- All dependencies use the Nexus server at `http://localhost:8081`
 - `example_txt` downloads `docs/example-1.0.0.txt` to `./local/example-1.0.0.txt`
 - `libfoo_tar` downloads `thirdparty/libfoo-1.2.3.tar.gz` to `./local/libfoo-1.2.3.tar.gz` using SHA-512 checksums
 - `docs_folder` recursively downloads all files from `docs/2025-10-15/` to `./local/docs/`
+
+**Example with per-dependency URLs:**
+```ini
+[defaults]
+url = http://nexus-primary.example.com:8081
+repository = libs
+checksum = sha256
+output_dir = ./local
+
+[internal_lib]
+path = internal/lib-${version}.tar.gz
+version = 1.0.0
+
+[external_lib]
+path = external/lib-${version}.tar.gz
+version = 2.5.0
+url = http://nexus-external.example.com:8082
+```
+
+In this example:
+- `internal_lib` downloads from `http://nexus-primary.example.com:8081` (default URL)
+- `external_lib` downloads from `http://nexus-external.example.com:8082` (custom URL)
 
 #### deps-lock.ini
 

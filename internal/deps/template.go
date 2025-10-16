@@ -1,6 +1,7 @@
 package deps
 
 const DefaultDepsIniTemplate = `[defaults]
+url = http://localhost:8081
 repository = libs
 checksum = sha256
 output_dir = ./local
@@ -23,6 +24,7 @@ recursive = true
 func CreateTemplateIni(filename string) error {
 	manifest := &DepsManifest{
 		Defaults: Defaults{
+			URL:        "http://localhost:8081",
 			Repository: "libs",
 			Checksum:   "sha256",
 			OutputDir:  "./local",
@@ -32,6 +34,7 @@ func CreateTemplateIni(filename string) error {
 				Name:       "example_txt",
 				Path:       "docs/example-${version}.txt",
 				Version:    "1.0.0",
+				URL:        "http://localhost:8081",
 				Repository: "libs",
 				Checksum:   "sha256",
 				OutputDir:  "./local",
@@ -40,6 +43,7 @@ func CreateTemplateIni(filename string) error {
 				Name:       "libfoo_tar",
 				Path:       "thirdparty/libfoo-${version}.tar.gz",
 				Version:    "1.2.3",
+				URL:        "http://localhost:8081",
 				Repository: "libs",
 				Checksum:   "sha512",
 				OutputDir:  "./local",
@@ -48,6 +52,7 @@ func CreateTemplateIni(filename string) error {
 				Name:       "docs_folder",
 				Path:       "docs/${version}/",
 				Version:    "2025-10-15",
+				URL:        "http://localhost:8081",
 				Repository: "libs",
 				Checksum:   "sha256",
 				OutputDir:  "./local",

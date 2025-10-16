@@ -168,3 +168,80 @@ func TestGenerateEnvFile(t *testing.T) {
 		t.Errorf("Expected:\n%s\nGot:\n%s", expectedContent, string(content))
 	}
 }
+
+func TestResolverWithPerDependencyURL(t *testing.T) {
+	mockServer1 := nexusapi.NewMockNexusServer()
+	defer mockServer1.Close()
+
+	mockServer2 := nexusapi.NewMockNexusServer()
+	defer mockServer2.Close()
+
+	mockServer1.AddAssetByName("libs", "docs/example-1.0.0.txt", nexusapi.Asset{
+		Path: "docs/example-1.0.0.txt",
+		Checksum: nexusapi.Checksum{
+			SHA256: "checksum1",
+		},
+		DownloadURL: mockServer1.URL + "/repository/libs/docs/example-1.0.0.txt",
+	})
+
+	mockServer2.AddAssetByName("libs", "external/lib-2.0.0.tar.gz", nexusapi.Asset{
+		Path: "external/lib-2.0.0.tar.gz",
+		Checksum: nexusapi.Checksum{
+			SHA256: "checksum2",
+		},
+		DownloadURL: mockServer2.URL + "/repository/libs/external/lib-2.0.0.tar.gz",
+	})
+
+	client := nexusapi.NewClient(mockServer1.URL, "admin", "admin")
+	resolver := NewResolver(client)
+
+	t.Run("dependency with default URL", func(t *testing.T) {
+		dep := &Dependency{
+			Name:       "example_txt",
+			Repository: "libs",
+			Path:       "docs/example-${version}.txt",
+			Version:    "1.0.0",
+			Checksum:   "sha256",
+			URL:        "",
+		}
+
+		files, err := resolver.ResolveDependency(dep)
+		if err != nil {
+			t.Fatalf("ResolveDependency failed: %v", err)
+		}
+
+		if len(files) != 1 {
+			t.Errorf("Expected 1 file, got %d", len(files))
+		}
+
+		expectedChecksum := "sha256:checksum1"
+		if files["docs/example-1.0.0.txt"] != expectedChecksum {
+			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["docs/example-1.0.0.txt"])
+		}
+	})
+
+	t.Run("dependency with custom URL", func(t *testing.T) {
+		dep := &Dependency{
+			Name:       "external_lib",
+			Repository: "libs",
+			Path:       "external/lib-${version}.tar.gz",
+			Version:    "2.0.0",
+			Checksum:   "sha256",
+			URL:        mockServer2.URL,
+		}
+
+		files, err := resolver.ResolveDependency(dep)
+		if err != nil {
+			t.Fatalf("ResolveDependency failed: %v", err)
+		}
+
+		if len(files) != 1 {
+			t.Errorf("Expected 1 file, got %d", len(files))
+		}
+
+		expectedChecksum := "sha256:checksum2"
+		if files["external/lib-2.0.0.tar.gz"] != expectedChecksum {
+			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["external/lib-2.0.0.tar.gz"])
+		}
+	})
+}

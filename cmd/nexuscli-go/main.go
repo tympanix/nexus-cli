@@ -39,7 +39,12 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 		os.Exit(1)
 	}
 
-	client := nexusapi.NewClient(cfg.NexusURL, cfg.Username, cfg.Password)
+	url := cfg.NexusURL
+	if manifest.Defaults.URL != "" {
+		url = manifest.Defaults.URL
+	}
+
+	client := nexusapi.NewClient(url, cfg.Username, cfg.Password)
 	resolver := deps.NewResolver(client)
 
 	lockFile := &deps.LockFile{
@@ -103,7 +108,18 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		src := dep.Repository + "/" + strings.TrimSuffix(dep.ExpandedPath(), "/")
 		dest := dep.OutputDir
 
-		operations.DownloadMain(src, dest, cfg, downloadOpts)
+		depCfg := &config.Config{
+			NexusURL: cfg.NexusURL,
+			Username: cfg.Username,
+			Password: cfg.Password,
+		}
+		if dep.URL != "" {
+			depCfg.NexusURL = dep.URL
+		} else if manifest.Defaults.URL != "" {
+			depCfg.NexusURL = manifest.Defaults.URL
+		}
+
+		operations.DownloadMain(src, dest, depCfg, downloadOpts)
 
 		for filePath := range lockedFiles {
 			localPath := filepath.Join(dep.OutputDir, filePath)

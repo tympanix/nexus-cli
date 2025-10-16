@@ -7,22 +7,39 @@ import (
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
 )
 
+type ClientFactory func(url, username, password string) *nexusapi.Client
+
 type Resolver struct {
-	client *nexusapi.Client
+	clientFactory ClientFactory
+	username      string
+	password      string
+	defaultURL    string
 }
 
 func NewResolver(client *nexusapi.Client) *Resolver {
-	return &Resolver{client: client}
+	return &Resolver{
+		clientFactory: nexusapi.NewClient,
+		username:      client.Username,
+		password:      client.Password,
+		defaultURL:    client.BaseURL,
+	}
 }
 
 func (r *Resolver) ResolveDependency(dep *Dependency) (map[string]string, error) {
 	files := make(map[string]string)
 
+	url := dep.URL
+	if url == "" {
+		url = r.defaultURL
+	}
+
+	client := r.clientFactory(url, r.username, r.password)
+
 	expandedPath := dep.ExpandedPath()
 
 	if dep.Recursive {
 		pathPrefix := strings.TrimSuffix(expandedPath, "/")
-		assets, err := r.client.SearchAssets(dep.Repository, pathPrefix)
+		assets, err := client.SearchAssets(dep.Repository, pathPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("failed to search assets for %s: %w", dep.Name, err)
 		}
@@ -39,7 +56,7 @@ func (r *Resolver) ResolveDependency(dep *Dependency) (map[string]string, error)
 			files[asset.Path] = fmt.Sprintf("%s:%s", dep.Checksum, checksum)
 		}
 	} else {
-		asset, err := r.client.GetAssetByPath(dep.Repository, expandedPath)
+		asset, err := client.GetAssetByPath(dep.Repository, expandedPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get asset for %s: %w", dep.Name, err)
 		}
