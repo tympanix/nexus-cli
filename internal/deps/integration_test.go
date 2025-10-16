@@ -11,7 +11,7 @@ func TestResolverWithMockServer(t *testing.T) {
 	mockServer := nexusapi.NewMockNexusServer()
 	defer mockServer.Close()
 
-	mockServer.AddAssetWithQuery("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
+	mockServer.AddAssetByName("libs", "docs/example-1.0.0.txt", nexusapi.Asset{
 		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: "f6a4e3c9b12",
@@ -19,7 +19,7 @@ func TestResolverWithMockServer(t *testing.T) {
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	})
 
-	mockServer.AddAssetWithQuery("libs", "/thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
+	mockServer.AddAssetByName("libs", "thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
 		Path: "thirdparty/libfoo-1.2.3.tar.gz",
 		Checksum: nexusapi.Checksum{
 			SHA512: "a4c9d2e8abf",
