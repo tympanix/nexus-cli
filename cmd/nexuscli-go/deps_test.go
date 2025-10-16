@@ -506,7 +506,7 @@ func TestDepsLockCommandWithSingleFile(t *testing.T) {
 
 	testChecksum := "abc123def456"
 
-	mockServer.AddAssetByName("builds", "test3/file1.out", nexusapi.Asset{
+	mockServer.AddAssetByName("builds", "/test3/file1.out", nexusapi.Asset{
 		Path: "test3/file1.out",
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,

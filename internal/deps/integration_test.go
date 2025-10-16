@@ -11,7 +11,7 @@ func TestResolverWithMockServer(t *testing.T) {
 	mockServer := nexusapi.NewMockNexusServer()
 	defer mockServer.Close()
 
-	mockServer.AddAssetByName("libs", "docs/example-1.0.0.txt", nexusapi.Asset{
+	mockServer.AddAssetByName("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: "f6a4e3c9b12",
@@ -19,7 +19,7 @@ func TestResolverWithMockServer(t *testing.T) {
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	})
 
-	mockServer.AddAssetByName("libs", "thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
+	mockServer.AddAssetByName("libs", "/thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
 		Path: "thirdparty/libfoo-1.2.3.tar.gz",
 		Checksum: nexusapi.Checksum{
 			SHA512: "a4c9d2e8abf",
@@ -176,7 +176,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 	mockServer2 := nexusapi.NewMockNexusServer()
 	defer mockServer2.Close()
 
-	mockServer1.AddAssetByName("libs", "docs/example-1.0.0.txt", nexusapi.Asset{
+	mockServer1.AddAssetByName("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum1",
@@ -184,7 +184,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		DownloadURL: mockServer1.URL + "/repository/libs/docs/example-1.0.0.txt",
 	})
 
-	mockServer2.AddAssetByName("libs", "external/lib-2.0.0.tar.gz", nexusapi.Asset{
+	mockServer2.AddAssetByName("libs", "/external/lib-2.0.0.tar.gz", nexusapi.Asset{
 		Path: "external/lib-2.0.0.tar.gz",
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum2",

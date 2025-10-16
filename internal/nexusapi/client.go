@@ -457,7 +457,12 @@ func (c *Client) GetAssetByPath(repository, path string) (*Asset, error) {
 	baseURL.Path = "/service/rest/v1/search/assets"
 	query := baseURL.Query()
 	query.Set("repository", repository)
-	query.Set("name", path)
+	// Ensure path starts with / as required by Nexus API
+	searchPath := path
+	if !strings.HasPrefix(searchPath, "/") {
+		searchPath = "/" + searchPath
+	}
+	query.Set("name", searchPath)
 	baseURL.RawQuery = query.Encode()
 
 	req, err := http.NewRequest("GET", baseURL.String(), nil)
