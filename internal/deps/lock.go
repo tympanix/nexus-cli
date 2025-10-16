@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -68,9 +69,24 @@ func WriteLockFile(filename string, lockFile *LockFile) error {
 	}
 	defer file.Close()
 
-	for depName, files := range lockFile.Dependencies {
+	var depNames []string
+	for depName := range lockFile.Dependencies {
+		depNames = append(depNames, depName)
+	}
+	sort.Strings(depNames)
+
+	for _, depName := range depNames {
+		files := lockFile.Dependencies[depName]
 		fmt.Fprintf(file, "[%s]\n", depName)
-		for filePath, checksum := range files {
+
+		var filePaths []string
+		for filePath := range files {
+			filePaths = append(filePaths, filePath)
+		}
+		sort.Strings(filePaths)
+
+		for _, filePath := range filePaths {
+			checksum := files[filePath]
 			fmt.Fprintf(file, "%s = %s\n", filePath, checksum)
 		}
 		fmt.Fprintf(file, "\n")
