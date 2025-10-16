@@ -109,7 +109,7 @@ func TestLocalPath(t *testing.T) {
 				Version:   "1.0.0",
 				OutputDir: "./local",
 			},
-			expected: "local/example-1.0.0.txt",
+			expected: "local/docs/example-1.0.0.txt",
 		},
 		{
 			name: "recursive folder",
@@ -119,7 +119,7 @@ func TestLocalPath(t *testing.T) {
 				OutputDir: "./local",
 				Recursive: true,
 			},
-			expected: "local/docs/",
+			expected: "local/docs/2025-10-15",
 		},
 		{
 			name: "with dest override",

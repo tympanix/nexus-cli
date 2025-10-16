@@ -163,7 +163,7 @@ func TestGenerateEnvFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedContent := "DEPS_EXAMPLE_TXT_NAME=\"example_txt\"\nDEPS_EXAMPLE_TXT_VERSION=\"1.0.0\"\nDEPS_EXAMPLE_TXT_PATH=\"local/example-1.0.0.txt\"\n\n"
+	expectedContent := "DEPS_EXAMPLE_TXT_NAME=\"example_txt\"\nDEPS_EXAMPLE_TXT_VERSION=\"1.0.0\"\nDEPS_EXAMPLE_TXT_PATH=\"local/docs/example-1.0.0.txt\"\n\n"
 	if string(content) != expectedContent {
 		t.Errorf("Expected:\n%s\nGot:\n%s", expectedContent, string(content))
 	}
