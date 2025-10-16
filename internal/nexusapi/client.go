@@ -457,7 +457,7 @@ func (c *Client) GetAssetByPath(repository, path string) (*Asset, error) {
 	baseURL.Path = "/service/rest/v1/search/assets"
 	query := baseURL.Query()
 	query.Set("repository", repository)
-	query.Set("q", fmt.Sprintf("/%s", path))
+	query.Set("name", path)
 	baseURL.RawQuery = query.Encode()
 
 	req, err := http.NewRequest("GET", baseURL.String(), nil)

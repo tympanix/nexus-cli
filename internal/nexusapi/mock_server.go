@@ -153,6 +153,7 @@ func (m *MockNexusServer) handleListRepositories(w http.ResponseWriter, r *http.
 func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Request) {
 	repository := r.URL.Query().Get("repository")
 	query := r.URL.Query().Get("q")
+	name := r.URL.Query().Get("name")
 	continuationToken := r.URL.Query().Get("continuationToken")
 
 	m.mu.Lock()
@@ -165,7 +166,9 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 
 	// Build the key for looking up assets
 	key := repository
-	if query != "" {
+	if name != "" {
+		key = repository + ":name=" + name
+	} else if query != "" {
 		key = repository + ":" + query
 	}
 
@@ -242,6 +245,14 @@ func (m *MockNexusServer) AddAssetWithQuery(repository, query string, asset Asse
 	if query != "" {
 		key = repository + ":" + query
 	}
+	m.mu.Lock()
+	m.Assets[key] = append(m.Assets[key], asset)
+	m.mu.Unlock()
+}
+
+// AddAssetByName adds an asset to the mock server using the name parameter (for exact path matching)
+func (m *MockNexusServer) AddAssetByName(repository, name string, asset Asset) {
+	key := repository + ":name=" + name
 	m.mu.Lock()
 	m.Assets[key] = append(m.Assets[key], asset)
 	m.mu.Unlock()

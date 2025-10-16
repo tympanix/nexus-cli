@@ -500,6 +500,70 @@ other/file.txt = sha256:abcd1234
 	}
 }
 
+func TestDepsLockCommandWithSingleFile(t *testing.T) {
+	mockServer := nexusapi.NewMockNexusServer()
+	defer mockServer.Close()
+
+	testChecksum := "abc123def456"
+
+	mockServer.AddAssetByName("builds", "test3/file1.out", nexusapi.Asset{
+		Path: "test3/file1.out",
+		Checksum: nexusapi.Checksum{
+			SHA256: testChecksum,
+		},
+		DownloadURL: mockServer.URL + "/repository/builds/test3/file1.out",
+	})
+
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	depsIniContent := `[defaults]
+repository = builds
+checksum = sha256
+output_dir = ./local
+
+[example]
+path = test3/file1.out
+`
+	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "lock", "--url", mockServer.URL})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps lock failed: %v", err)
+	}
+
+	if _, err := os.Stat("deps-lock.ini"); os.IsNotExist(err) {
+		t.Error("deps-lock.ini was not created")
+	}
+
+	content, err := os.ReadFile("deps-lock.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "[example]") {
+		t.Error("deps-lock.ini missing [example] section")
+	}
+	if !strings.Contains(contentStr, "test3/file1.out") {
+		t.Error("deps-lock.ini missing test3/file1.out entry")
+	}
+	if !strings.Contains(contentStr, testChecksum) {
+		t.Errorf("deps-lock.ini missing expected checksum %s", testChecksum)
+	}
+}
+
 func buildRootCommand() *cobra.Command {
 	cfg := config.NewConfig()
 	var logger util.Logger
