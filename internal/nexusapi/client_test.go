@@ -364,3 +364,63 @@ func TestBuildYumUploadFormFileNotFound(t *testing.T) {
 		t.Fatal("Expected error for non-existent file, got nil")
 	}
 }
+
+// TestGetAssetByPath tests getting a single asset by path
+func TestGetAssetByPath(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	testAsset := Asset{
+		ID:       "asset1",
+		Path:     "test3/file1.out",
+		FileSize: 100,
+		Checksum: Checksum{
+			SHA256: "abc123",
+		},
+	}
+
+	// Test with path without leading slash - should be prefixed with /
+	server.AddAssetByName("builds", "/test3/file1.out", testAsset)
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	asset, err := client.GetAssetByPath("builds", "test3/file1.out")
+
+	if err != nil {
+		t.Fatalf("GetAssetByPath failed: %v", err)
+	}
+
+	if asset.ID != "asset1" {
+		t.Errorf("Expected asset ID 'asset1', got '%s'", asset.ID)
+	}
+
+	if asset.Path != "test3/file1.out" {
+		t.Errorf("Expected path 'test3/file1.out', got '%s'", asset.Path)
+	}
+}
+
+// TestGetAssetByPathWithLeadingSlash tests getting asset when path already has leading slash
+func TestGetAssetByPathWithLeadingSlash(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	testAsset := Asset{
+		ID:       "asset2",
+		Path:     "/docs/readme.txt",
+		FileSize: 200,
+	}
+
+	// Mock server should expect the path with leading slash
+	server.AddAssetByName("repo", "/docs/readme.txt", testAsset)
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	// Pass path with leading slash - should not create double slashes
+	asset, err := client.GetAssetByPath("repo", "/docs/readme.txt")
+
+	if err != nil {
+		t.Fatalf("GetAssetByPath failed: %v", err)
+	}
+
+	if asset.ID != "asset2" {
+		t.Errorf("Expected asset ID 'asset2', got '%s'", asset.ID)
+	}
+}
