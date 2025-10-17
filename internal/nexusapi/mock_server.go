@@ -5,9 +5,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // MockNexusServer provides a high-level mock Nexus server for testing
@@ -170,7 +171,24 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 	m.mu.RLock()
 	var filteredAssets []Asset
 
-	for key, asset := range m.Assets {
+	// Collect keys first to ensure consistent ordering
+	var keys []string
+	for key := range m.Assets {
+		keys = append(keys, key)
+	}
+
+	// Sort keys for consistent ordering
+	// This ensures tests get predictable results
+	for i := 0; i < len(keys)-1; i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[i] > keys[j] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+
+	for _, key := range keys {
+		asset := m.Assets[key]
 		// Check if asset belongs to the requested repository
 		parts := strings.SplitN(key, ":", 2)
 		if len(parts) != 2 || parts[0] != repository {
@@ -180,56 +198,15 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 		assetPath := parts[1]
 
 		// Apply filtering based on query parameters
+		// Both "q" (keyword search) and "name" parameters support glob patterns
 		matched := true
 
 		if name != "" {
-			// "name" parameter matches exact path
-			// Ensure both paths start with / for comparison
-			comparePath := assetPath
-			if !strings.HasPrefix(comparePath, "/") {
-				comparePath = "/" + comparePath
-			}
-			searchName := name
-			if !strings.HasPrefix(searchName, "/") {
-				searchName = "/" + searchName
-			}
-			matched = comparePath == searchName
+			// "name" parameter supports glob patterns
+			matched = matchGlobPattern(name, assetPath)
 		} else if query != "" {
 			// "q" parameter supports glob patterns
-			// Normalize paths for comparison
-			pattern := query
-			if !strings.HasPrefix(pattern, "/") {
-				pattern = "/" + pattern
-			}
-
-			comparePath := assetPath
-			if !strings.HasPrefix(comparePath, "/") {
-				comparePath = "/" + comparePath
-			}
-
-			// Handle special case: //* means all files in repository
-			if pattern == "//*" || pattern == "/*" {
-				matched = true
-			} else if strings.HasSuffix(pattern, "/*") {
-				// For patterns ending with /*, match as prefix OR exact match without the /*
-				prefix := strings.TrimSuffix(pattern, "*")
-				// Also check if the pattern without /* matches the path exactly (for backward compatibility)
-				patternWithoutSlashStar := strings.TrimSuffix(pattern, "/*")
-				matched = strings.HasPrefix(comparePath, prefix) || comparePath == patternWithoutSlashStar
-			} else if strings.HasSuffix(pattern, "*") {
-				// For patterns ending with *, match as prefix (e.g., /docs/2025-10-15*)
-				prefix := strings.TrimSuffix(pattern, "*")
-				matched = strings.HasPrefix(comparePath, prefix)
-			} else {
-				// Use filepath.Match for single-level glob patterns (e.g., *.txt, file?.go)
-				match, err := filepath.Match(pattern, comparePath)
-				if err != nil {
-					// If pattern is invalid, try direct match
-					matched = comparePath == pattern
-				} else {
-					matched = match
-				}
-			}
+			matched = matchGlobPattern(query, assetPath)
 		}
 
 		if matched {
@@ -305,6 +282,64 @@ func (m *MockNexusServer) handleDownloadAsset(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(http.StatusOK)
 	w.Write(content)
+}
+
+// matchGlobPattern checks if a path matches a glob pattern.
+// Both "q" (keyword search) and "name" parameters support glob patterns.
+// In Nexus API, a single "*" matches any characters including path separators.
+// Uses the doublestar library for proper glob matching with special handling for Nexus patterns.
+func matchGlobPattern(pattern, path string) bool {
+	// Normalize paths to ensure they start with /
+	if !strings.HasPrefix(pattern, "/") {
+		pattern = "/" + pattern
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	// Handle special cases for backward compatibility
+	if pattern == "//*" || pattern == "/*" {
+		// Match all files in repository
+		return true
+	}
+
+	// For patterns ending with /*, also match the exact path without /*
+	// This maintains backward compatibility with tests
+	if strings.HasSuffix(pattern, "/*") {
+		patternWithoutSlashStar := strings.TrimSuffix(pattern, "/*")
+		if path == patternWithoutSlashStar {
+			return true
+		}
+	}
+
+	// Convert Nexus-style patterns to doublestar patterns
+	// In Nexus API, /path/* matches all files under /path/ including subdirectories
+	// We need to convert this to /path/** for doublestar
+	convertedPattern := pattern
+	if strings.HasSuffix(pattern, "/*") {
+		// Replace trailing /* with /** to match all subdirectories
+		convertedPattern = strings.TrimSuffix(pattern, "/*") + "/**"
+	} else if strings.Contains(pattern, "*") && !strings.Contains(pattern, "**") {
+		// For patterns with * that aren't already **, treat * as matching any characters
+		// including path separators by converting to doublestar-compatible pattern
+		// Replace single * with ** only when it's meant to match across directories
+		// This is a simplified approach - for exact Nexus behavior, we might need prefix matching
+
+		// If the pattern ends with *, it should match as a prefix
+		if strings.HasSuffix(pattern, "*") && !strings.HasSuffix(pattern, "/**") {
+			// Use prefix matching for patterns like /docs/2025-*
+			prefix := strings.TrimSuffix(pattern, "*")
+			return strings.HasPrefix(path, prefix)
+		}
+	}
+
+	// Use doublestar for glob matching
+	matched, err := doublestar.Match(convertedPattern, path)
+	if err != nil {
+		// If pattern is invalid, fall back to exact match
+		return pattern == path
+	}
+	return matched
 }
 
 // AddAsset adds an asset to the mock server's asset list by path
