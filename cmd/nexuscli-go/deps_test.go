@@ -558,15 +558,14 @@ func TestDepsSyncCleanupUntracked(t *testing.T) {
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
-	mockServer.AddAssetWithQuery("libs", "/docs/example-1.0.0.txt/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/example-1.0.0.txt", testFileContent)
+	}, testFileContent)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
@@ -630,15 +629,14 @@ func TestDepsSyncNoCleanupWhenDisabled(t *testing.T) {
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
-	mockServer.AddAssetWithQuery("libs", "/docs/example-1.0.0.txt/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/example-1.0.0.txt", testFileContent)
+	}, testFileContent)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
