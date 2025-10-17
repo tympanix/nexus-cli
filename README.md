@@ -4,7 +4,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
-- Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.go,!**/*_test.go`)
+- Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.txt,!**/*_backup.txt`)
 - Download all files from a Nexus RAW folder recursively with optional glob pattern filtering
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
@@ -59,12 +59,6 @@ To build the Go CLI locally for development:
 go build -o nexuscli-go ./cmd/nexuscli-go
 ```
 
-To build with a specific version:
-
-```bash
-go build -ldflags "-X main.version=1.0.0" -o nexuscli-go ./cmd/nexuscli-go
-```
-
 ### Production Build with Packages
 
 From the root of the repository, use the Makefile to build production packages:
@@ -83,48 +77,15 @@ All artifacts are placed in the `dist/` directory.
 
 **Note:** GoReleaser automatically injects the version based on Git tags. When building from a tagged commit (e.g., `v1.0.0`), the version will be set accordingly. For development builds without tags, the version will default to a snapshot version.
 
-### Installing from Packages
-
-#### DEB (Debian/Ubuntu)
-
-```bash
-sudo dpkg -i dist/nexus-cli_*_linux_amd64.deb
-```
-
-#### RPM (Red Hat/Fedora)
-
-```bash
-sudo rpm -i dist/nexus-cli_*_linux_amd64.rpm
-```
-
-#### Standalone Binary
-
-```bash
-./dist/nexuscli-go_linux_amd64_v1/nexuscli-go
-```
-
 ## Running Tests
 
-To run the unit tests:
+Run the unit tests:
 
 ```bash
 make test
 ```
 
-This will run all tests with verbose output. Alternatively, you can run tests directly using Go:
-
-```bash
-go test -v ./...
-```
-
-The test suite includes:
-- Configuration tests (environment variables and defaults)
-- Upload/download functionality tests
-- URL construction and encoding tests
-- CLI flag parsing and override tests
-- Logger functionality tests
-- Compression and decompression tests
-- Round-trip compression tests
+The test suite includes configuration, upload/download functionality, URL construction, CLI flag parsing, logger, and compression tests.
 
 ## Usage
 
@@ -149,41 +110,24 @@ Generate and load the autocompletion script for your shell:
 
 **Bash:**
 ```bash
-# Generate completion script
 nexuscli-go completion bash > /tmp/nexuscli-go-completion.bash
-
-# Load in current session
 source /tmp/nexuscli-go-completion.bash
-
-# Add to your .bashrc for persistent completion
-echo 'source /tmp/nexuscli-go-completion.bash' >> ~/.bashrc
 ```
 
 **Zsh:**
 ```bash
-# Generate completion script
 nexuscli-go completion zsh > "${fpath[1]}/_nexuscli-go"
-
-# Reload completions
 autoload -U compinit && compinit
 ```
 
 **Fish:**
 ```bash
-# Generate and load completion
-nexuscli-go completion fish | source
-
-# Add to your fish config for persistent completion
 nexuscli-go completion fish > ~/.config/fish/completions/nexuscli-go.fish
 ```
 
 **PowerShell:**
 ```powershell
-# Generate completion script
 nexuscli-go completion powershell | Out-String | Invoke-Expression
-
-# Add to PowerShell profile for persistent completion
-nexuscli-go completion powershell >> $PROFILE
 ```
 
 #### Features
@@ -300,8 +244,8 @@ The `--glob` flag allows you to filter which files are processed using glob patt
 
 ##### Multiple patterns and negation
 
-- Use commas to specify multiple patterns: `"**/*.go,**/*.md"`
-- Use `!` prefix for negative matches (exclusions): `"**/*.go,!**/*_test.go"`
+- Use commas to specify multiple patterns: `"**/*.txt,**/*.md"`
+- Use `!` prefix for negative matches (exclusions): `"**/*.txt,!**/*_backup.txt"`
 - Patterns are evaluated left-to-right: positive patterns include files, negative patterns exclude them
 
 ##### Supported glob patterns
@@ -315,30 +259,21 @@ The `--glob` flag allows you to filter which files are processed using glob patt
 ##### Examples
 
 ```bash
-# Filter only .txt files
+# Filter specific file types
 nexuscli-go upload --glob "*.txt" ./files my-repo
-nexuscli-go download --glob "**/*.txt" my-repo/files ./local-folder
+nexuscli-go download --glob "**/*.json" my-repo/config ./local-folder
 
-# Filter all .go files anywhere in the directory tree
-nexuscli-go upload --glob "**/*.go" ./files my-repo
-nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
+# Multiple file types
+nexuscli-go upload --glob "**/*.md,**/*.txt" ./files my-repo
 
-# Multiple file types using multiple patterns
-nexuscli-go upload --glob "**/*.go,**/*.md,**/*.txt" ./files my-repo
-
-# Exclude test files (using negation)
-nexuscli-go upload --glob "**/*.go,!**/*_test.go" ./files my-repo
-nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
+# Exclude patterns (using negation)
+nexuscli-go upload --glob "**/*.txt,!**/*_backup.txt" ./files my-repo
 
 # Exclude specific directories
 nexuscli-go upload --glob "!vendor/**,!node_modules/**" ./files my-repo
-nexuscli-go download --glob "**/*,!vendor/**,!node_modules/**" my-repo/project ./local-folder
-
-# Complex pattern: include source files but exclude tests and vendor
-nexuscli-go upload --glob "**/*.go,**/*.md,!**/*_test.go,!vendor/**" ./files my-repo
 
 # With compressed archives
-nexuscli-go upload --compress --glob "**/*.go,!**/*_test.go" ./files my-repo/archive.tar.gz
+nexuscli-go upload --compress --glob "**/*.json,**/*.yml" ./files my-repo/config.tar.gz
 ```
 
 #### Content-based caching with key templates
@@ -367,11 +302,6 @@ nexuscli-go download --key-from package-lock.json my-repo/cache-{key} ./node_mod
 
 # With compression and key-based naming
 nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
-nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
-
-# Key in subdirectory path
-nexuscli-go upload --key-from go.sum ./vendor my-repo/go-deps/{key}/vendor
-nexuscli-go download --key-from go.sum my-repo/go-deps/{key}/vendor ./vendor
 ```
 
 ### Upload
@@ -393,21 +323,12 @@ nexuscli-go upload ./files my-repo/path
 # Upload with compression
 nexuscli-go upload --compress ./files my-repo/path/backup.tar.gz
 nexuscli-go upload --compress --compress-format zstd ./files my-repo/path/backup.tar.zst
-nexuscli-go upload --compress --compress-format zip ./files my-repo/path/backup.zip
 
 # Upload filtered files
-nexuscli-go upload --glob "**/*.go,!**/*_test.go" ./files my-repo
-nexuscli-go upload --compress --glob "**/*.go" ./files my-repo/archive.tar.gz
+nexuscli-go upload --glob "**/*.txt,!**/*_backup.txt" ./files my-repo
 
 # Upload with content-based caching
 nexuscli-go upload --key-from package-lock.json ./node_modules my-repo/cache-{key}
-nexuscli-go upload --compress --key-from package-lock.json ./node_modules my-repo/cache-{key}.tar.gz
-
-# Force upload all files (ignore checksums)
-nexuscli-go upload --force ./files my-repo/path
-
-# Skip checksum validation (faster, but less safe)
-nexuscli-go upload --skip-checksum ./files my-repo/path
 
 # Use custom checksum algorithm
 nexuscli-go upload --checksum sha256 ./files my-repo/path
@@ -446,32 +367,14 @@ nexuscli-go download my-repo/path ./local-folder
 # Download with flatten (remove base path)
 nexuscli-go download --flatten my-repo/path ./local-folder
 
-# Download with delete (sync local with remote)
-nexuscli-go download --delete my-repo/path ./local-folder
-nexuscli-go download --flatten --delete my-repo/path ./local-folder
-
 # Download and extract compressed archive
 nexuscli-go download --compress my-repo/path/backup.tar.gz ./local-folder
-nexuscli-go download --compress my-repo/path/backup.tar.zst ./local-folder
-nexuscli-go download --compress my-repo/path/backup.zip ./local-folder
 
 # Download filtered files
-nexuscli-go download --glob "**/*.go" my-repo/src ./local-folder
-nexuscli-go download --glob "**/*.go,!**/*_test.go" my-repo/src ./local-folder
-nexuscli-go download --flatten --glob "**/*.go" my-repo/src ./local-folder
+nexuscli-go download --glob "**/*.json" my-repo/config ./local-folder
 
 # Download with content-based caching
 nexuscli-go download --key-from package-lock.json my-repo/cache-{key} ./node_modules
-nexuscli-go download --compress --key-from package-lock.json my-repo/cache-{key}.tar.gz ./node_modules
-
-# Force download all files (ignore checksums)
-nexuscli-go download --force my-repo/path ./local-folder
-
-# Skip checksum validation (faster, but less safe)
-nexuscli-go download --skip-checksum my-repo/path ./local-folder
-
-# Use custom checksum algorithm
-nexuscli-go download --checksum sha256 my-repo/path ./local-folder
 
 # Using authentication flags
 nexuscli-go download --url http://your-nexus:8081 --username myuser --password mypassword my-repo/path ./local-folder
@@ -799,44 +702,18 @@ fi
 
 ### Unit Tests
 
-Run unit tests with:
+Run unit tests:
 
 ```bash
 make test-short
 ```
 
-Or directly with Go:
-
-```bash
-go test -v -short ./...
-```
-
 ### End-to-End Tests
 
-An end-to-end test is provided that uses a real Nexus instance running in Docker. This test:
-- Starts a Sonatype Nexus Docker container
-- Waits for Nexus to be ready
-- Creates a RAW repository
-- Uploads test files using the CLI
-- Downloads the files to a new location
-- Validates that the downloaded content matches the uploaded content
-- Cleans up the Docker container
-
-#### Requirements
-
-- Docker must be installed and running
-- The test takes approximately 1-2 minutes to complete
-
-#### Run the end-to-end test
+Run the end-to-end test (requires Docker):
 
 ```bash
 make test-e2e
 ```
 
-Or directly with Go:
-
-```bash
-go test -v -run TestEndToEndUploadDownload -timeout 15m ./internal/nexus
-```
-
-**Note:** The e2e test is automatically skipped when running `go test -short` or `make test-short`.
+The e2e test starts a Nexus Docker container, uploads test files, downloads them to verify functionality, and cleans up.
