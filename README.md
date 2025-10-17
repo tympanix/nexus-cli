@@ -508,7 +508,7 @@ This file ensures that every team member and CI/CD system downloads identical fi
 
 #### deps.env
 
-The `deps.env` file contains shell-compatible environment variables generated from `deps.ini`. It is created by `nexuscli-go deps env` and typically not committed to version control.
+The `deps.env` file contains shell-compatible environment variables generated from `deps.toml`. It is created by `nexuscli-go deps env` and typically not committed to version control.
 
 **Format:**
 ```bash
@@ -550,42 +550,42 @@ build:
 
 #### nexuscli-go deps init
 
-Creates a template `deps.ini` file with example dependencies.
+Creates a template `deps.toml` file with example dependencies.
 
 ```bash
 nexuscli-go deps init
 ```
 
-This generates `deps.ini` in the current directory. Edit the file to define your actual dependencies.
+This generates `deps.toml` in the current directory. Edit the file to define your actual dependencies.
 
 #### nexuscli-go deps lock
 
-Resolves dependencies from Nexus and generates `deps-lock.ini` with checksums.
+Resolves dependencies from Nexus and generates `deps-lock.toml` with checksums.
 
 ```bash
 nexuscli-go deps lock
 ```
 
 This command:
-1. Reads `deps.ini`
+1. Reads `deps.toml`
 2. Queries Nexus for each dependency to find matching files
 3. Retrieves checksums from Nexus
-4. Writes `deps-lock.ini` with all file paths and checksums
+4. Writes `deps-lock.toml` with all file paths and checksums
 
-Run this command whenever you update `deps.ini` or want to update to newer versions of dependencies.
+Run this command whenever you update `deps.toml` or want to update to newer versions of dependencies.
 
 #### nexuscli-go deps sync
 
-Downloads dependencies from Nexus and verifies them against `deps-lock.ini`.
+Downloads dependencies from Nexus and verifies them against `deps-lock.toml`.
 
 ```bash
 nexuscli-go deps sync
 ```
 
 This command:
-1. Reads both `deps.ini` and `deps-lock.ini`
+1. Reads both `deps.toml` and `deps-lock.toml`
 2. Downloads each dependency to the specified local path
-3. Verifies downloaded files match the checksums in `deps-lock.ini`
+3. Verifies downloaded files match the checksums in `deps-lock.toml`
 4. Fails immediately if any checksum mismatch is detected
 
 This ensures atomic verification - all files are verified against the lock file, guaranteeing consistency.
@@ -598,24 +598,24 @@ Generates `deps.env` file with environment variables for shell/Makefile integrat
 nexuscli-go deps env
 ```
 
-This reads `deps.ini` and creates `deps.env` with `DEPS_*` prefixed variables for each dependency.
+This reads `deps.toml` and creates `deps.env` with `DEPS_*` prefixed variables for each dependency.
 
 ### Typical Workflow
 
 **Initial setup:**
 
 ```bash
-# Create deps.ini
+# Create deps.toml
 nexuscli-go deps init
 
-# Edit deps.ini to define your dependencies
-vim deps.ini
+# Edit deps.toml to define your dependencies
+vim deps.toml
 
 # Resolve and lock dependencies
 nexuscli-go deps lock
 
 # Commit both files to version control
-git add deps.ini deps-lock.ini
+git add deps.toml deps-lock.toml
 git commit -m "Add dependency manifest"
 ```
 
@@ -633,8 +633,8 @@ source deps.env
 **Updating dependencies:**
 
 ```bash
-# Edit deps.ini to change versions
-vim deps.ini
+# Edit deps.toml to change versions
+vim deps.toml
 
 # Resolve new versions and update lock file
 nexuscli-go deps lock
@@ -643,7 +643,7 @@ nexuscli-go deps lock
 nexuscli-go deps sync
 
 # Commit updated files
-git add deps.ini deps-lock.ini
+git add deps.toml deps-lock.toml
 git commit -m "Update dependency versions"
 ```
 
