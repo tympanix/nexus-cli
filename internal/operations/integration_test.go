@@ -257,6 +257,7 @@ func TestCompressedDownload(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatGzip,
 	}
@@ -358,6 +359,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatGzip,
 	}
@@ -406,6 +408,7 @@ func TestCompressedDownloadWithoutExplicitName(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            logger,
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatGzip,
 	}
@@ -456,6 +459,7 @@ func TestCompressedDownloadWithoutExplicitNameDifferentFormats(t *testing.T) {
 				SkipChecksum:      false,
 				Logger:            logger,
 				QuietMode:         true,
+				Recursive:         true,
 				Compress:          true,
 				CompressionFormat: tc.format,
 			}
@@ -562,6 +566,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatGzip,
 	}
@@ -676,6 +681,7 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatZstd,
 	}

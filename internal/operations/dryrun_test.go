@@ -124,6 +124,7 @@ func TestDownloadDryRun(t *testing.T) {
 		Logger:            logger,
 		QuietMode:         true,
 		DryRun:            true,
+		Recursive:         true,
 	}
 
 	destDir, err := os.MkdirTemp("", "test-download-dryrun-*")

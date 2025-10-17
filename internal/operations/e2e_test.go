@@ -156,6 +156,7 @@ func TestEndToEndUploadDownload(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
+		Recursive:         true,
 	}
 
 	status := downloadFolder(uploadPath, downloadDir, config, downloadOpts)
@@ -538,6 +539,7 @@ func TestEndToEndUploadDownloadZstd(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatZstd,
 	}
@@ -639,6 +641,7 @@ func TestEndToEndUploadDownloadGzip(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatGzip,
 	}
@@ -740,6 +743,7 @@ func TestEndToEndUploadDownloadZip(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(os.Stdout),
 		QuietMode:         false,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatZip,
 	}

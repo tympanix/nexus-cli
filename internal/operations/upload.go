@@ -127,7 +127,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		if basePath == "" {
 			basePath = ""
 		}
-		assets, err := listAssets(repository, basePath, config)
+		assets, err := listAssets(repository, basePath, config, true)
 		if err != nil {
 			opts.Logger.VerbosePrintf("Could not list existing assets (will upload all files): %v\n", err)
 			remoteAssets = make(map[string]nexusapi.Asset)

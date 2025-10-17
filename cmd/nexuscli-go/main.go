@@ -98,7 +98,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 			Logger:            logger,
 			QuietMode:         false,
 			ChecksumAlgorithm: dep.Checksum,
-			Flatten:           dep.Recursive,
+			Recursive:         dep.Recursive,
 		}
 		if err := downloadOpts.SetChecksumAlgorithm(dep.Checksum); err != nil {
 			fmt.Printf("Error setting checksum algorithm: %v\n", err)
@@ -383,6 +383,7 @@ func buildRootCommand() *cobra.Command {
 	downloadCmd.Flags().StringVar(&downloadOpts.KeyFromFile, "key-from", "", "Path to file to compute hash from for {key} template in src")
 	downloadCmd.Flags().BoolVar(&downloadOpts.Force, "force", false, "Force download all files regardless of existence or checksum match")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.DryRun, "dry-run", "n", false, "Perform a dry-run without actually downloading files")
+	downloadCmd.Flags().BoolVarP(&downloadOpts.Recursive, "recursive", "r", false, "Download folder recursively (default: false for single file download)")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
