@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 )
@@ -115,10 +116,7 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 	query.Set("format", "raw")
 	if pathPrefix != "" {
 		// Ensure path starts with / as required by Nexus API
-		searchPath := pathPrefix
-		if !strings.HasPrefix(searchPath, "/") {
-			searchPath = "/" + searchPath
-		}
+		searchPath := pathpkg.Join("/", pathPrefix)
 		query.Set("q", fmt.Sprintf("%s*", searchPath))
 	}
 	baseURL.RawQuery = query.Encode()
@@ -208,10 +206,7 @@ func (c *Client) ListAssets(repository, path string) ([]Asset, error) {
 		query.Set("direction", "asc")
 		query.Set("sort", "name")
 		// Ensure path starts with / as required by Nexus API
-		searchPath := path
-		if !strings.HasPrefix(searchPath, "/") {
-			searchPath = "/" + searchPath
-		}
+		searchPath := pathpkg.Join("/", path)
 		query.Set("q", fmt.Sprintf("%s/*", searchPath))
 		if continuationToken != "" {
 			query.Set("continuationToken", continuationToken)
@@ -425,10 +420,7 @@ func (c *Client) SearchAssets(repository, pathPrefix string) ([]Asset, error) {
 		query.Set("repository", repository)
 		if pathPrefix != "" {
 			// Ensure path starts with / as required by Nexus API
-			searchPath := pathPrefix
-			if !strings.HasPrefix(searchPath, "/") {
-				searchPath = "/" + searchPath
-			}
+			searchPath := pathpkg.Join("/", pathPrefix)
 			query.Set("q", fmt.Sprintf("%s*", searchPath))
 		}
 		if continuationToken != "" {
