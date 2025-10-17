@@ -37,37 +37,27 @@ func (r *Resolver) ResolveDependency(dep *Dependency) (map[string]string, error)
 
 	expandedPath := dep.ExpandedPath()
 
-	if dep.Recursive {
-		pathPrefix := strings.TrimSuffix(expandedPath, "/")
-		assets, err := client.SearchAssets(dep.Repository, pathPrefix)
-		if err != nil {
-			return nil, fmt.Errorf("failed to search assets for %s: %w", dep.Name, err)
-		}
+	pathPrefix := strings.TrimSuffix(expandedPath, "/")
+	assets, err := client.ListAssets(dep.Repository, pathPrefix, dep.Recursive)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search assets for %s: %w", dep.Name, err)
+	}
 
-		if len(assets) == 0 {
-			return nil, fmt.Errorf("no assets found for dependency %s at path %s", dep.Name, expandedPath)
-		}
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("no assets found for dependency %s at path %s", dep.Name, expandedPath)
+	}
 
-		for _, asset := range assets {
-			checksum := r.getChecksumForAlgorithm(asset.Checksum, dep.Checksum)
-			if checksum == "" {
-				return nil, fmt.Errorf("no %s checksum available for asset %s", dep.Checksum, asset.Path)
-			}
-			files[asset.Path] = fmt.Sprintf("%s:%s", dep.Checksum, checksum)
-		}
-	} else {
-		asset, err := client.GetAssetByPath(dep.Repository, expandedPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get asset for %s: %w", dep.Name, err)
-		}
+	if !dep.Recursive && len(assets) > 1 {
+		return nil, fmt.Errorf("expected one asset for dependency %s at path %s, but found %d", dep.Name, expandedPath, len(assets))
+	}
 
+	for _, asset := range assets {
 		checksum := r.getChecksumForAlgorithm(asset.Checksum, dep.Checksum)
 		if checksum == "" {
 			return nil, fmt.Errorf("no %s checksum available for asset %s", dep.Checksum, asset.Path)
 		}
 		files[asset.Path] = fmt.Sprintf("%s:%s", dep.Checksum, checksum)
 	}
-
 	return files, nil
 }
 
