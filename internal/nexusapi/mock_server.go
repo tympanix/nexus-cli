@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -14,11 +15,12 @@ type MockNexusServer struct {
 	*httptest.Server
 	mu sync.RWMutex
 
-	// Assets stores the assets that will be returned by ListAssets
-	Assets map[string][]Asset
+	// Assets stores the assets by repository and path
+	// Key format: "repository:path"
+	Assets map[string]Asset
 	// AssetContent stores the content of assets by their download URL
 	AssetContent map[string][]byte
-	// ContinuationTokens maps request IDs to continuation tokens for pagination
+	// ContinuationTokens maps pagination keys to continuation tokens
 	ContinuationTokens map[string]string
 	// Repositories stores the repositories that will be returned by ListRepositories
 	Repositories []Repository
@@ -44,7 +46,7 @@ type UploadedFile struct {
 // NewMockNexusServer creates a new mock Nexus server
 func NewMockNexusServer() *MockNexusServer {
 	mock := &MockNexusServer{
-		Assets:                 make(map[string][]Asset),
+		Assets:                 make(map[string]Asset),
 		AssetContent:           make(map[string][]byte),
 		ContinuationTokens:     make(map[string]string),
 		UploadedFiles:          make([]UploadedFile, 0),
@@ -164,32 +166,113 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 	}
 	m.mu.Unlock()
 
-	// Build the key for looking up assets
-	key := repository
-	if name != "" {
-		key = repository + ":name=" + name
-	} else if query != "" {
-		key = repository + ":" + query
-	}
-
-	// Support for pagination: if a continuation token is provided,
-	// check if there's a second page
-	pageKey := key
-	if continuationToken != "" {
-		pageKey = key + ":page2"
-	}
-
+	// Filter assets based on repository and query parameters
 	m.mu.RLock()
-	assets := m.Assets[pageKey]
-	nextToken := ""
-	if continuationToken == "" {
-		// Check if there's a continuation token for this request
-		nextToken = m.ContinuationTokens[key]
+	var filteredAssets []Asset
+
+	for key, asset := range m.Assets {
+		// Check if asset belongs to the requested repository
+		parts := strings.SplitN(key, ":", 2)
+		if len(parts) != 2 || parts[0] != repository {
+			continue
+		}
+
+		assetPath := parts[1]
+
+		// Apply filtering based on query parameters
+		matched := true
+
+		if name != "" {
+			// "name" parameter matches exact path
+			// Ensure both paths start with / for comparison
+			comparePath := assetPath
+			if !strings.HasPrefix(comparePath, "/") {
+				comparePath = "/" + comparePath
+			}
+			searchName := name
+			if !strings.HasPrefix(searchName, "/") {
+				searchName = "/" + searchName
+			}
+			matched = comparePath == searchName
+		} else if query != "" {
+			// "q" parameter supports glob patterns
+			// Normalize paths for comparison
+			pattern := query
+			if !strings.HasPrefix(pattern, "/") {
+				pattern = "/" + pattern
+			}
+
+			comparePath := assetPath
+			if !strings.HasPrefix(comparePath, "/") {
+				comparePath = "/" + comparePath
+			}
+
+			// Handle special case: //* means all files in repository
+			if pattern == "//*" || pattern == "/*" {
+				matched = true
+			} else if strings.HasSuffix(pattern, "/*") {
+				// For patterns ending with /*, match as prefix OR exact match without the /*
+				prefix := strings.TrimSuffix(pattern, "*")
+				// Also check if the pattern without /* matches the path exactly (for backward compatibility)
+				patternWithoutSlashStar := strings.TrimSuffix(pattern, "/*")
+				matched = strings.HasPrefix(comparePath, prefix) || comparePath == patternWithoutSlashStar
+			} else if strings.HasSuffix(pattern, "*") {
+				// For patterns ending with *, match as prefix (e.g., /docs/2025-10-15*)
+				prefix := strings.TrimSuffix(pattern, "*")
+				matched = strings.HasPrefix(comparePath, prefix)
+			} else {
+				// Use filepath.Match for single-level glob patterns (e.g., *.txt, file?.go)
+				match, err := filepath.Match(pattern, comparePath)
+				if err != nil {
+					// If pattern is invalid, try direct match
+					matched = comparePath == pattern
+				} else {
+					matched = match
+				}
+			}
+		}
+
+		if matched {
+			filteredAssets = append(filteredAssets, asset)
+		}
+	}
+
+	// Handle pagination
+	pageKey := repository
+	if name != "" {
+		pageKey = repository + ":name=" + name
+	} else if query != "" {
+		pageKey = repository + ":" + query
+	}
+
+	// Check for continuation token
+	nextToken := m.ContinuationTokens[pageKey]
+	var responseAssets []Asset
+
+	if continuationToken != "" {
+		// This is a request for page 2 or later
+		// Split assets in half for testing (simplified pagination)
+		if len(filteredAssets) > 1 {
+			responseAssets = filteredAssets[len(filteredAssets)/2:]
+		} else {
+			responseAssets = []Asset{}
+		}
+		nextToken = "" // No more pages after this
+	} else {
+		// First page
+		if nextToken != "" && len(filteredAssets) > 1 {
+			// If continuation token is set, return first half
+			responseAssets = filteredAssets[:len(filteredAssets)/2]
+		} else {
+			// Return all assets
+			responseAssets = filteredAssets
+			nextToken = "" // Clear token if we're returning everything
+		}
 	}
 	m.mu.RUnlock()
 
 	response := SearchResponse{
-		Items:             assets,
+		Items:             responseAssets,
 		ContinuationToken: nextToken,
 	}
 
@@ -224,11 +307,18 @@ func (m *MockNexusServer) handleDownloadAsset(w http.ResponseWriter, r *http.Req
 	w.Write(content)
 }
 
-// AddAsset adds an asset to the mock server's asset list
+// AddAsset adds an asset to the mock server's asset list by path
+// The asset will be stored and retrievable via queries that match its path
 func (m *MockNexusServer) AddAsset(repository, path string, asset Asset) {
-	key := repository + "://" + path + "/*"
+	// Normalize path to ensure it starts with /
+	normalizedPath := path
+	if !strings.HasPrefix(normalizedPath, "/") {
+		normalizedPath = "/" + normalizedPath
+	}
+
+	key := repository + ":" + normalizedPath
 	m.mu.Lock()
-	m.Assets[key] = append(m.Assets[key], asset)
+	m.Assets[key] = asset
 	m.mu.Unlock()
 }
 
@@ -236,25 +326,6 @@ func (m *MockNexusServer) AddAsset(repository, path string, asset Asset) {
 func (m *MockNexusServer) AddRepository(repo Repository) {
 	m.mu.Lock()
 	m.Repositories = append(m.Repositories, repo)
-	m.mu.Unlock()
-}
-
-// AddAssetWithQuery adds an asset to the mock server using a custom query string
-func (m *MockNexusServer) AddAssetWithQuery(repository, query string, asset Asset) {
-	key := repository
-	if query != "" {
-		key = repository + ":" + query
-	}
-	m.mu.Lock()
-	m.Assets[key] = append(m.Assets[key], asset)
-	m.mu.Unlock()
-}
-
-// AddAssetByName adds an asset to the mock server using the name parameter (for exact path matching)
-func (m *MockNexusServer) AddAssetByName(repository, name string, asset Asset) {
-	key := repository + ":name=" + name
-	m.mu.Lock()
-	m.Assets[key] = append(m.Assets[key], asset)
 	m.mu.Unlock()
 }
 
@@ -273,15 +344,27 @@ func (m *MockNexusServer) SetContinuationToken(repository, query, token string) 
 	m.mu.Unlock()
 }
 
-// AddAssetForPage adds an asset to a specific page (for pagination testing)
+// AddAssetForPage adds assets to a specific page for pagination testing
+// This is a helper method that configures pagination behavior
 func (m *MockNexusServer) AddAssetForPage(repository, query string, asset Asset, page int) {
-	key := repository + ":" + query
-	if page > 1 {
-		key = key + ":page2"
-	}
-	m.mu.Lock()
-	m.Assets[key] = append(m.Assets[key], asset)
-	m.mu.Unlock()
+	// Add to main storage regardless of page
+	path := asset.Path
+	m.AddAsset(repository, path, asset)
+}
+
+// AddAssetWithQuery is a backward compatibility wrapper for AddAsset
+// It adds an asset by its path, ignoring the query parameter
+func (m *MockNexusServer) AddAssetWithQuery(repository, query string, asset Asset) {
+	// Extract path from asset and add it
+	path := asset.Path
+	m.AddAsset(repository, path, asset)
+}
+
+// AddAssetByName is a backward compatibility wrapper for AddAsset
+// It adds an asset by its path (name parameter is the path)
+func (m *MockNexusServer) AddAssetByName(repository, name string, asset Asset) {
+	// name is the exact path
+	m.AddAsset(repository, name, asset)
 }
 
 // Reset clears all stored data in the mock server
@@ -289,7 +372,7 @@ func (m *MockNexusServer) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.Assets = make(map[string][]Asset)
+	m.Assets = make(map[string]Asset)
 	m.AssetContent = make(map[string][]byte)
 	m.ContinuationTokens = make(map[string]string)
 	m.UploadedFiles = make([]UploadedFile, 0)
