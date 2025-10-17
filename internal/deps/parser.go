@@ -1,18 +1,16 @@
 package deps
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"strings"
+
+	"github.com/go-ini/ini"
 )
 
 func ParseDepsIni(filename string) (*DepsManifest, error) {
-	file, err := os.Open(filename)
+	cfg, err := ini.Load(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open %s: %w", filename, err)
 	}
-	defer file.Close()
 
 	manifest := &DepsManifest{
 		Defaults: Defaults{
@@ -24,83 +22,62 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 		Dependencies: make(map[string]*Dependency),
 	}
 
-	scanner := bufio.NewScanner(file)
-	var currentSection string
-	var currentDep *Dependency
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "" || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "#") {
-			continue
+	if cfg.HasSection("defaults") {
+		defaultsSection := cfg.Section("defaults")
+		if defaultsSection.HasKey("repository") {
+			manifest.Defaults.Repository = defaultsSection.Key("repository").String()
 		}
-
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			sectionName := strings.TrimSpace(line[1 : len(line)-1])
-			currentSection = sectionName
-
-			if sectionName == "defaults" {
-				continue
-			}
-
-			currentDep = &Dependency{
-				Name:       sectionName,
-				Repository: manifest.Defaults.Repository,
-				Checksum:   manifest.Defaults.Checksum,
-				OutputDir:  manifest.Defaults.OutputDir,
-				URL:        manifest.Defaults.URL,
-			}
-			manifest.Dependencies[sectionName] = currentDep
-			continue
+		if defaultsSection.HasKey("checksum") {
+			manifest.Defaults.Checksum = defaultsSection.Key("checksum").String()
 		}
-
-		if !strings.Contains(line, "=") {
-			continue
+		if defaultsSection.HasKey("output_dir") {
+			manifest.Defaults.OutputDir = defaultsSection.Key("output_dir").String()
 		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if currentSection == "defaults" {
-			switch key {
-			case "repository":
-				manifest.Defaults.Repository = value
-			case "checksum":
-				manifest.Defaults.Checksum = value
-			case "output_dir":
-				manifest.Defaults.OutputDir = value
-			case "url":
-				manifest.Defaults.URL = value
-			}
-		} else if currentDep != nil {
-			switch key {
-			case "repository":
-				currentDep.Repository = value
-			case "path":
-				currentDep.Path = value
-			case "version":
-				currentDep.Version = value
-			case "checksum":
-				currentDep.Checksum = value
-			case "output_dir":
-				currentDep.OutputDir = value
-			case "dest":
-				currentDep.Dest = value
-			case "recursive":
-				currentDep.Recursive = strings.ToLower(value) == "true"
-			case "url":
-				currentDep.URL = value
-			}
+		if defaultsSection.HasKey("url") {
+			manifest.Defaults.URL = defaultsSection.Key("url").String()
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading %s: %w", filename, err)
+	for _, section := range cfg.Sections() {
+		sectionName := section.Name()
+		if sectionName == "DEFAULT" || sectionName == "defaults" {
+			continue
+		}
+
+		dep := &Dependency{
+			Name:       sectionName,
+			Repository: manifest.Defaults.Repository,
+			Checksum:   manifest.Defaults.Checksum,
+			OutputDir:  manifest.Defaults.OutputDir,
+			URL:        manifest.Defaults.URL,
+		}
+
+		if section.HasKey("repository") {
+			dep.Repository = section.Key("repository").String()
+		}
+		if section.HasKey("path") {
+			dep.Path = section.Key("path").String()
+		}
+		if section.HasKey("version") {
+			dep.Version = section.Key("version").String()
+		}
+		if section.HasKey("checksum") {
+			dep.Checksum = section.Key("checksum").String()
+		}
+		if section.HasKey("output_dir") {
+			dep.OutputDir = section.Key("output_dir").String()
+		}
+		if section.HasKey("dest") {
+			dep.Dest = section.Key("dest").String()
+		}
+		if section.HasKey("recursive") {
+			dep.Recursive, _ = section.Key("recursive").Bool()
+		}
+		if section.HasKey("url") {
+			dep.URL = section.Key("url").String()
+		}
+
+		manifest.Dependencies[sectionName] = dep
 	}
 
 	for name, dep := range manifest.Dependencies {
@@ -116,54 +93,52 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 }
 
 func WriteDepsIni(filename string, manifest *DepsManifest) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", filename, err)
-	}
-	defer file.Close()
+	cfg := ini.Empty()
 
 	if manifest.Defaults.Repository != "" || manifest.Defaults.Checksum != "" || manifest.Defaults.OutputDir != "" || manifest.Defaults.URL != "" {
-		fmt.Fprintf(file, "[defaults]\n")
+		defaultsSection, _ := cfg.NewSection("defaults")
 		if manifest.Defaults.URL != "" {
-			fmt.Fprintf(file, "url = %s\n", manifest.Defaults.URL)
+			defaultsSection.NewKey("url", manifest.Defaults.URL)
 		}
 		if manifest.Defaults.Repository != "" {
-			fmt.Fprintf(file, "repository = %s\n", manifest.Defaults.Repository)
+			defaultsSection.NewKey("repository", manifest.Defaults.Repository)
 		}
 		if manifest.Defaults.Checksum != "" {
-			fmt.Fprintf(file, "checksum = %s\n", manifest.Defaults.Checksum)
+			defaultsSection.NewKey("checksum", manifest.Defaults.Checksum)
 		}
 		if manifest.Defaults.OutputDir != "" {
-			fmt.Fprintf(file, "output_dir = %s\n", manifest.Defaults.OutputDir)
+			defaultsSection.NewKey("output_dir", manifest.Defaults.OutputDir)
 		}
-		fmt.Fprintf(file, "\n")
 	}
 
 	for name, dep := range manifest.Dependencies {
-		fmt.Fprintf(file, "[%s]\n", name)
-		fmt.Fprintf(file, "path = %s\n", dep.Path)
+		depSection, _ := cfg.NewSection(name)
+		depSection.NewKey("path", dep.Path)
 		if dep.Version != "" {
-			fmt.Fprintf(file, "version = %s\n", dep.Version)
+			depSection.NewKey("version", dep.Version)
 		}
 		if dep.URL != manifest.Defaults.URL && dep.URL != "" {
-			fmt.Fprintf(file, "url = %s\n", dep.URL)
+			depSection.NewKey("url", dep.URL)
 		}
 		if dep.Repository != manifest.Defaults.Repository && dep.Repository != "" {
-			fmt.Fprintf(file, "repository = %s\n", dep.Repository)
+			depSection.NewKey("repository", dep.Repository)
 		}
 		if dep.Checksum != manifest.Defaults.Checksum && dep.Checksum != "" {
-			fmt.Fprintf(file, "checksum = %s\n", dep.Checksum)
+			depSection.NewKey("checksum", dep.Checksum)
 		}
 		if dep.OutputDir != manifest.Defaults.OutputDir && dep.OutputDir != "" {
-			fmt.Fprintf(file, "output_dir = %s\n", dep.OutputDir)
+			depSection.NewKey("output_dir", dep.OutputDir)
 		}
 		if dep.Dest != "" {
-			fmt.Fprintf(file, "dest = %s\n", dep.Dest)
+			depSection.NewKey("dest", dep.Dest)
 		}
 		if dep.Recursive {
-			fmt.Fprintf(file, "recursive = true\n")
+			depSection.NewKey("recursive", "true")
 		}
-		fmt.Fprintf(file, "\n")
+	}
+
+	if err := cfg.SaveTo(filename); err != nil {
+		return fmt.Errorf("failed to create %s: %w", filename, err)
 	}
 
 	return nil

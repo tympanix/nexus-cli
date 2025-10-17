@@ -1,73 +1,40 @@
 package deps
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
+
+	"github.com/go-ini/ini"
 )
 
 func ParseLockFile(filename string) (*LockFile, error) {
-	file, err := os.Open(filename)
+	cfg, err := ini.Load(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open %s: %w", filename, err)
 	}
-	defer file.Close()
 
 	lockFile := &LockFile{
 		Dependencies: make(map[string]map[string]string),
 	}
 
-	scanner := bufio.NewScanner(file)
-	var currentSection string
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "" || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "#") {
+	for _, section := range cfg.Sections() {
+		sectionName := section.Name()
+		if sectionName == "DEFAULT" {
 			continue
 		}
 
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			sectionName := strings.TrimSpace(line[1 : len(line)-1])
-			currentSection = sectionName
-			if lockFile.Dependencies[currentSection] == nil {
-				lockFile.Dependencies[currentSection] = make(map[string]string)
-			}
-			continue
+		lockFile.Dependencies[sectionName] = make(map[string]string)
+		for _, key := range section.Keys() {
+			lockFile.Dependencies[sectionName][key.Name()] = key.String()
 		}
-
-		if !strings.Contains(line, "=") {
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if currentSection != "" {
-			lockFile.Dependencies[currentSection][key] = value
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading %s: %w", filename, err)
 	}
 
 	return lockFile, nil
 }
 
 func WriteLockFile(filename string, lockFile *LockFile) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", filename, err)
-	}
-	defer file.Close()
+	cfg := ini.Empty()
 
 	var depNames []string
 	for depName := range lockFile.Dependencies {
@@ -77,7 +44,7 @@ func WriteLockFile(filename string, lockFile *LockFile) error {
 
 	for _, depName := range depNames {
 		files := lockFile.Dependencies[depName]
-		fmt.Fprintf(file, "[%s]\n", depName)
+		section, _ := cfg.NewSection(depName)
 
 		var filePaths []string
 		for filePath := range files {
@@ -87,9 +54,12 @@ func WriteLockFile(filename string, lockFile *LockFile) error {
 
 		for _, filePath := range filePaths {
 			checksum := files[filePath]
-			fmt.Fprintf(file, "%s = %s\n", filePath, checksum)
+			section.NewKey(filePath, checksum)
 		}
-		fmt.Fprintf(file, "\n")
+	}
+
+	if err := cfg.SaveTo(filename); err != nil {
+		return fmt.Errorf("failed to create %s: %w", filename, err)
 	}
 
 	return nil
