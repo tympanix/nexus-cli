@@ -345,7 +345,11 @@ checksum = "sha512"
 	}
 
 	lockFileContent := `[deps.example_txt]
-"docs/example-1.0.0.txt" = sha256:` + file1Checksum + `[deps.libfoo_tar]"thirdparty/libfoo-1.2.3.tar.gz" = sha512:` + file2Checksum + ``
+"docs/example-1.0.0.txt" = "sha256:` + file1Checksum + `"
+
+[deps.libfoo_tar]
+"thirdparty/libfoo-1.2.3.tar.gz" = "sha512:` + file2Checksum + `"
+`
 	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -512,7 +516,7 @@ repository = "builds"
 checksum = "sha256"
 output_dir = "./local"
 
-[example]
+[deps.example]
 path = "test3/file1.out"
 `
 	if err := os.WriteFile("deps.toml", []byte(depsIniContent), 0644); err != nil {
@@ -535,8 +539,8 @@ path = "test3/file1.out"
 	}
 
 	contentStr := string(content)
-	if !strings.Contains(contentStr, "[example]") {
-		t.Error("deps-lock.toml missing [example] section")
+	if !strings.Contains(contentStr, "[deps.example]") {
+		t.Error("deps-lock.toml missing [deps.example] section")
 	}
 	if !strings.Contains(contentStr, "test3/file1.out") {
 		t.Error("deps-lock.toml missing test3/file1.out entry")
