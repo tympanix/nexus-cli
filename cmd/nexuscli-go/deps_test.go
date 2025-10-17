@@ -550,3 +550,153 @@ path = test3/file1.out
 		t.Errorf("deps-lock.ini missing expected checksum %s", testChecksum)
 	}
 }
+
+func TestDepsSyncCleanupUntracked(t *testing.T) {
+	mockServer := nexusapi.NewMockNexusServer()
+	defer mockServer.Close()
+
+	testFileContent := []byte("test file content for sync")
+	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
+		Path:     "docs/example-1.0.0.txt",
+		FileSize: int64(len(testFileContent)),
+		Checksum: nexusapi.Checksum{
+			SHA256: testChecksum,
+		},
+		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
+	}, testFileContent)
+
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	depsIniContent := `[defaults]
+repository = libs
+checksum = sha256
+output_dir = ./local
+
+[example_txt]
+path = docs/example-${version}.txt
+version = 1.0.0
+`
+	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	lockFileContent := `[example_txt]
+docs/example-1.0.0.txt = sha256:` + testChecksum + `
+`
+	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll("local/docs", 0755); err != nil {
+		t.Fatal(err)
+	}
+	untrackedFile := filepath.Join("local", "docs", "untracked.txt")
+	if err := os.WriteFile(untrackedFile, []byte("untracked"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "sync", "--url", mockServer.URL})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps sync failed: %v", err)
+	}
+
+	downloadedFile := filepath.Join("local", "docs", "example-1.0.0.txt")
+	if _, err := os.Stat(downloadedFile); os.IsNotExist(err) {
+		t.Error("downloaded file does not exist")
+	}
+
+	if _, err := os.Stat(untrackedFile); err == nil {
+		t.Error("untracked file should have been deleted")
+	}
+}
+
+func TestDepsSyncNoCleanupWhenDisabled(t *testing.T) {
+	mockServer := nexusapi.NewMockNexusServer()
+	defer mockServer.Close()
+
+	testFileContent := []byte("test file content for sync")
+	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
+		Path:     "docs/example-1.0.0.txt",
+		FileSize: int64(len(testFileContent)),
+		Checksum: nexusapi.Checksum{
+			SHA256: testChecksum,
+		},
+		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
+	}, testFileContent)
+
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	depsIniContent := `[defaults]
+repository = libs
+checksum = sha256
+output_dir = ./local
+
+[example_txt]
+path = docs/example-${version}.txt
+version = 1.0.0
+`
+	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	lockFileContent := `[example_txt]
+docs/example-1.0.0.txt = sha256:` + testChecksum + `
+`
+	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll("local/docs", 0755); err != nil {
+		t.Fatal(err)
+	}
+	untrackedFile := filepath.Join("local", "docs", "untracked.txt")
+	if err := os.WriteFile(untrackedFile, []byte("untracked"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "sync", "--url", mockServer.URL, "--no-cleanup"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps sync failed: %v", err)
+	}
+
+	downloadedFile := filepath.Join("local", "docs", "example-1.0.0.txt")
+	if _, err := os.Stat(downloadedFile); os.IsNotExist(err) {
+		t.Error("downloaded file does not exist")
+	}
+
+	if _, err := os.Stat(untrackedFile); os.IsNotExist(err) {
+		t.Error("untracked file should NOT have been deleted when cleanup is disabled")
+	}
+
+	content, err := os.ReadFile(untrackedFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "untracked" {
+		t.Errorf("untracked file content mismatch: expected 'untracked', got '%s'", string(content))
+	}
+}

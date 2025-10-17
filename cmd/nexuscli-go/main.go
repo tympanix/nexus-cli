@@ -72,7 +72,7 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 	logger.Printf("Wrote deps-lock.ini\n")
 }
 
-func depsSyncMain(cfg *config.Config, logger util.Logger) {
+func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool) {
 	manifest, err := deps.ParseDepsIni("deps.ini")
 	if err != nil {
 		fmt.Printf("Error parsing deps.ini: %v\n", err)
@@ -84,6 +84,8 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		fmt.Printf("Error parsing deps-lock.ini: %v\n", err)
 		os.Exit(1)
 	}
+
+	trackedFilesByOutputDir := make(map[string]map[string]bool)
 
 	logger.Printf("Syncing dependencies...\n")
 	for name, dep := range manifest.Dependencies {
@@ -148,9 +150,97 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 		}
 
 		logger.Printf("    Verified %d file(s)\n", len(lockedFiles))
+
+		if cleanupUntracked {
+			if trackedFilesByOutputDir[dep.OutputDir] == nil {
+				trackedFilesByOutputDir[dep.OutputDir] = make(map[string]bool)
+			}
+			for filePath := range lockedFiles {
+				trackedFilesByOutputDir[dep.OutputDir][filePath] = true
+			}
+		}
+	}
+
+	if cleanupUntracked {
+		totalDeleted := 0
+		for outputDir, trackedFiles := range trackedFilesByOutputDir {
+			nDeleted := cleanupUntrackedFiles(outputDir, trackedFiles, logger)
+			if nDeleted > 0 {
+				totalDeleted += nDeleted
+			}
+		}
+		if totalDeleted > 0 {
+			logger.Printf("Cleaned up %d untracked file(s)\n", totalDeleted)
+		}
 	}
 
 	logger.Printf("Sync complete\n")
+}
+
+func cleanupUntrackedFiles(outputDir string, trackedFiles map[string]bool, logger util.Logger) int {
+	nDeleted := 0
+
+	err := filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(outputDir, path)
+		if err != nil {
+			return err
+		}
+
+		relPath = filepath.ToSlash(relPath)
+
+		if !trackedFiles[relPath] {
+			logger.VerbosePrintf("Deleting untracked file: %s\n", relPath)
+			if err := os.Remove(path); err != nil {
+				logger.Printf("Failed to delete file %s: %v\n", relPath, err)
+			} else {
+				nDeleted++
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		logger.Printf("Error walking directory: %v\n", err)
+	}
+
+	cleanupEmptyDirectories(outputDir, logger)
+
+	return nDeleted
+}
+
+func cleanupEmptyDirectories(outputDir string, logger util.Logger) {
+	filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == outputDir {
+			return nil
+		}
+
+		if info.IsDir() {
+			entries, err := os.ReadDir(path)
+			if err != nil {
+				return nil
+			}
+
+			if len(entries) == 0 {
+				logger.VerbosePrintf("Removing empty directory: %s\n", path)
+				os.Remove(path)
+			}
+		}
+
+		return nil
+	})
 }
 
 func depsEnvMain(logger util.Logger) {
@@ -419,14 +509,16 @@ func buildRootCommand() *cobra.Command {
 		},
 	}
 
+	var depsSyncNoCleanup bool
 	var depsSyncCmd = &cobra.Command{
 		Use:   "sync",
 		Short: "Download dependencies and verify against deps-lock.ini",
 		Long:  "Download dependencies from Nexus and verify checksums atomically (fails if out of sync)",
 		Run: func(cmd *cobra.Command, args []string) {
-			depsSyncMain(cfg, logger)
+			depsSyncMain(cfg, logger, !depsSyncNoCleanup)
 		},
 	}
+	depsSyncCmd.Flags().BoolVar(&depsSyncNoCleanup, "no-cleanup", false, "Skip cleanup of untracked files from output directory")
 
 	var depsEnvCmd = &cobra.Command{
 		Use:   "env",
