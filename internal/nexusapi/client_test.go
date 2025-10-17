@@ -31,17 +31,9 @@ func TestListAssets(t *testing.T) {
 	server := NewMockNexusServer()
 	defer server.Close()
 
-	// Setup mock data
-	server.AddAsset("test-repo", "/test-path/file1.txt", Asset{
-		ID:       "asset1",
-		Path:     "/test-path/file1.txt",
-		FileSize: 100,
-	}, nil)
-	server.AddAsset("test-repo", "/test-path/file2.txt", Asset{
-		ID:       "asset2",
-		Path:     "/test-path/file2.txt",
-		FileSize: 200,
-	}, nil)
+	// Setup mock data with minimal Asset structs
+	server.AddAsset("test-repo", "/test-path/file1.txt", Asset{ID: "asset1"}, nil)
+	server.AddAsset("test-repo", "/test-path/file2.txt", Asset{ID: "asset2"}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
 	assets, err := client.ListAssets("test-repo", "test-path", true)

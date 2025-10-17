@@ -1,6 +1,11 @@
 package nexusapi
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -342,14 +347,83 @@ func matchGlobPattern(pattern, path string) bool {
 	return matched
 }
 
+// computeChecksums computes all supported checksums for the given content
+func computeChecksums(content []byte) Checksum {
+	sha1Hash := sha1.Sum(content)
+	sha256Hash := sha256.Sum256(content)
+	sha512Hash := sha512.Sum512(content)
+	md5Hash := md5.Sum(content)
+
+	return Checksum{
+		SHA1:   hex.EncodeToString(sha1Hash[:]),
+		SHA256: hex.EncodeToString(sha256Hash[:]),
+		SHA512: hex.EncodeToString(sha512Hash[:]),
+		MD5:    hex.EncodeToString(md5Hash[:]),
+	}
+}
+
 // AddAsset adds an asset to the mock server's asset list by path
 // The asset will be stored and retrievable via queries that match its path
 // If content is provided, it will be automatically set for downloading
+// Default values are automatically filled for common fields:
+// - DownloadURL: server.URL + "/repository/" + repository + normalizedPath
+// - Path: normalizedPath (if not set)
+// - Repository: repository (if not set)
+// - FileSize: len(content) (if content provided and FileSize is 0)
+// - ID: generated from repository:normalizedPath (if not set)
+// - Checksum: computed from content (if content provided and checksums not set)
+// - Format: "raw" (if not set)
+// - ContentType: "application/octet-stream" (if not set)
+// Any explicitly set fields in the asset parameter take precedence over defaults
 func (m *MockNexusServer) AddAsset(repository, path string, asset Asset, content []byte) {
 	// Normalize path to ensure it starts with /
 	normalizedPath := path
 	if !strings.HasPrefix(normalizedPath, "/") {
 		normalizedPath = "/" + normalizedPath
+	}
+
+	// Fill in default values if not explicitly set
+	if asset.Path == "" {
+		asset.Path = normalizedPath
+	}
+	if asset.Repository == "" {
+		asset.Repository = repository
+	}
+	if asset.DownloadURL == "" {
+		asset.DownloadURL = m.Server.URL + "/repository/" + repository + normalizedPath
+	}
+	if asset.ID == "" {
+		// Generate a default ID from repository and path
+		asset.ID = repository + ":" + normalizedPath
+	}
+	if asset.Format == "" {
+		asset.Format = "raw"
+	}
+	if asset.ContentType == "" {
+		asset.ContentType = "application/octet-stream"
+	}
+
+	// If content is provided, compute defaults from it
+	if content != nil {
+		if asset.FileSize == 0 {
+			asset.FileSize = int64(len(content))
+		}
+		// Compute checksums if not explicitly set
+		if asset.Checksum.SHA1 == "" || asset.Checksum.SHA256 == "" || asset.Checksum.SHA512 == "" || asset.Checksum.MD5 == "" {
+			checksums := computeChecksums(content)
+			if asset.Checksum.SHA1 == "" {
+				asset.Checksum.SHA1 = checksums.SHA1
+			}
+			if asset.Checksum.SHA256 == "" {
+				asset.Checksum.SHA256 = checksums.SHA256
+			}
+			if asset.Checksum.SHA512 == "" {
+				asset.Checksum.SHA512 = checksums.SHA512
+			}
+			if asset.Checksum.MD5 == "" {
+				asset.Checksum.MD5 = checksums.MD5
+			}
+		}
 	}
 
 	key := repository + ":" + normalizedPath
