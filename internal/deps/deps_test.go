@@ -2,6 +2,7 @@ package deps
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -318,5 +319,200 @@ func TestLockFileDeterministicOutput(t *testing.T) {
 			t.Errorf("Lock file output is not deterministic.\nFirst output:\n%s\n\nMismatched output:\n%s", outputs[0], outputs[i])
 			break
 		}
+	}
+}
+
+func TestValidateOutputDir(t *testing.T) {
+	tests := []struct {
+		name      string
+		outputDir string
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:      "valid relative path",
+			outputDir: "./local",
+			wantErr:   false,
+		},
+		{
+			name:      "valid nested path",
+			outputDir: "./vendor/deps",
+			wantErr:   false,
+		},
+		{
+			name:      "valid absolute path",
+			outputDir: "/tmp/deps",
+			wantErr:   false,
+		},
+		{
+			name:      "empty string",
+			outputDir: "",
+			wantErr:   true,
+			errMsg:    "output_dir cannot be empty",
+		},
+		{
+			name:      "current directory",
+			outputDir: ".",
+			wantErr:   true,
+			errMsg:    "output_dir cannot be '.' (current directory)",
+		},
+		{
+			name:      "current directory relative",
+			outputDir: "./",
+			wantErr:   true,
+			errMsg:    "output_dir cannot be '.' (current directory)",
+		},
+		{
+			name:      "root directory",
+			outputDir: "/",
+			wantErr:   true,
+			errMsg:    "output_dir cannot be '/' (root directory)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateOutputDir(tt.outputDir)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("validateOutputDir() expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("validateOutputDir() error = %v, want error containing %v", err, tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("validateOutputDir() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestParseDepsIniWithEmptyOutputDir(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = 
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with empty output_dir")
+	}
+	if !strings.Contains(err.Error(), "output_dir cannot be empty") {
+		t.Errorf("Expected error about empty output_dir, got: %v", err)
+	}
+}
+
+func TestParseDepsIniWithCurrentDirOutputDir(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = .
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with '.' as output_dir")
+	}
+	if !strings.Contains(err.Error(), "output_dir cannot be '.' (current directory)") {
+		t.Errorf("Expected error about current directory, got: %v", err)
+	}
+}
+
+func TestParseDepsIniWithPerDependencyEmptyOutputDir(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = ./local
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+output_dir = 
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with empty per-dependency output_dir")
+	}
+	if !strings.Contains(err.Error(), "output_dir cannot be empty") {
+		t.Errorf("Expected error about empty output_dir, got: %v", err)
+	}
+}
+
+func TestParseDepsIniWithValidCustomOutputDir(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = ./local
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+output_dir = ./custom
+
+[libfoo_tar]
+path = thirdparty/libfoo.tar.gz
+version = 1.2.3
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	manifest, err := ParseDepsIni(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("ParseDepsIni failed: %v", err)
+	}
+
+	exampleTxt := manifest.Dependencies["example_txt"]
+	if exampleTxt.OutputDir != "./custom" {
+		t.Errorf("Expected custom output_dir './custom', got '%s'", exampleTxt.OutputDir)
+	}
+
+	libfooTar := manifest.Dependencies["libfoo_tar"]
+	if libfooTar.OutputDir != "./local" {
+		t.Errorf("Expected default output_dir './local', got '%s'", libfooTar.OutputDir)
 	}
 }

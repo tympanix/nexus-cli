@@ -4,8 +4,27 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
+
+func validateOutputDir(dir string) error {
+	if dir == "" {
+		return fmt.Errorf("output_dir cannot be empty")
+	}
+
+	cleanDir := filepath.Clean(dir)
+
+	if cleanDir == "." {
+		return fmt.Errorf("output_dir cannot be '.' (current directory) for safety reasons")
+	}
+
+	if cleanDir == "/" {
+		return fmt.Errorf("output_dir cannot be '/' (root directory) for safety reasons")
+	}
+
+	return nil
+}
 
 func ParseDepsIni(filename string) (*DepsManifest, error) {
 	file, err := os.Open(filename)
@@ -73,6 +92,9 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 			case "checksum":
 				manifest.Defaults.Checksum = value
 			case "output_dir":
+				if err := validateOutputDir(value); err != nil {
+					return nil, fmt.Errorf("invalid output_dir in [defaults]: %w", err)
+				}
 				manifest.Defaults.OutputDir = value
 			case "url":
 				manifest.Defaults.URL = value
@@ -88,6 +110,9 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 			case "checksum":
 				currentDep.Checksum = value
 			case "output_dir":
+				if err := validateOutputDir(value); err != nil {
+					return nil, fmt.Errorf("invalid output_dir in [%s]: %w", currentSection, err)
+				}
 				currentDep.OutputDir = value
 			case "dest":
 				currentDep.Dest = value
@@ -109,6 +134,9 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 		}
 		if dep.Repository == "" {
 			return nil, fmt.Errorf("dependency %s is missing 'repository' (not set in defaults or dependency)", name)
+		}
+		if err := validateOutputDir(dep.OutputDir); err != nil {
+			return nil, fmt.Errorf("dependency %s has invalid output_dir: %w", name, err)
 		}
 	}
 
