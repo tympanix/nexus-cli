@@ -150,15 +150,14 @@ func TestDepsSyncCommand(t *testing.T) {
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
-	mockServer.AddAssetWithQuery("libs", "/docs/example-1.0.0.txt/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/example-1.0.0.txt", testFileContent)
+	}, testFileContent)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
@@ -222,24 +221,22 @@ func TestDepsSyncRecursiveDependency(t *testing.T) {
 	file2Content := []byte("guide content")
 	file2Checksum := "1c85d03c0b78b2e85838278e5b7b9240be75ddd284ebc4031c043b7f66ad49db"
 
-	mockServer.AddAssetWithQuery("libs", "/docs/2025-10-15/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/docs/2025-10-15/readme.md", nexusapi.Asset{
 		Path:     "docs/2025-10-15/readme.md",
 		FileSize: int64(len(file1Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file1Checksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/readme.md",
-	})
-	mockServer.AddAssetWithQuery("libs", "/docs/2025-10-15/*", nexusapi.Asset{
+	}, file1Content)
+	mockServer.AddAsset("libs", "/docs/2025-10-15/guide.pdf", nexusapi.Asset{
 		Path:     "docs/2025-10-15/guide.pdf",
 		FileSize: int64(len(file2Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file2Checksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/guide.pdf",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/2025-10-15/readme.md", file1Content)
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/2025-10-15/guide.pdf", file2Content)
+	}, file2Content)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
@@ -300,25 +297,23 @@ func TestDepsSyncWithMultipleDependencies(t *testing.T) {
 	file2Content := []byte("another file content")
 	file2Checksum := "25621521f082bc0924529d5188367af1eb2b51c7a8d86d4b2c00096de0fe6ef5308c5b1e3cbbe5d8a3c52343aa03b08d9b77af65cfc5b27041795c6b7474ebcc"
 
-	mockServer.AddAssetWithQuery("libs", "/docs/example-1.0.0.txt/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(file1Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file1Checksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/example-1.0.0.txt", file1Content)
+	}, file1Content)
 
-	mockServer.AddAssetWithQuery("libs", "/thirdparty/libfoo-1.2.3.tar.gz/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
 		Path:     "thirdparty/libfoo-1.2.3.tar.gz",
 		FileSize: int64(len(file2Content)),
 		Checksum: nexusapi.Checksum{
 			SHA512: file2Checksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/thirdparty/libfoo-1.2.3.tar.gz",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/thirdparty/libfoo-1.2.3.tar.gz", file2Content)
+	}, file2Content)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
@@ -402,15 +397,14 @@ func TestDepsSyncChecksumMismatch(t *testing.T) {
 	actualChecksum := "60f5237ed4049f0382661ef009d2bc42e48c3ceb3edb6600f7024e7ab3b838f3"
 	wrongChecksum := "0000000000000000000000000000000000000000000000000000000000000000"
 
-	mockServer.AddAssetWithQuery("libs", "/docs/example-1.0.0.txt/*", nexusapi.Asset{
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: actualChecksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
-	})
-	mockServer.SetAssetContent(mockServer.URL+"/repository/libs/docs/example-1.0.0.txt", testFileContent)
+	}, testFileContent)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
@@ -499,13 +493,13 @@ func TestDepsLockCommandWithSingleFile(t *testing.T) {
 
 	testChecksum := "abc123def456"
 
-	mockServer.AddAssetByName("builds", "/test3/file1.out", nexusapi.Asset{
+	mockServer.AddAsset("builds", "/test3/file1.out", nexusapi.Asset{
 		Path: "test3/file1.out",
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
 		DownloadURL: mockServer.URL + "/repository/builds/test3/file1.out",
-	})
+	}, nil)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
