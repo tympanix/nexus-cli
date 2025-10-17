@@ -150,9 +150,9 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 		if pathPrefix == "" {
 			idx := strings.Index(path, "/")
 			if idx >= 0 {
-				nextSegment = "/" + path[:idx] + "/"
+				nextSegment = pathpkg.Join("/", path[:idx]) + "/"
 			} else {
-				nextSegment = "/" + path
+				nextSegment = pathpkg.Join("/", path)
 			}
 		} else {
 			cleanPrefix := strings.TrimSuffix(pathPrefix, "/")
@@ -170,9 +170,9 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 				completePath := strings.Join(pathParts[:prefixDepth+1], "/")
 				if strings.HasPrefix(completePath, cleanPrefix) {
 					if len(pathParts) > prefixDepth+1 {
-						nextSegment = "/" + completePath + "/"
+						nextSegment = pathpkg.Join("/", completePath) + "/"
 					} else {
-						nextSegment = "/" + completePath
+						nextSegment = pathpkg.Join("/", completePath)
 					}
 				}
 			}
@@ -210,7 +210,7 @@ func (c *Client) ListAssets(repository, path string, recursive bool) ([]Asset, e
 		// Ensure path starts with / as required by Nexus API
 		searchPath := pathpkg.Join("/", path)
 		if recursive {
-			query.Set("q", fmt.Sprintf("%s/*", searchPath))
+			query.Set("q", pathpkg.Join(searchPath, "*"))
 		} else {
 			// For single file, use exact path match via name parameter
 			query.Set("name", searchPath)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -248,7 +249,7 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 
 	target := repository
 	if src != "" {
-		target = repository + "/" + src
+		target = path.Join(repository, src)
 	}
 	showProgress := util.IsATTY() && !opts.QuietMode && !opts.DryRun
 	tracker := output.NewTransferTracker(output.TransferTypeDownload, target, opts.Logger, opts.QuietMode, opts.Logger.IsVerbose(), showProgress)
