@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -105,7 +106,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger) {
 			os.Exit(1)
 		}
 
-		src := dep.Repository + "/" + strings.TrimSuffix(dep.ExpandedPath(), "/")
+		src := path.Join(dep.Repository, strings.TrimSuffix(dep.ExpandedPath(), "/"))
 		dest := dep.OutputDir
 
 		depCfg := &config.Config{
@@ -274,7 +275,7 @@ func buildRootCommand() *cobra.Command {
 				}
 				completions := getPathCompletions(cfg, repo, pathPrefix)
 				for i := range completions {
-					completions[i] = repo + completions[i]
+					completions[i] = path.Join(repo, completions[i])
 				}
 				hasDir := false
 				for _, comp := range completions {
@@ -336,7 +337,7 @@ func buildRootCommand() *cobra.Command {
 				}
 				completions := getPathCompletions(cfg, repo, pathPrefix)
 				for i := range completions {
-					completions[i] = repo + completions[i]
+					completions[i] = path.Join(repo, completions[i])
 				}
 				hasDir := false
 				for _, comp := range completions {
