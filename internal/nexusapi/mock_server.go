@@ -161,6 +161,9 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 	// Extract path from query (format: /path/*)
 	if len(query) > 2 && strings.HasPrefix(query, "/") && strings.HasSuffix(query, "/*") {
 		m.LastListPath = query[1 : len(query)-2]
+	} else if len(name) > 2 && strings.HasPrefix(name, "/") && strings.HasSuffix(name, "/*") {
+		// Also extract path from name parameter (format: /path/*)
+		m.LastListPath = name[1 : len(name)-2]
 	}
 	m.mu.Unlock()
 

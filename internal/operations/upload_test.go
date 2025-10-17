@@ -139,7 +139,7 @@ func TestUploadWithChecksumValidation(t *testing.T) {
 
 	// Add an existing asset with matching checksum (SHA1 of testContent)
 	// Query pattern is "//*" when basePath is empty
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=//*", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -210,7 +210,7 @@ func TestUploadWithChecksumMismatch(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset with different checksum
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=//*", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -278,7 +278,7 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset (checksum doesn't matter when skip-checksum is enabled)
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=//*", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -344,7 +344,7 @@ func TestUploadWithForce(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset with matching checksum
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=//*", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",

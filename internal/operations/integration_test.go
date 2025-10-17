@@ -227,7 +227,7 @@ func TestCompressedDownload(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -328,7 +328,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + customArchiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + customArchiveName,
 		ID:          "test-id",
@@ -538,7 +538,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 
 	// Setup mock server to serve the uploaded archive for download
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -654,7 +654,7 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 
 	// Setup mock server to serve the uploaded archive for download
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		FileSize:    int64(len(uploadedArchiveContent)),

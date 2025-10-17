@@ -114,7 +114,7 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 	query.Set("repository", repository)
 	query.Set("format", "raw")
 	if pathPrefix != "" {
-		query.Set("q", fmt.Sprintf("/%s*", pathPrefix))
+		query.Set("name", fmt.Sprintf("/%s*", pathPrefix))
 	}
 	baseURL.RawQuery = query.Encode()
 
@@ -202,7 +202,7 @@ func (c *Client) ListAssets(repository, path string) ([]Asset, error) {
 		query.Set("format", "raw")
 		query.Set("direction", "asc")
 		query.Set("sort", "name")
-		query.Set("q", fmt.Sprintf("/%s/*", path))
+		query.Set("name", fmt.Sprintf("/%s/*", path))
 		if continuationToken != "" {
 			query.Set("continuationToken", continuationToken)
 		}
@@ -414,7 +414,7 @@ func (c *Client) SearchAssets(repository, pathPrefix string) ([]Asset, error) {
 		query := baseURL.Query()
 		query.Set("repository", repository)
 		if pathPrefix != "" {
-			query.Set("q", fmt.Sprintf("/%s*", pathPrefix))
+			query.Set("name", fmt.Sprintf("/%s*", pathPrefix))
 		}
 		if continuationToken != "" {
 			query.Set("continuationToken", continuationToken)

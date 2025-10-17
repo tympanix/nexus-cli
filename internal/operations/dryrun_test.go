@@ -85,7 +85,7 @@ func TestDownloadDryRun(t *testing.T) {
 	downloadURL1 := server.URL + "/repository/test-repo" + testPath1
 	downloadURL2 := server.URL + "/repository/test-repo" + testPath2
 
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL1,
 		Path:        testPath1,
 		ID:          "test-id-1",
@@ -95,7 +95,7 @@ func TestDownloadDryRun(t *testing.T) {
 			SHA1: "abc123",
 		},
 	})
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL2,
 		Path:        testPath2,
 		ID:          "test-id-2",

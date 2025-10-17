@@ -24,7 +24,7 @@ func TestDownloadSingleFile(t *testing.T) {
 
 	// Setup mock data
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -85,7 +85,7 @@ func TestDownloadLogging(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -151,7 +151,7 @@ func TestDownloadFlatten(t *testing.T) {
 	downloadURL1 := server.URL + "/repository/test-repo" + basePath + fileName
 	downloadURL2 := server.URL + "/repository/test-repo" + basePath + subPath + fileName
 
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL1,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -161,7 +161,7 @@ func TestDownloadFlatten(t *testing.T) {
 			SHA1: "abc123",
 		},
 	})
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL2,
 		Path:        basePath + subPath + fileName,
 		ID:          "test-id-2",
@@ -228,7 +228,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -288,7 +288,7 @@ func TestDownloadDeleteExtra(t *testing.T) {
 
 	// Nexus only has one file: /test-folder/file.txt
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -379,7 +379,7 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 
 	// Nexus only has one file: /test-folder/file.txt
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -454,7 +454,7 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 
 	// Nexus only has one file: /test-folder/file.txt
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -729,7 +729,7 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -831,7 +831,7 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -933,7 +933,7 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -997,7 +997,7 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
 
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -1081,7 +1081,7 @@ func TestDownloadWithForce(t *testing.T) {
 
 	// Setup mock data
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -1159,7 +1159,7 @@ func TestDownloadWithGlobPattern(t *testing.T) {
 
 	for path := range files {
 		downloadURL := server.URL + "/repository/test-repo" + path
-		server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 			DownloadURL: downloadURL,
 			Path:        path,
 			ID:          "test-id-" + path,
@@ -1287,7 +1287,7 @@ func TestDownloadWithGlobPatternNoMatch(t *testing.T) {
 
 	// Add a file with .txt extension
 	downloadURL := server.URL + "/repository/test-repo/test-folder/file.txt"
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-folder/*", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/file.txt",
 		ID:          "test-id",

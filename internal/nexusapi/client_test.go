@@ -31,13 +31,13 @@ func TestListAssets(t *testing.T) {
 	server := NewMockNexusServer()
 	defer server.Close()
 
-	// Setup mock data
-	server.AddAssetWithQuery("test-repo", "/test-path/*", Asset{
+	// Setup mock data using name parameter (ListAssets uses name=/test-path/*)
+	server.AddAssetWithQuery("test-repo", "name=/test-path/*", Asset{
 		ID:       "asset1",
 		Path:     "/test-path/file1.txt",
 		FileSize: 100,
 	})
-	server.AddAssetWithQuery("test-repo", "/test-path/*", Asset{
+	server.AddAssetWithQuery("test-repo", "name=/test-path/*", Asset{
 		ID:       "asset2",
 		Path:     "/test-path/file2.txt",
 		FileSize: 200,
@@ -64,12 +64,12 @@ func TestListAssetsWithPagination(t *testing.T) {
 	server := NewMockNexusServer()
 	defer server.Close()
 
-	// Setup first page
-	server.AddAssetForPage("repo", "/path/*", Asset{ID: "asset1", Path: "/path/file1.txt"}, 1)
-	server.SetContinuationToken("repo", "/path/*", "token123")
+	// Setup first page (using name parameter)
+	server.AddAssetForPage("repo", "name=/path/*", Asset{ID: "asset1", Path: "/path/file1.txt"}, 1)
+	server.SetContinuationToken("repo", "name=/path/*", "token123")
 
 	// Setup second page
-	server.AddAssetForPage("repo", "/path/*", Asset{ID: "asset2", Path: "/path/file2.txt"}, 2)
+	server.AddAssetForPage("repo", "name=/path/*", Asset{ID: "asset2", Path: "/path/file2.txt"}, 2)
 
 	client := NewClient(server.URL, "user", "pass")
 	assets, err := client.ListAssets("repo", "path")
@@ -422,5 +422,75 @@ func TestGetAssetByPathWithLeadingSlash(t *testing.T) {
 
 	if asset.ID != "asset2" {
 		t.Errorf("Expected asset ID 'asset2', got '%s'", asset.ID)
+	}
+}
+
+// TestSearchAssets tests that SearchAssets uses the name parameter
+func TestSearchAssets(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data using name parameter (SearchAssets uses name=/prefix*)
+	server.AddAssetWithQuery("test-repo", "name=/builds/app*", Asset{
+		ID:       "asset1",
+		Path:     "/builds/app-1.0.jar",
+		FileSize: 1024,
+	})
+	server.AddAssetWithQuery("test-repo", "name=/builds/app*", Asset{
+		ID:       "asset2",
+		Path:     "/builds/app-2.0.jar",
+		FileSize: 2048,
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	assets, err := client.SearchAssets("test-repo", "builds/app")
+
+	if err != nil {
+		t.Fatalf("SearchAssets failed: %v", err)
+	}
+
+	if len(assets) != 2 {
+		t.Errorf("Expected 2 assets, got %d", len(assets))
+	}
+
+	if assets[0].ID != "asset1" {
+		t.Errorf("Expected asset ID 'asset1', got '%s'", assets[0].ID)
+	}
+
+	if assets[1].ID != "asset2" {
+		t.Errorf("Expected asset ID 'asset2', got '%s'", assets[1].ID)
+	}
+}
+
+// TestGetAssetByPathUsesNameParameter verifies GetAssetByPath correctly uses the name parameter
+func TestGetAssetByPathUsesNameParameter(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	testAsset := Asset{
+		ID:       "test-asset-123",
+		Path:     "/artifacts/build.zip",
+		FileSize: 5120,
+		Checksum: Checksum{
+			SHA256: "def456",
+		},
+	}
+
+	// AddAssetByName sets up the mock to expect the name parameter
+	server.AddAssetByName("artifacts-repo", "/artifacts/build.zip", testAsset)
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	asset, err := client.GetAssetByPath("artifacts-repo", "/artifacts/build.zip")
+
+	if err != nil {
+		t.Fatalf("GetAssetByPath failed: %v", err)
+	}
+
+	if asset.ID != "test-asset-123" {
+		t.Errorf("Expected asset ID 'test-asset-123', got '%s'", asset.ID)
+	}
+
+	if asset.Checksum.SHA256 != "def456" {
+		t.Errorf("Expected SHA256 'def456', got '%s'", asset.Checksum.SHA256)
 	}
 }

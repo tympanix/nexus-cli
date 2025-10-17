@@ -515,8 +515,8 @@ func TestCompletionBehavior(t *testing.T) {
 
 	server.AddAssetWithQuery("myrepo", "", asset1)
 	server.AddAssetWithQuery("myrepo", "", asset2)
-	server.AddAssetWithQuery("myrepo", "/ar*", asset1)
-	server.AddAssetWithQuery("myrepo", "/ar*", asset2)
+	server.AddAssetWithQuery("myrepo", "name=/ar*", asset1)
+	server.AddAssetWithQuery("myrepo", "name=/ar*", asset2)
 
 	cfg := &config.Config{
 		NexusURL: server.URL,
@@ -630,8 +630,8 @@ func TestShellCompletionIntegration(t *testing.T) {
 		Repository:  "my-repo",
 	}
 	server.AddAssetWithQuery("my-repo", "", asset1)
-	server.AddAssetWithQuery("my-repo", "/files*", asset1)
-	server.AddAssetWithQuery("my-repo", "/files/*", asset1)
+	server.AddAssetWithQuery("my-repo", "name=/files*", asset1)
+	server.AddAssetWithQuery("my-repo", "name=/files/*", asset1)
 
 	cfg := &config.Config{
 		NexusURL: server.URL,

@@ -27,14 +27,14 @@ func TestResolverWithMockServer(t *testing.T) {
 		DownloadURL: mockServer.URL + "/repository/libs/thirdparty/libfoo-1.2.3.tar.gz",
 	})
 
-	mockServer.AddAssetWithQuery("libs", "/docs/2025-10-15*", nexusapi.Asset{
+	mockServer.AddAssetWithQuery("libs", "name=/docs/2025-10-15*", nexusapi.Asset{
 		Path: "docs/2025-10-15/readme.md",
 		Checksum: nexusapi.Checksum{
 			SHA256: "abcd1234",
 		},
 		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/readme.md",
 	})
-	mockServer.AddAssetWithQuery("libs", "/docs/2025-10-15*", nexusapi.Asset{
+	mockServer.AddAssetWithQuery("libs", "name=/docs/2025-10-15*", nexusapi.Asset{
 		Path: "docs/2025-10-15/guide.pdf",
 		Checksum: nexusapi.Checksum{
 			SHA256: "ef125678",
