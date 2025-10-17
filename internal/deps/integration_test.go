@@ -98,7 +98,7 @@ func TestResolverWithMockServer(t *testing.T) {
 }
 
 func TestCreateTemplateIni(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "deps-template-*.ini")
+	tmpfile, err := os.CreateTemp("", "deps-template-*.toml")
 	if err != nil {
 		t.Fatal(err)
 	}

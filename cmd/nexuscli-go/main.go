@@ -21,7 +21,7 @@ import (
 var version = "dev"
 
 func depsInitMain() {
-	filename := "deps.ini"
+	filename := "deps.toml"
 	if _, err := os.Stat(filename); err == nil {
 		fmt.Printf("Error: %s already exists\n", filename)
 		os.Exit(1)
@@ -34,9 +34,9 @@ func depsInitMain() {
 }
 
 func depsLockMain(cfg *config.Config, logger util.Logger) {
-	manifest, err := deps.ParseDepsIni("deps.ini")
+	manifest, err := deps.ParseDepsIni("deps.toml")
 	if err != nil {
-		fmt.Printf("Error parsing deps.ini: %v\n", err)
+		fmt.Printf("Error parsing deps.toml: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -64,24 +64,24 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 		logger.Printf("    Found %d file(s)\n", len(files))
 	}
 
-	if err := deps.WriteLockFile("deps-lock.ini", lockFile); err != nil {
-		fmt.Printf("Error writing deps-lock.ini: %v\n", err)
+	if err := deps.WriteLockFile("deps-lock.toml", lockFile); err != nil {
+		fmt.Printf("Error writing deps-lock.toml: %v\n", err)
 		os.Exit(1)
 	}
 
-	logger.Printf("Wrote deps-lock.ini\n")
+	logger.Printf("Wrote deps-lock.toml\n")
 }
 
 func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool) {
-	manifest, err := deps.ParseDepsIni("deps.ini")
+	manifest, err := deps.ParseDepsIni("deps.toml")
 	if err != nil {
-		fmt.Printf("Error parsing deps.ini: %v\n", err)
+		fmt.Printf("Error parsing deps.toml: %v\n", err)
 		os.Exit(1)
 	}
 
-	lockFile, err := deps.ParseLockFile("deps-lock.ini")
+	lockFile, err := deps.ParseLockFile("deps-lock.toml")
 	if err != nil {
-		fmt.Printf("Error parsing deps-lock.ini: %v\n", err)
+		fmt.Printf("Error parsing deps-lock.toml: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -93,7 +93,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 
 		lockedFiles, ok := lockFile.Dependencies[name]
 		if !ok {
-			fmt.Printf("Error: dependency %s not found in deps-lock.ini\n", name)
+			fmt.Printf("Error: dependency %s not found in deps-lock.toml\n", name)
 			os.Exit(1)
 		}
 
@@ -129,7 +129,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 			expectedChecksum := lockedFiles[filePath]
 			parts := strings.SplitN(expectedChecksum, ":", 2)
 			if len(parts) != 2 {
-				fmt.Printf("Error: invalid checksum format in deps-lock.ini: %s\n", expectedChecksum)
+				fmt.Printf("Error: invalid checksum format in deps-lock.toml: %s\n", expectedChecksum)
 				os.Exit(1)
 			}
 			algorithm := parts[0]
@@ -244,9 +244,9 @@ func cleanupEmptyDirectories(outputDir string, logger util.Logger) {
 }
 
 func depsEnvMain(logger util.Logger) {
-	manifest, err := deps.ParseDepsIni("deps.ini")
+	manifest, err := deps.ParseDepsIni("deps.toml")
 	if err != nil {
-		fmt.Printf("Error parsing deps.ini: %v\n", err)
+		fmt.Printf("Error parsing deps.toml: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -488,13 +488,13 @@ func buildRootCommand() *cobra.Command {
 	var depsCmd = &cobra.Command{
 		Use:   "deps",
 		Short: "Dependency management commands",
-		Long:  "Manage dependencies using deps.ini, deps-lock.ini, and deps.env files",
+		Long:  "Manage dependencies using deps.toml, deps-lock.toml, and deps.env files",
 	}
 
 	var depsInitCmd = &cobra.Command{
 		Use:   "init",
-		Short: "Create a template deps.ini file",
-		Long:  "Create a template deps.ini file with example dependencies",
+		Short: "Create a template deps.toml file",
+		Long:  "Create a template deps.toml file with example dependencies",
 		Run: func(cmd *cobra.Command, args []string) {
 			depsInitMain()
 		},
@@ -502,8 +502,8 @@ func buildRootCommand() *cobra.Command {
 
 	var depsLockCmd = &cobra.Command{
 		Use:   "lock",
-		Short: "Resolve and update deps-lock.ini from deps.ini",
-		Long:  "Resolve dependencies from Nexus and write checksums to deps-lock.ini",
+		Short: "Resolve and update deps-lock.toml from deps.toml",
+		Long:  "Resolve dependencies from Nexus and write checksums to deps-lock.toml",
 		Run: func(cmd *cobra.Command, args []string) {
 			depsLockMain(cfg, logger)
 		},
@@ -512,7 +512,7 @@ func buildRootCommand() *cobra.Command {
 	var depsSyncNoCleanup bool
 	var depsSyncCmd = &cobra.Command{
 		Use:   "sync",
-		Short: "Download dependencies and verify against deps-lock.ini",
+		Short: "Download dependencies and verify against deps-lock.toml",
 		Long:  "Download dependencies from Nexus and verify checksums atomically (fails if out of sync)",
 		Run: func(cmd *cobra.Command, args []string) {
 			depsSyncMain(cfg, logger, !depsSyncNoCleanup)

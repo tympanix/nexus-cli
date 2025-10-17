@@ -1,95 +1,71 @@
 package deps
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
+type tomlLockFile struct {
+	Deps map[string]map[string]string `toml:"deps"`
+}
+
 func ParseLockFile(filename string) (*LockFile, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open %s: %w", filename, err)
+	var lockConfig tomlLockFile
+	if _, err := toml.DecodeFile(filename, &lockConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", filename, err)
 	}
-	defer file.Close()
 
 	lockFile := &LockFile{
-		Dependencies: make(map[string]map[string]string),
+		Dependencies: lockConfig.Deps,
 	}
 
-	scanner := bufio.NewScanner(file)
-	var currentSection string
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "" || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			sectionName := strings.TrimSpace(line[1 : len(line)-1])
-			currentSection = sectionName
-			if lockFile.Dependencies[currentSection] == nil {
-				lockFile.Dependencies[currentSection] = make(map[string]string)
-			}
-			continue
-		}
-
-		if !strings.Contains(line, "=") {
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if currentSection != "" {
-			lockFile.Dependencies[currentSection][key] = value
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading %s: %w", filename, err)
+	if lockFile.Dependencies == nil {
+		lockFile.Dependencies = make(map[string]map[string]string)
 	}
 
 	return lockFile, nil
 }
 
 func WriteLockFile(filename string, lockFile *LockFile) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", filename, err)
-	}
-	defer file.Close()
-
 	var depNames []string
 	for depName := range lockFile.Dependencies {
 		depNames = append(depNames, depName)
 	}
 	sort.Strings(depNames)
 
+	sortedDeps := make(map[string]map[string]string)
 	for _, depName := range depNames {
 		files := lockFile.Dependencies[depName]
-		fmt.Fprintf(file, "[%s]\n", depName)
-
 		var filePaths []string
 		for filePath := range files {
 			filePaths = append(filePaths, filePath)
 		}
 		sort.Strings(filePaths)
 
+		sortedFiles := make(map[string]string)
 		for _, filePath := range filePaths {
-			checksum := files[filePath]
-			fmt.Fprintf(file, "%s = %s\n", filePath, checksum)
+			sortedFiles[filePath] = files[filePath]
 		}
-		fmt.Fprintf(file, "\n")
+		sortedDeps[depName] = sortedFiles
+	}
+
+	lockConfig := tomlLockFile{
+		Deps: sortedDeps,
+	}
+
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %w", filename, err)
+	}
+	defer file.Close()
+
+	encoder := toml.NewEncoder(file)
+	if err := encoder.Encode(lockConfig); err != nil {
+		return fmt.Errorf("failed to encode TOML: %w", err)
 	}
 
 	return nil

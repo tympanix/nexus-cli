@@ -21,15 +21,15 @@ func TestDepsSyncRecursivePaths(t *testing.T) {
 	}
 
 	depsIniContent := `[defaults]
-repository = builds
-checksum = sha256
-output_dir = ./local
+repository = "builds"
+checksum = "sha256"
+output_dir = "./local"
 
 [example]
-path = test1/
+path = "test1/"
 recursive = true
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsIniContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -47,10 +47,10 @@ recursive = true
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[example]
-test1/sub/subfile13.out = sha256:` + testChecksum + `
+	lockFileContent := `[deps.example]
+"test1/sub/subfile13.out" = "sha256:` + testChecksum + `"
 `
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 

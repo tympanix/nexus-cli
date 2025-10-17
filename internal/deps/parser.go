@@ -1,106 +1,55 @@
 package deps
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
+type tomlConfig struct {
+	Defaults Defaults               `toml:"defaults"`
+	Deps     map[string]*Dependency `toml:"deps"`
+}
+
 func ParseDepsIni(filename string) (*DepsManifest, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open %s: %w", filename, err)
+	var config tomlConfig
+	if _, err := toml.DecodeFile(filename, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", filename, err)
 	}
-	defer file.Close()
 
 	manifest := &DepsManifest{
 		Defaults: Defaults{
-			Repository: "",
-			Checksum:   "sha256",
-			OutputDir:  "./local",
-			URL:        "",
+			Repository: config.Defaults.Repository,
+			Checksum:   config.Defaults.Checksum,
+			OutputDir:  config.Defaults.OutputDir,
+			URL:        config.Defaults.URL,
 		},
 		Dependencies: make(map[string]*Dependency),
 	}
 
-	scanner := bufio.NewScanner(file)
-	var currentSection string
-	var currentDep *Dependency
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "" || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			sectionName := strings.TrimSpace(line[1 : len(line)-1])
-			currentSection = sectionName
-
-			if sectionName == "defaults" {
-				continue
-			}
-
-			currentDep = &Dependency{
-				Name:       sectionName,
-				Repository: manifest.Defaults.Repository,
-				Checksum:   manifest.Defaults.Checksum,
-				OutputDir:  manifest.Defaults.OutputDir,
-				URL:        manifest.Defaults.URL,
-			}
-			manifest.Dependencies[sectionName] = currentDep
-			continue
-		}
-
-		if !strings.Contains(line, "=") {
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if currentSection == "defaults" {
-			switch key {
-			case "repository":
-				manifest.Defaults.Repository = value
-			case "checksum":
-				manifest.Defaults.Checksum = value
-			case "output_dir":
-				manifest.Defaults.OutputDir = value
-			case "url":
-				manifest.Defaults.URL = value
-			}
-		} else if currentDep != nil {
-			switch key {
-			case "repository":
-				currentDep.Repository = value
-			case "path":
-				currentDep.Path = value
-			case "version":
-				currentDep.Version = value
-			case "checksum":
-				currentDep.Checksum = value
-			case "output_dir":
-				currentDep.OutputDir = value
-			case "dest":
-				currentDep.Dest = value
-			case "recursive":
-				currentDep.Recursive = strings.ToLower(value) == "true"
-			case "url":
-				currentDep.URL = value
-			}
-		}
+	if manifest.Defaults.Checksum == "" {
+		manifest.Defaults.Checksum = "sha256"
+	}
+	if manifest.Defaults.OutputDir == "" {
+		manifest.Defaults.OutputDir = "./local"
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading %s: %w", filename, err)
+	for name, dep := range config.Deps {
+		dep.Name = name
+		if dep.Repository == "" {
+			dep.Repository = manifest.Defaults.Repository
+		}
+		if dep.Checksum == "" {
+			dep.Checksum = manifest.Defaults.Checksum
+		}
+		if dep.OutputDir == "" {
+			dep.OutputDir = manifest.Defaults.OutputDir
+		}
+		if dep.URL == "" {
+			dep.URL = manifest.Defaults.URL
+		}
+		manifest.Dependencies[name] = dep
 	}
 
 	for name, dep := range manifest.Dependencies {
@@ -116,54 +65,42 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 }
 
 func WriteDepsIni(filename string, manifest *DepsManifest) error {
+	config := tomlConfig{
+		Defaults: manifest.Defaults,
+		Deps:     make(map[string]*Dependency),
+	}
+
+	for name, dep := range manifest.Dependencies {
+		newDep := &Dependency{
+			Path:      dep.Path,
+			Version:   dep.Version,
+			Recursive: dep.Recursive,
+			Dest:      dep.Dest,
+		}
+		if dep.URL != manifest.Defaults.URL && dep.URL != "" {
+			newDep.URL = dep.URL
+		}
+		if dep.Repository != manifest.Defaults.Repository && dep.Repository != "" {
+			newDep.Repository = dep.Repository
+		}
+		if dep.Checksum != manifest.Defaults.Checksum && dep.Checksum != "" {
+			newDep.Checksum = dep.Checksum
+		}
+		if dep.OutputDir != manifest.Defaults.OutputDir && dep.OutputDir != "" {
+			newDep.OutputDir = dep.OutputDir
+		}
+		config.Deps[name] = newDep
+	}
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", filename, err)
 	}
 	defer file.Close()
 
-	if manifest.Defaults.Repository != "" || manifest.Defaults.Checksum != "" || manifest.Defaults.OutputDir != "" || manifest.Defaults.URL != "" {
-		fmt.Fprintf(file, "[defaults]\n")
-		if manifest.Defaults.URL != "" {
-			fmt.Fprintf(file, "url = %s\n", manifest.Defaults.URL)
-		}
-		if manifest.Defaults.Repository != "" {
-			fmt.Fprintf(file, "repository = %s\n", manifest.Defaults.Repository)
-		}
-		if manifest.Defaults.Checksum != "" {
-			fmt.Fprintf(file, "checksum = %s\n", manifest.Defaults.Checksum)
-		}
-		if manifest.Defaults.OutputDir != "" {
-			fmt.Fprintf(file, "output_dir = %s\n", manifest.Defaults.OutputDir)
-		}
-		fmt.Fprintf(file, "\n")
-	}
-
-	for name, dep := range manifest.Dependencies {
-		fmt.Fprintf(file, "[%s]\n", name)
-		fmt.Fprintf(file, "path = %s\n", dep.Path)
-		if dep.Version != "" {
-			fmt.Fprintf(file, "version = %s\n", dep.Version)
-		}
-		if dep.URL != manifest.Defaults.URL && dep.URL != "" {
-			fmt.Fprintf(file, "url = %s\n", dep.URL)
-		}
-		if dep.Repository != manifest.Defaults.Repository && dep.Repository != "" {
-			fmt.Fprintf(file, "repository = %s\n", dep.Repository)
-		}
-		if dep.Checksum != manifest.Defaults.Checksum && dep.Checksum != "" {
-			fmt.Fprintf(file, "checksum = %s\n", dep.Checksum)
-		}
-		if dep.OutputDir != manifest.Defaults.OutputDir && dep.OutputDir != "" {
-			fmt.Fprintf(file, "output_dir = %s\n", dep.OutputDir)
-		}
-		if dep.Dest != "" {
-			fmt.Fprintf(file, "dest = %s\n", dep.Dest)
-		}
-		if dep.Recursive {
-			fmt.Fprintf(file, "recursive = true\n")
-		}
-		fmt.Fprintf(file, "\n")
+	encoder := toml.NewEncoder(file)
+	if err := encoder.Encode(config); err != nil {
+		return fmt.Errorf("failed to encode TOML: %w", err)
 	}
 
 	return nil

@@ -1,0 +1,18 @@
+[defaults]
+  repository = "libs"
+  checksum = "sha256"
+  output_dir = "./local"
+  url = "http://localhost:8081"
+
+[deps]
+  [deps.docs_folder]
+    path = "docs/${version}/"
+    version = "2025-10-15"
+    recursive = true
+  [deps.example_txt]
+    path = "docs/example-${version}.txt"
+    version = "1.0.0"
+  [deps.libfoo_tar]
+    path = "thirdparty/libfoo-${version}.tar.gz"
+    version = "1.2.3"
+    checksum = "sha512"

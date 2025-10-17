@@ -7,26 +7,26 @@ import (
 
 func TestParseDepsIni(t *testing.T) {
 	content := `[defaults]
-url = http://nexus.example.com:8081
-repository = libs
-checksum = sha256
-output_dir = ./local
+url = "http://nexus.example.com:8081"
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
+[deps.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
 
-[libfoo_tar]
-path = thirdparty/libfoo-${version}.tar.gz
-version = 1.2.3
-checksum = sha512
+[deps.libfoo_tar]
+path = "thirdparty/libfoo-${version}.tar.gz"
+version = "1.2.3"
+checksum = "sha512"
 
-[docs_folder]
-path = docs/${version}/
-version = 2025-10-15
+[deps.docs_folder]
+path = "docs/${version}/"
+version = "2025-10-15"
 recursive = true
 `
-	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	tmpfile, err := os.CreateTemp("", "deps-*.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,21 +93,21 @@ recursive = true
 
 func TestParseDepsIniWithPerDependencyURL(t *testing.T) {
 	content := `[defaults]
-url = http://nexus-default.example.com:8081
-repository = libs
-checksum = sha256
-output_dir = ./local
+url = "http://nexus-default.example.com:8081"
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
-url = http://nexus-custom.example.com:8082
+[deps.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
+url = "http://nexus-custom.example.com:8082"
 
-[libfoo_tar]
-path = thirdparty/libfoo-${version}.tar.gz
-version = 1.2.3
+[deps.libfoo_tar]
+path = "thirdparty/libfoo-${version}.tar.gz"
+version = "1.2.3"
 `
-	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	tmpfile, err := os.CreateTemp("", "deps-*.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestLockFileRoundTrip(t *testing.T) {
 		},
 	}
 
-	tmpfile, err := os.CreateTemp("", "deps-lock-*.ini")
+	tmpfile, err := os.CreateTemp("", "deps-lock-*.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func TestLockFileDeterministicOutput(t *testing.T) {
 
 	var outputs []string
 	for i := 0; i < 10; i++ {
-		tmpfile, err := os.CreateTemp("", "deps-lock-*.ini")
+		tmpfile, err := os.CreateTemp("", "deps-lock-*.toml")
 		if err != nil {
 			t.Fatal(err)
 		}

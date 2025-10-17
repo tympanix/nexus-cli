@@ -7,22 +7,22 @@ import (
 )
 
 type Defaults struct {
-	Repository string
-	Checksum   string
-	OutputDir  string
-	URL        string
+	Repository string `toml:"repository"`
+	Checksum   string `toml:"checksum"`
+	OutputDir  string `toml:"output_dir"`
+	URL        string `toml:"url"`
 }
 
 type Dependency struct {
-	Name       string
-	Repository string
-	Path       string
-	Version    string
-	Checksum   string
-	OutputDir  string
-	Dest       string
-	Recursive  bool
-	URL        string
+	Name       string `toml:"-"`
+	Repository string `toml:"repository,omitempty"`
+	Path       string `toml:"path"`
+	Version    string `toml:"version,omitempty"`
+	Checksum   string `toml:"checksum,omitempty"`
+	OutputDir  string `toml:"output_dir,omitempty"`
+	Dest       string `toml:"dest,omitempty"`
+	Recursive  bool   `toml:"recursive,omitempty"`
+	URL        string `toml:"url,omitempty"`
 }
 
 func (d *Dependency) ExpandedPath() string {
