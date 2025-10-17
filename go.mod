@@ -4,7 +4,9 @@ go 1.25.1
 
 require (
 	github.com/ProtonMail/go-crypto v1.3.0
+	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb
 	github.com/bmatcuk/doublestar/v4 v4.9.1
+	github.com/google/rpmpack v0.7.1
 	github.com/k0kubun/go-ansi v0.0.0-20180517002512-3bf9e2903213
 	github.com/klauspost/compress v1.18.0
 	github.com/schollz/progressbar/v3 v3.18.1-0.20251007170235-655d41e4d87f
@@ -12,10 +14,8 @@ require (
 )
 
 require (
-	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/cavaliergopher/cpio v1.0.1 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
-	github.com/google/rpmpack v0.7.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
