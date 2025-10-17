@@ -24,7 +24,7 @@ func TestDownloadSingleFile(t *testing.T) {
 
 	// Setup mock data
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", testPath, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -33,8 +33,7 @@ func TestDownloadSingleFile(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+	}, []byte(testContent))
 
 	// Create test config
 	config := &config.Config{
@@ -86,7 +85,7 @@ func TestDownloadLogging(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", testPath, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -95,8 +94,7 @@ func TestDownloadLogging(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -153,7 +151,7 @@ func TestDownloadFlatten(t *testing.T) {
 	downloadURL1 := server.URL + "/repository/test-repo" + basePath + fileName
 	downloadURL2 := server.URL + "/repository/test-repo" + basePath + subPath + fileName
 
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", basePath+fileName, nexusapi.Asset{
 		DownloadURL: downloadURL1,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -162,8 +160,8 @@ func TestDownloadFlatten(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	}, []byte(testContent))
+	server.AddAsset("test-repo", basePath+subPath+fileName, nexusapi.Asset{
 		DownloadURL: downloadURL2,
 		Path:        basePath + subPath + fileName,
 		ID:          "test-id-2",
@@ -172,10 +170,7 @@ func TestDownloadFlatten(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "def456",
 		},
-	})
-
-	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
-	server.SetAssetContent("/repository/test-repo"+basePath+subPath+fileName, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -231,7 +226,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", testPath, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -240,8 +235,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -292,7 +286,7 @@ func TestDownloadDeleteExtra(t *testing.T) {
 
 	// Nexus only has one file: /test-folder/file.txt
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", basePath+fileName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -301,8 +295,7 @@ func TestDownloadDeleteExtra(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -384,7 +377,7 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 
 	// Nexus only has one file: /test-folder/file.txt
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", basePath+fileName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -393,8 +386,7 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -460,7 +452,7 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 
 	// Nexus only has one file: /test-folder/file.txt
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", basePath+fileName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -469,8 +461,7 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -739,7 +730,7 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -748,8 +739,7 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
+	}, archiveContent)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -842,7 +832,7 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -851,8 +841,7 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
+	}, archiveContent)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -945,7 +934,7 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 	defer server.Close()
 
 	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/" + archiveName,
 		ID:          "test-id",
@@ -954,8 +943,7 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo/test-folder/"+archiveName, archiveContent)
+	}, archiveContent)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -1010,7 +998,7 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 
 	downloadURL := server.URL + "/repository/test-repo" + basePath + fileName
 
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", basePath+fileName, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        basePath + fileName,
 		ID:          "test-id-1",
@@ -1019,9 +1007,7 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-
-	server.SetAssetContent("/repository/test-repo"+basePath+fileName, []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -1095,7 +1081,7 @@ func TestDownloadWithForce(t *testing.T) {
 
 	// Setup mock data
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", testPath, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -1104,8 +1090,7 @@ func TestDownloadWithForce(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+	}, []byte(testContent))
 
 	// Create test config
 	config := &config.Config{
@@ -1174,7 +1159,7 @@ func TestDownloadWithGlobPattern(t *testing.T) {
 
 	for path := range files {
 		downloadURL := server.URL + "/repository/test-repo" + path
-		server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		server.AddAsset("test-repo", path, nexusapi.Asset{
 			DownloadURL: downloadURL,
 			Path:        path,
 			ID:          "test-id-" + path,
@@ -1183,8 +1168,7 @@ func TestDownloadWithGlobPattern(t *testing.T) {
 			Checksum: nexusapi.Checksum{
 				SHA1: "abc123",
 			},
-		})
-		server.SetAssetContent("/repository/test-repo"+path, []byte(testContent))
+		}, []byte(testContent))
 	}
 
 	config := &config.Config{
@@ -1303,7 +1287,7 @@ func TestDownloadWithGlobPatternNoMatch(t *testing.T) {
 
 	// Add a file with .txt extension
 	downloadURL := server.URL + "/repository/test-repo/test-folder/file.txt"
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test-folder/file.txt", nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        "/test-folder/file.txt",
 		ID:          "test-id",
@@ -1312,8 +1296,7 @@ func TestDownloadWithGlobPatternNoMatch(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo/test-folder/file.txt", []byte(testContent))
+	}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -1353,7 +1336,7 @@ func TestDownloadSingleFileNonRecursive(t *testing.T) {
 
 	// Setup mock data - add by name for exact match
 	downloadURL := server.URL + "/repository/test-repo" + testPath
-	server.AddAssetByName("test-repo", testPath, nexusapi.Asset{
+	server.AddAsset("test-repo", testPath, nexusapi.Asset{
 		DownloadURL: downloadURL,
 		Path:        testPath,
 		ID:          "test-id",
@@ -1362,8 +1345,7 @@ func TestDownloadSingleFileNonRecursive(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+	}, []byte(testContent))
 
 	// Create test config
 	config := &config.Config{
@@ -1415,7 +1397,7 @@ func TestDownloadRecursiveFolder(t *testing.T) {
 	defer server.Close()
 
 	// Setup mock data - add multiple files in a folder
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test-folder/file1.txt", nexusapi.Asset{
 		DownloadURL: server.URL + "/repository/test-repo/test-folder/file1.txt",
 		Path:        "/test-folder/file1.txt",
 		ID:          "test-id-1",
@@ -1424,8 +1406,8 @@ func TestDownloadRecursiveFolder(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "abc123",
 		},
-	})
-	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+	}, []byte(testContent))
+	server.AddAsset("test-repo", "/test-folder/file2.txt", nexusapi.Asset{
 		DownloadURL: server.URL + "/repository/test-repo/test-folder/file2.txt",
 		Path:        "/test-folder/file2.txt",
 		ID:          "test-id-2",
@@ -1434,9 +1416,7 @@ func TestDownloadRecursiveFolder(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "def456",
 		},
-	})
-	server.SetAssetContent("/repository/test-repo/test-folder/file1.txt", []byte(testContent))
-	server.SetAssetContent("/repository/test-repo/test-folder/file2.txt", []byte(testContent))
+	}, []byte(testContent))
 
 	// Create test config
 	config := &config.Config{

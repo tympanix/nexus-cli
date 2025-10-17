@@ -344,7 +344,8 @@ func matchGlobPattern(pattern, path string) bool {
 
 // AddAsset adds an asset to the mock server's asset list by path
 // The asset will be stored and retrievable via queries that match its path
-func (m *MockNexusServer) AddAsset(repository, path string, asset Asset) {
+// If content is provided, it will be automatically set for downloading
+func (m *MockNexusServer) AddAsset(repository, path string, asset Asset, content []byte) {
 	// Normalize path to ensure it starts with /
 	normalizedPath := path
 	if !strings.HasPrefix(normalizedPath, "/") {
@@ -354,6 +355,12 @@ func (m *MockNexusServer) AddAsset(repository, path string, asset Asset) {
 	key := repository + ":" + normalizedPath
 	m.mu.Lock()
 	m.Assets[key] = asset
+	// If content is provided, set it for downloading
+	if content != nil {
+		m.AssetContent[asset.DownloadURL] = content
+		// Also set content using the path format for backward compatibility
+		m.AssetContent["/repository/"+repository+normalizedPath] = content
+	}
 	m.mu.Unlock()
 }
 
@@ -384,22 +391,7 @@ func (m *MockNexusServer) SetContinuationToken(repository, query, token string) 
 func (m *MockNexusServer) AddAssetForPage(repository, query string, asset Asset, page int) {
 	// Add to main storage regardless of page
 	path := asset.Path
-	m.AddAsset(repository, path, asset)
-}
-
-// AddAssetWithQuery is a backward compatibility wrapper for AddAsset
-// It adds an asset by its path, ignoring the query parameter
-func (m *MockNexusServer) AddAssetWithQuery(repository, query string, asset Asset) {
-	// Extract path from asset and add it
-	path := asset.Path
-	m.AddAsset(repository, path, asset)
-}
-
-// AddAssetByName is a backward compatibility wrapper for AddAsset
-// It adds an asset by its path (name parameter is the path)
-func (m *MockNexusServer) AddAssetByName(repository, name string, asset Asset) {
-	// name is the exact path
-	m.AddAsset(repository, name, asset)
+	m.AddAsset(repository, path, asset, nil)
 }
 
 // Reset clears all stored data in the mock server

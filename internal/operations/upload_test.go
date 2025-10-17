@@ -139,7 +139,7 @@ func TestUploadWithChecksumValidation(t *testing.T) {
 
 	// Add an existing asset with matching checksum (SHA1 of testContent)
 	// Query pattern is "//*" when basePath is empty
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -147,7 +147,7 @@ func TestUploadWithChecksumValidation(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
 		},
-	})
+	}, nil)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -210,7 +210,7 @@ func TestUploadWithChecksumMismatch(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset with different checksum
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -218,7 +218,7 @@ func TestUploadWithChecksumMismatch(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "wrongchecksum",
 		},
-	})
+	}, nil)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -278,7 +278,7 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset (checksum doesn't matter when skip-checksum is enabled)
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -286,7 +286,7 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "anychecksum",
 		},
-	})
+	}, nil)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -344,7 +344,7 @@ func TestUploadWithForce(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset with matching checksum
-	server.AddAssetWithQuery("test-repo", "//*", nexusapi.Asset{
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
 		Path:       "/test.txt",
 		ID:         "test-id",
 		Repository: "test-repo",
@@ -352,7 +352,7 @@ func TestUploadWithForce(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
 		},
-	})
+	}, nil)
 
 	config := &config.Config{
 		NexusURL: server.URL,
