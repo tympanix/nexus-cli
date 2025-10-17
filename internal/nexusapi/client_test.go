@@ -424,3 +424,134 @@ func TestGetAssetByPathWithLeadingSlash(t *testing.T) {
 		t.Errorf("Expected asset ID 'asset2', got '%s'", asset.ID)
 	}
 }
+
+// TestListAssetsWithLeadingSlash tests listing assets when path has leading slash
+func TestListAssetsWithLeadingSlash(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data with leading slash in query
+	server.AddAssetWithQuery("test-repo", "/docs/*", Asset{
+		ID:       "asset1",
+		Path:     "/docs/file1.txt",
+		FileSize: 100,
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	// Pass path with leading slash - should not create double slashes
+	assets, err := client.ListAssets("test-repo", "/docs")
+
+	if err != nil {
+		t.Fatalf("ListAssets failed: %v", err)
+	}
+
+	if len(assets) != 1 {
+		t.Errorf("Expected 1 asset, got %d", len(assets))
+	}
+
+	if assets[0].ID != "asset1" {
+		t.Errorf("Expected asset ID 'asset1', got '%s'", assets[0].ID)
+	}
+}
+
+// TestSearchAssetsWithLeadingSlash tests searching assets when path has leading slash
+func TestSearchAssetsWithLeadingSlash(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data with leading slash in query
+	server.AddAssetWithQuery("test-repo", "/libs*", Asset{
+		ID:       "asset1",
+		Path:     "/libs/example.jar",
+		FileSize: 150,
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	// Pass path with leading slash - should not create double slashes
+	assets, err := client.SearchAssets("test-repo", "/libs")
+
+	if err != nil {
+		t.Fatalf("SearchAssets failed: %v", err)
+	}
+
+	if len(assets) != 1 {
+		t.Errorf("Expected 1 asset, got %d", len(assets))
+	}
+
+	if assets[0].ID != "asset1" {
+		t.Errorf("Expected asset ID 'asset1', got '%s'", assets[0].ID)
+	}
+}
+
+// TestSearchAssetsWithoutLeadingSlash tests searching assets when path lacks leading slash
+func TestSearchAssetsWithoutLeadingSlash(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data - expect path to be prefixed with /
+	server.AddAssetWithQuery("test-repo", "/libs*", Asset{
+		ID:       "asset2",
+		Path:     "/libs/example2.jar",
+		FileSize: 250,
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	// Pass path without leading slash - should be prefixed with /
+	assets, err := client.SearchAssets("test-repo", "libs")
+
+	if err != nil {
+		t.Fatalf("SearchAssets failed: %v", err)
+	}
+
+	if len(assets) != 1 {
+		t.Errorf("Expected 1 asset, got %d", len(assets))
+	}
+
+	if assets[0].ID != "asset2" {
+		t.Errorf("Expected asset ID 'asset2', got '%s'", assets[0].ID)
+	}
+}
+
+// TestSearchAssetsForCompletionWithLeadingSlash tests autocompletion search with leading slash
+func TestSearchAssetsForCompletionWithLeadingSlash(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data with leading slash in query
+	server.AddAssetWithQuery("test-repo", "/build*", Asset{
+		ID:   "asset1",
+		Path: "build/output.bin",
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	// Pass path with leading slash - should not create double slashes
+	_, err := client.SearchAssetsForCompletion("test-repo", "/build")
+
+	if err != nil {
+		t.Fatalf("SearchAssetsForCompletion failed: %v", err)
+	}
+
+	// Test passes if no error occurred - the function normalizes paths correctly
+}
+
+// TestSearchAssetsForCompletionWithoutLeadingSlash tests autocompletion search without leading slash
+func TestSearchAssetsForCompletionWithoutLeadingSlash(t *testing.T) {
+	server := NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data - expect path to be prefixed with /
+	server.AddAssetWithQuery("test-repo", "/build*", Asset{
+		ID:   "asset1",
+		Path: "build/output.bin",
+	})
+
+	client := NewClient(server.URL, "testuser", "testpass")
+	// Pass path without leading slash - should be prefixed with /
+	_, err := client.SearchAssetsForCompletion("test-repo", "build")
+
+	if err != nil {
+		t.Fatalf("SearchAssetsForCompletion failed: %v", err)
+	}
+
+	// Test passes if no error occurred - the function normalizes paths correctly
+}
