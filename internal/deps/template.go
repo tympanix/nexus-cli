@@ -1,23 +1,23 @@
 package deps
 
 const DefaultDepsIniTemplate = `[defaults]
-url = http://localhost:8081
-repository = libs
-checksum = sha256
-output_dir = ./local
+url = "http://localhost:8081"
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
+[dependencies.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
 
-[libfoo_tar]
-path = thirdparty/libfoo-${version}.tar.gz
-version = 1.2.3
-checksum = sha512
+[dependencies.libfoo_tar]
+path = "thirdparty/libfoo-${version}.tar.gz"
+version = "1.2.3"
+checksum = "sha512"
 
-[docs_folder]
-path = docs/${version}/
-version = 2025-10-15
+[dependencies.docs_folder]
+path = "docs/${version}/"
+version = "2025-10-15"
 recursive = true
 `
 

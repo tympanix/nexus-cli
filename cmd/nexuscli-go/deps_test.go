@@ -27,21 +27,21 @@ func TestDepsInitCommand(t *testing.T) {
 		t.Fatalf("deps init failed: %v", err)
 	}
 
-	if _, err := os.Stat("deps.ini"); os.IsNotExist(err) {
-		t.Error("deps.ini was not created")
+	if _, err := os.Stat("deps.toml"); os.IsNotExist(err) {
+		t.Error("deps.toml was not created")
 	}
 
-	content, err := os.ReadFile("deps.ini")
+	content, err := os.ReadFile("deps.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	contentStr := string(content)
 	if !strings.Contains(contentStr, "[defaults]") {
-		t.Error("deps.ini missing [defaults] section")
+		t.Error("deps.toml missing [defaults] section")
 	}
-	if !strings.Contains(contentStr, "[example_txt]") {
-		t.Error("deps.ini missing [example_txt] section")
+	if !strings.Contains(contentStr, "example_txt") {
+		t.Error("deps.toml missing example_txt dependency")
 	}
 }
 
@@ -102,7 +102,7 @@ func TestDepsInitAlreadyExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile("deps.ini", []byte("test"), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte("test"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -113,9 +113,9 @@ func TestDepsInitAlreadyExists(t *testing.T) {
 		return
 	}
 
-	content, _ := os.ReadFile("deps.ini")
+	content, _ := os.ReadFile("deps.toml")
 	if string(content) != "test" {
-		t.Error("deps.ini was modified when it should not have been")
+		t.Error("deps.toml was modified when it should not have been")
 	}
 }
 
@@ -139,7 +139,7 @@ func TestDepsEnvWithoutDepsIni(t *testing.T) {
 	}
 
 	if _, err := os.Stat("deps.env"); err == nil {
-		t.Error("deps.env should not have been created without deps.ini")
+		t.Error("deps.env should not have been created without deps.toml")
 	}
 }
 
@@ -171,23 +171,23 @@ func TestDepsSyncCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	depsIniContent := `[defaults]
-repository = libs
-checksum = sha256
-output_dir = ./local
+	depsTomlContent := `[defaults]
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
+[dependencies.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsTomlContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + testChecksum + `
+	lockFileContent := `[dependencies.example_txt]
+"docs/example-1.0.0.txt" = "sha256:` + testChecksum + `"
 `
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -252,25 +252,25 @@ func TestDepsSyncRecursiveDependency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	depsIniContent := `[defaults]
-repository = libs
-checksum = sha256
-output_dir = ./local
+	depsTomlContent := `[defaults]
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[docs_folder]
-path = docs/${version}/
-version = 2025-10-15
+[dependencies.docs_folder]
+path = "docs/${version}/"
+version = "2025-10-15"
 recursive = true
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsTomlContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[docs_folder]
-docs/2025-10-15/readme.md = sha256:` + file1Checksum + `
-docs/2025-10-15/guide.pdf = sha256:` + file2Checksum + `
+	lockFileContent := `[dependencies.docs_folder]
+"docs/2025-10-15/readme.md" = "sha256:` + file1Checksum + `"
+"docs/2025-10-15/guide.pdf" = "sha256:` + file2Checksum + `"
 `
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -331,31 +331,31 @@ func TestDepsSyncWithMultipleDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	depsIniContent := `[defaults]
-repository = libs
-checksum = sha256
-output_dir = ./local
+	depsTomlContent := `[defaults]
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
+[dependencies.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
 
-[libfoo_tar]
-path = thirdparty/libfoo-${version}.tar.gz
-version = 1.2.3
-checksum = sha512
+[dependencies.libfoo_tar]
+path = "thirdparty/libfoo-${version}.tar.gz"
+version = "1.2.3"
+checksum = "sha512"
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsTomlContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + file1Checksum + `
+	lockFileContent := `[dependencies.example_txt]
+"docs/example-1.0.0.txt" = "sha256:` + file1Checksum + `"
 
-[libfoo_tar]
-thirdparty/libfoo-1.2.3.tar.gz = sha512:` + file2Checksum + `
+[dependencies.libfoo_tar]
+"thirdparty/libfoo-1.2.3.tar.gz" = "sha512:` + file2Checksum + `"
 `
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -423,23 +423,23 @@ func TestDepsSyncChecksumMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	depsIniContent := `[defaults]
-repository = libs
-checksum = sha256
-output_dir = ./local
+	depsTomlContent := `[defaults]
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
+[dependencies.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsTomlContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + wrongChecksum + `
+	lockFileContent := `[dependencies.example_txt]
+"docs/example-1.0.0.txt" = "sha256:` + wrongChecksum + `"
 `
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -465,23 +465,23 @@ func TestDepsSyncMissingLockEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	depsIniContent := `[defaults]
-repository = libs
-checksum = sha256
-output_dir = ./local
+	depsTomlContent := `[defaults]
+repository = "libs"
+checksum = "sha256"
+output_dir = "./local"
 
-[example_txt]
-path = docs/example-${version}.txt
-version = 1.0.0
+[dependencies.example_txt]
+path = "docs/example-${version}.txt"
+version = "1.0.0"
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsTomlContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[other_dependency]
-other/file.txt = sha256:abcd1234
+	lockFileContent := `[dependencies.other_dependency]
+"other/file.txt" = "sha256:abcd1234"
 `
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+	if err := os.WriteFile("deps-lock.toml", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -518,15 +518,15 @@ func TestDepsLockCommandWithSingleFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	depsIniContent := `[defaults]
-repository = builds
-checksum = sha256
-output_dir = ./local
+	depsTomlContent := `[defaults]
+repository = "builds"
+checksum = "sha256"
+output_dir = "./local"
 
-[example]
-path = test3/file1.out
+[dependencies.example]
+path = "test3/file1.out"
 `
-	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+	if err := os.WriteFile("deps.toml", []byte(depsTomlContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -536,23 +536,23 @@ path = test3/file1.out
 		t.Fatalf("deps lock failed: %v", err)
 	}
 
-	if _, err := os.Stat("deps-lock.ini"); os.IsNotExist(err) {
-		t.Error("deps-lock.ini was not created")
+	if _, err := os.Stat("deps-lock.toml"); os.IsNotExist(err) {
+		t.Error("deps-lock.toml was not created")
 	}
 
-	content, err := os.ReadFile("deps-lock.ini")
+	content, err := os.ReadFile("deps-lock.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	contentStr := string(content)
-	if !strings.Contains(contentStr, "[example]") {
-		t.Error("deps-lock.ini missing [example] section")
+	if !strings.Contains(contentStr, "example") {
+		t.Error("deps-lock.toml missing example dependency")
 	}
 	if !strings.Contains(contentStr, "test3/file1.out") {
-		t.Error("deps-lock.ini missing test3/file1.out entry")
+		t.Error("deps-lock.toml missing test3/file1.out entry")
 	}
 	if !strings.Contains(contentStr, testChecksum) {
-		t.Errorf("deps-lock.ini missing expected checksum %s", testChecksum)
+		t.Errorf("deps-lock.toml missing expected checksum %s", testChecksum)
 	}
 }
