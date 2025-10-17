@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 
@@ -184,13 +185,7 @@ func (m *MockNexusServer) handleListAssets(w http.ResponseWriter, r *http.Reques
 
 	// Sort keys for consistent ordering
 	// This ensures tests get predictable results
-	for i := 0; i < len(keys)-1; i++ {
-		for j := i + 1; j < len(keys); j++ {
-			if keys[i] > keys[j] {
-				keys[i], keys[j] = keys[j], keys[i]
-			}
-		}
-	}
+	sort.Strings(keys)
 
 	for _, key := range keys {
 		asset := m.Assets[key]
