@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -163,7 +164,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 
 	target := repository
 	if subdir != "" {
-		target = repository + "/" + subdir
+		target = path.Join(repository, subdir)
 	}
 	showProgress := util.IsATTY() && !opts.QuietMode && !opts.DryRun
 	tracker := output.NewTransferTracker(output.TransferTypeUpload, target, opts.Logger, opts.QuietMode, opts.Logger.IsVerbose(), showProgress)
