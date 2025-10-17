@@ -27,7 +27,7 @@ func TestMockNexusServerAddAsset(t *testing.T) {
 		FileSize: 100,
 	}
 
-	server.AddAsset("test-repo", "/test-path/file.txt", asset)
+	server.AddAsset("test-repo", "/test-path/file.txt", asset, nil)
 
 	// Verify asset was added
 	server.mu.RLock()
@@ -45,8 +45,7 @@ func TestMockNexusServerReset(t *testing.T) {
 
 	// Add some data
 	asset := Asset{ID: "test", Path: "/path", FileSize: 100}
-	server.AddAsset("repo", "/path", asset)
-	server.SetAssetContent("url", []byte("content"))
+	server.AddAsset("repo", "/path", asset, []byte("content"))
 
 	server.mu.Lock()
 	server.UploadedFiles = append(server.UploadedFiles, UploadedFile{
@@ -85,15 +84,15 @@ func TestMockNexusServerGlobMatching(t *testing.T) {
 	server.AddAsset("repo", "/docs/readme.txt", Asset{
 		ID:   "asset1",
 		Path: "/docs/readme.txt",
-	})
+	}, nil)
 	server.AddAsset("repo", "/docs/guide.pdf", Asset{
 		ID:   "asset2",
 		Path: "/docs/guide.pdf",
-	})
+	}, nil)
 	server.AddAsset("repo", "/images/logo.png", Asset{
 		ID:   "asset3",
 		Path: "/images/logo.png",
-	})
+	}, nil)
 
 	client := NewClient(server.URL, "user", "pass")
 
@@ -129,8 +128,8 @@ func TestMockNexusServerBackwardCompatibility(t *testing.T) {
 		Path: "/test/file.txt",
 	}
 
-	// Test AddAssetWithQuery (backward compatibility)
-	server.AddAssetWithQuery("repo", "/test/*", asset)
+	// Test AddAsset with the new signature
+	server.AddAsset("repo", "/test/file.txt", asset, nil)
 
 	client := NewClient(server.URL, "user", "pass")
 	assets, err := client.ListAssets("repo", "test", true)
@@ -141,12 +140,12 @@ func TestMockNexusServerBackwardCompatibility(t *testing.T) {
 		t.Errorf("Expected 1 asset, got %d", len(assets))
 	}
 
-	// Test AddAssetByName (backward compatibility)
+	// Test with exact path
 	server.Reset()
-	server.AddAssetByName("repo", "/exact/path.txt", Asset{
+	server.AddAsset("repo", "/exact/path.txt", Asset{
 		ID:   "exact-asset",
 		Path: "/exact/path.txt",
-	})
+	}, nil)
 
 	foundAsset, err := client.GetAssetByPath("repo", "/exact/path.txt")
 	if err != nil {
@@ -165,19 +164,19 @@ func TestMockNexusServerGlobPatterns(t *testing.T) {
 	server.AddAsset("repo", "/docs/readme.txt", Asset{
 		ID:   "asset1",
 		Path: "/docs/readme.txt",
-	})
+	}, nil)
 	server.AddAsset("repo", "/docs/guide.md", Asset{
 		ID:   "asset2",
 		Path: "/docs/guide.md",
-	})
+	}, nil)
 	server.AddAsset("repo", "/docs/subdir/file.txt", Asset{
 		ID:   "asset3",
 		Path: "/docs/subdir/file.txt",
-	})
+	}, nil)
 	server.AddAsset("repo", "/images/logo.png", Asset{
 		ID:   "asset4",
 		Path: "/images/logo.png",
-	})
+	}, nil)
 
 	client := NewClient(server.URL, "user", "pass")
 
