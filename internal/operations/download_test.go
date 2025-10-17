@@ -49,6 +49,7 @@ func TestDownloadSingleFile(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	// Create temp directory for download
@@ -112,6 +113,7 @@ func TestDownloadLogging(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            logger,
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	destDir, err := os.MkdirTemp("", "test-download-*")
@@ -187,6 +189,7 @@ func TestDownloadFlatten(t *testing.T) {
 		Flatten:           true,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	destDir, err := os.MkdirTemp("", "test-download-flatten-*")
@@ -252,6 +255,7 @@ func TestDownloadNoFlatten(t *testing.T) {
 		Flatten:           false, // Default behavior
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	destDir, err := os.MkdirTemp("", "test-download-no-flatten-*")
@@ -346,6 +350,7 @@ func TestDownloadDeleteExtra(t *testing.T) {
 		DeleteExtra:       true,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
@@ -424,6 +429,7 @@ func TestDownloadNoDeleteExtra(t *testing.T) {
 		DeleteExtra:       false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
@@ -498,6 +504,7 @@ func TestDownloadDeleteExtraWithFlatten(t *testing.T) {
 		DeleteExtra:       true,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
@@ -570,7 +577,7 @@ func TestURLConstruction(t *testing.T) {
 				Password: "test",
 			}
 
-			_, err := listAssets(tt.repository, tt.src, config)
+			_, err := listAssets(tt.repository, tt.src, config, true)
 			if err != nil {
 				t.Fatalf("listAssets failed: %v", err)
 			}
@@ -603,6 +610,7 @@ func TestDownloadNoAssetsFound(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	destDir, err := os.MkdirTemp("", "test-download-no-assets-*")
@@ -634,6 +642,7 @@ func TestDownloadErrorConditions(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	destDir, err := os.MkdirTemp("", "test-download-error-*")
@@ -673,6 +682,7 @@ func TestDownloadMainExitCode(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	status := downloadFolder("test-repo/empty-folder", destDir, config, opts)
@@ -759,6 +769,7 @@ func TestDownloadCompressedGzipWithProgressBar(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatGzip,
 	}
@@ -861,6 +872,7 @@ func TestDownloadCompressedZstdWithProgressBar(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatZstd,
 	}
@@ -963,6 +975,7 @@ func TestDownloadCompressedZipWithProgressBar(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		Compress:          true,
 		CompressionFormat: archive.FormatZip,
 	}
@@ -1021,6 +1034,7 @@ func TestDownloadWithTrailingSlash(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	destDir1, err := os.MkdirTemp("", "test-download-no-slash-*")
@@ -1106,6 +1120,7 @@ func TestDownloadWithForce(t *testing.T) {
 		Force:             true,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 	}
 
 	// Create temp directory for download
@@ -1251,6 +1266,7 @@ func TestDownloadWithGlobPattern(t *testing.T) {
 				SkipChecksum:      false,
 				Logger:            util.NewLogger(io.Discard),
 				QuietMode:         true,
+				Recursive:         true,
 				GlobPattern:       tt.globPattern,
 			}
 
@@ -1316,11 +1332,160 @@ func TestDownloadWithGlobPatternNoMatch(t *testing.T) {
 		SkipChecksum:      false,
 		Logger:            util.NewLogger(io.Discard),
 		QuietMode:         true,
+		Recursive:         true,
 		GlobPattern:       "**/*.go", // Pattern that won't match any files
 	}
 
 	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
 	if status != DownloadNoAssetsFound {
 		t.Errorf("Expected DownloadNoAssetsFound status (66), got %d", status)
+	}
+}
+
+// TestDownloadSingleFileNonRecursive tests downloading a single file without recursive flag
+func TestDownloadSingleFileNonRecursive(t *testing.T) {
+	testContent := "Single file content"
+	testPath := "/dir/myfile.txt"
+
+	// Create mock Nexus server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data - add by name for exact match
+	downloadURL := server.URL + "/repository/test-repo" + testPath
+	server.AddAssetByName("test-repo", testPath, nexusapi.Asset{
+		DownloadURL: downloadURL,
+		Path:        testPath,
+		ID:          "test-id",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo"+testPath, []byte(testContent))
+
+	// Create test config
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create test options with Recursive: false
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		Recursive:         false, // Single file download
+	}
+
+	// Create temp directory for download
+	destDir, err := os.MkdirTemp("", "test-download-single-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Test download - this should work now with Recursive: false
+	status := downloadFolder("test-repo/dir/myfile.txt", destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatal("Download failed")
+	}
+
+	// Validate downloaded content
+	downloadedFile := filepath.Join(destDir, testPath)
+	content, err := os.ReadFile(downloadedFile)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file: %v", err)
+	}
+
+	if string(content) != testContent {
+		t.Errorf("Expected downloaded content '%s', got '%s'", testContent, string(content))
+	}
+}
+
+// TestDownloadRecursiveFolder tests downloading a folder with recursive flag
+func TestDownloadRecursiveFolder(t *testing.T) {
+	testContent := "Folder file content"
+
+	// Create mock Nexus server
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Setup mock data - add multiple files in a folder
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: server.URL + "/repository/test-repo/test-folder/file1.txt",
+		Path:        "/test-folder/file1.txt",
+		ID:          "test-id-1",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "abc123",
+		},
+	})
+	server.AddAssetWithQuery("test-repo", "/test-folder/*", nexusapi.Asset{
+		DownloadURL: server.URL + "/repository/test-repo/test-folder/file2.txt",
+		Path:        "/test-folder/file2.txt",
+		ID:          "test-id-2",
+		Repository:  "test-repo",
+		FileSize:    int64(len(testContent)),
+		Checksum: nexusapi.Checksum{
+			SHA1: "def456",
+		},
+	})
+	server.SetAssetContent("/repository/test-repo/test-folder/file1.txt", []byte(testContent))
+	server.SetAssetContent("/repository/test-repo/test-folder/file2.txt", []byte(testContent))
+
+	// Create test config
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	// Create test options with Recursive: true
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		Recursive:         true, // Recursive folder download
+	}
+
+	// Create temp directory for download
+	destDir, err := os.MkdirTemp("", "test-download-recursive-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	// Test download
+	status := downloadFolder("test-repo/test-folder", destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatal("Download failed")
+	}
+
+	// Validate both files were downloaded
+	file1 := filepath.Join(destDir, "/test-folder/file1.txt")
+	file2 := filepath.Join(destDir, "/test-folder/file2.txt")
+
+	content1, err := os.ReadFile(file1)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file1: %v", err)
+	}
+
+	content2, err := os.ReadFile(file2)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file2: %v", err)
+	}
+
+	if string(content1) != testContent {
+		t.Errorf("Expected file1 content '%s', got '%s'", testContent, string(content1))
+	}
+
+	if string(content2) != testContent {
+		t.Errorf("Expected file2 content '%s', got '%s'", testContent, string(content2))
 	}
 }

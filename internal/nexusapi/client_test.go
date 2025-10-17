@@ -44,7 +44,7 @@ func TestListAssets(t *testing.T) {
 	})
 
 	client := NewClient(server.URL, "testuser", "testpass")
-	assets, err := client.ListAssets("test-repo", "test-path")
+	assets, err := client.ListAssets("test-repo", "test-path", true)
 
 	if err != nil {
 		t.Fatalf("ListAssets failed: %v", err)
@@ -72,7 +72,7 @@ func TestListAssetsWithPagination(t *testing.T) {
 	server.AddAssetForPage("repo", "/path/*", Asset{ID: "asset2", Path: "/path/file2.txt"}, 2)
 
 	client := NewClient(server.URL, "user", "pass")
-	assets, err := client.ListAssets("repo", "path")
+	assets, err := client.ListAssets("repo", "path", true)
 
 	if err != nil {
 		t.Fatalf("ListAssets failed: %v", err)
@@ -439,7 +439,7 @@ func TestListAssetsWithLeadingSlash(t *testing.T) {
 
 	client := NewClient(server.URL, "testuser", "testpass")
 	// Pass path with leading slash - should not create double slashes
-	assets, err := client.ListAssets("test-repo", "/docs")
+	assets, err := client.ListAssets("test-repo", "/docs", true)
 
 	if err != nil {
 		t.Fatalf("ListAssets failed: %v", err)

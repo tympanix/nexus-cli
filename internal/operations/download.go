@@ -17,9 +17,9 @@ import (
 	"github.com/tympanix/nexus-cli/internal/util"
 )
 
-func listAssets(repository, src string, config *config.Config) ([]nexusapi.Asset, error) {
+func listAssets(repository, src string, config *config.Config, recursive bool) ([]nexusapi.Asset, error) {
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-	return client.ListAssets(repository, src)
+	return client.ListAssets(repository, src, recursive)
 }
 
 func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern string) ([]nexusapi.Asset, error) {
@@ -202,7 +202,7 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 	}
 
 	// Original uncompressed download logic
-	assets, err := listAssets(repository, src, config)
+	assets, err := listAssets(repository, src, config, opts.Recursive)
 	if err != nil {
 		opts.Logger.Println("Error listing assets:", err)
 		return DownloadError
@@ -322,7 +322,7 @@ func downloadFolderCompressedWithArchiveName(repository, src, explicitArchiveNam
 	opts.Logger.VerbosePrintf("Looking for compressed archive: %s (format: %s)\n", archiveName, opts.CompressionFormat)
 
 	// List assets to find the archive
-	assets, err := listAssets(repository, src, config)
+	assets, err := listAssets(repository, src, config, opts.Recursive)
 	if err != nil {
 		opts.Logger.Println("Error listing assets:", err)
 		return DownloadError

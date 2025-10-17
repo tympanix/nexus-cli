@@ -191,7 +191,9 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 }
 
 // ListAssets lists all assets in a repository path
-func (c *Client) ListAssets(repository, path string) ([]Asset, error) {
+// When recursive is true, searches for path/* (all files under the path)
+// When recursive is false, searches for the exact path (single file)
+func (c *Client) ListAssets(repository, path string, recursive bool) ([]Asset, error) {
 	var assets []Asset
 	continuationToken := ""
 	for {
@@ -207,7 +209,12 @@ func (c *Client) ListAssets(repository, path string) ([]Asset, error) {
 		query.Set("sort", "name")
 		// Ensure path starts with / as required by Nexus API
 		searchPath := pathpkg.Join("/", path)
-		query.Set("q", fmt.Sprintf("%s/*", searchPath))
+		if recursive {
+			query.Set("q", fmt.Sprintf("%s/*", searchPath))
+		} else {
+			// For single file, use exact path match via name parameter
+			query.Set("name", searchPath)
+		}
 		if continuationToken != "" {
 			query.Set("continuationToken", continuationToken)
 		}

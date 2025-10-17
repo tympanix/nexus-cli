@@ -141,3 +141,4 @@ dist/
 /nexuscli-go-*
 /nexuscli-go-test
 nexuscli-test
+*.test

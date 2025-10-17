@@ -99,7 +99,7 @@ func TestMockNexusServerGlobMatching(t *testing.T) {
 
 	t.Run("query with wildcard", func(t *testing.T) {
 		// Search with glob pattern /docs/*
-		assets, err := client.ListAssets("repo", "docs")
+		assets, err := client.ListAssets("repo", "docs", true)
 		if err != nil {
 			t.Fatalf("ListAssets failed: %v", err)
 		}
@@ -133,7 +133,7 @@ func TestMockNexusServerBackwardCompatibility(t *testing.T) {
 	server.AddAssetWithQuery("repo", "/test/*", asset)
 
 	client := NewClient(server.URL, "user", "pass")
-	assets, err := client.ListAssets("repo", "test")
+	assets, err := client.ListAssets("repo", "test", true)
 	if err != nil {
 		t.Fatalf("ListAssets failed: %v", err)
 	}
@@ -182,9 +182,9 @@ func TestMockNexusServerGlobPatterns(t *testing.T) {
 	client := NewClient(server.URL, "user", "pass")
 
 	t.Run("ListAssets with /docs/* pattern", func(t *testing.T) {
-		// ListAssets("repo", "docs") sends query q=/docs/*
+		// ListAssets("repo", "docs", true) sends query q=/docs/*
 		// This should match all files under /docs/ including subdirectories
-		assets, err := client.ListAssets("repo", "docs")
+		assets, err := client.ListAssets("repo", "docs", true)
 		if err != nil {
 			t.Fatalf("ListAssets failed: %v", err)
 		}
