@@ -586,9 +586,13 @@ This command:
 1. Reads both `deps.ini` and `deps-lock.ini`
 2. Downloads each dependency to the specified local path
 3. Verifies downloaded files match the checksums in `deps-lock.ini`
-4. Fails immediately if any checksum mismatch is detected
+4. Removes untracked files from output directories (enabled by default)
+5. Fails immediately if any checksum mismatch is detected
 
 This ensures atomic verification - all files are verified against the lock file, guaranteeing consistency.
+
+**Options:**
+- `--cleanup` (default: `true`) - Remove untracked files from output directories. Use `--cleanup=false` to disable automatic cleanup.
 
 #### nexuscli-go deps env
 
