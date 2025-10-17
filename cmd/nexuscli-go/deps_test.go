@@ -686,7 +686,7 @@ docs/example-1.0.0.txt = sha256:` + testChecksum + `
 	}
 
 	rootCmd := buildRootCommand()
-	rootCmd.SetArgs([]string{"deps", "sync", "--url", mockServer.URL, "--cleanup=false"})
+	rootCmd.SetArgs([]string{"deps", "sync", "--url", mockServer.URL, "--no-cleanup"})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("deps sync failed: %v", err)
 	}

@@ -592,7 +592,8 @@ This command:
 This ensures atomic verification - all files are verified against the lock file, guaranteeing consistency.
 
 **Options:**
-- `--cleanup` (default: `true`) - Remove untracked files from output directories. Use `--cleanup=false` to disable automatic cleanup.
+- `--no-cleanup` - Skip cleanup of untracked files from output directories (cleanup is enabled by default).
+
 
 #### nexuscli-go deps env
 

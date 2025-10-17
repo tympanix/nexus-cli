@@ -508,16 +508,16 @@ func buildRootCommand() *cobra.Command {
 		},
 	}
 
-	var depsSyncCleanup bool
+	var depsSyncNoCleanup bool
 	var depsSyncCmd = &cobra.Command{
 		Use:   "sync",
 		Short: "Download dependencies and verify against deps-lock.ini",
 		Long:  "Download dependencies from Nexus and verify checksums atomically (fails if out of sync)",
 		Run: func(cmd *cobra.Command, args []string) {
-			depsSyncMain(cfg, logger, depsSyncCleanup)
+			depsSyncMain(cfg, logger, !depsSyncNoCleanup)
 		},
 	}
-	depsSyncCmd.Flags().BoolVar(&depsSyncCleanup, "cleanup", true, "Remove untracked files from output directory")
+	depsSyncCmd.Flags().BoolVar(&depsSyncNoCleanup, "no-cleanup", false, "Skip cleanup of untracked files from output directory")
 
 	var depsEnvCmd = &cobra.Command{
 		Use:   "env",
