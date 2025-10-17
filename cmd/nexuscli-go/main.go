@@ -199,7 +199,7 @@ func parseRepoAndPath(arg string) (string, string) {
 	return parts[0], ""
 }
 
-func main() {
+func buildRootCommand() *cobra.Command {
 	cfg := config.NewConfig()
 	var logger util.Logger
 	var quietMode bool
@@ -444,6 +444,12 @@ func main() {
 	rootCmd.AddCommand(downloadCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(depsCmd)
+
+	return rootCmd
+}
+
+func main() {
+	rootCmd := buildRootCommand()
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
