@@ -143,6 +143,96 @@ func TestDepsEnvWithoutDepsIni(t *testing.T) {
 	}
 }
 
+func TestDepsEnvCommandWithCustomOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "init"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps init failed: %v", err)
+	}
+
+	customOutput := "custom.env"
+	rootCmd = buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "env", "-o", customOutput})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps env with custom output failed: %v", err)
+	}
+
+	if _, err := os.Stat(customOutput); os.IsNotExist(err) {
+		t.Errorf("%s was not created", customOutput)
+	}
+
+	content, err := os.ReadFile(customOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "DEPS_EXAMPLE_TXT_NAME") {
+		t.Errorf("%s missing DEPS_EXAMPLE_TXT_NAME", customOutput)
+	}
+	if !strings.Contains(contentStr, "DEPS_EXAMPLE_TXT_VERSION") {
+		t.Errorf("%s missing DEPS_EXAMPLE_TXT_VERSION", customOutput)
+	}
+	if !strings.Contains(contentStr, "DEPS_EXAMPLE_TXT_PATH") {
+		t.Errorf("%s missing DEPS_EXAMPLE_TXT_PATH", customOutput)
+	}
+
+	if _, err := os.Stat("deps.env"); err == nil {
+		t.Error("deps.env should not have been created when using custom output")
+	}
+}
+
+func TestDepsEnvCommandWithLongFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "init"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps init failed: %v", err)
+	}
+
+	customOutput := "another.env"
+	rootCmd = buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "env", "--output", customOutput})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps env with --output flag failed: %v", err)
+	}
+
+	if _, err := os.Stat(customOutput); os.IsNotExist(err) {
+		t.Errorf("%s was not created", customOutput)
+	}
+
+	content, err := os.ReadFile(customOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "DEPS_EXAMPLE_TXT_NAME") {
+		t.Errorf("%s missing DEPS_EXAMPLE_TXT_NAME", customOutput)
+	}
+}
+
 func TestDepsSyncCommand(t *testing.T) {
 	mockServer := nexusapi.NewMockNexusServer()
 	defer mockServer.Close()
