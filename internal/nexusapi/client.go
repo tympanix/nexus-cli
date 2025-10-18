@@ -141,7 +141,9 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 
 	pathSet := make(map[string]bool)
 	for _, asset := range sr.Items {
-		path := strings.TrimPrefix(asset.Path, "/")
+		// Use path.Clean to normalize, then ensure no leading slash for further processing
+		cleanPath := pathpkg.Clean(asset.Path)
+		path := strings.TrimPrefix(cleanPath, "/")
 		if path == "" {
 			continue
 		}
@@ -155,7 +157,11 @@ func (c *Client) SearchAssetsForCompletion(repository, pathPrefix string) ([]str
 				nextSegment = pathpkg.Join("/", path)
 			}
 		} else {
-			cleanPrefix := strings.TrimSuffix(pathPrefix, "/")
+			// Clean the prefix while preserving empty string (Clean("") returns ".")
+			cleanPrefix := pathPrefix
+			if pathPrefix != "" {
+				cleanPrefix = pathpkg.Clean(pathPrefix)
+			}
 			endsWithSlash := strings.HasSuffix(pathPrefix, "/")
 
 			var prefixDepth int

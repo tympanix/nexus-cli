@@ -2,6 +2,7 @@ package deps
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/tympanix/nexus-cli/internal/nexusapi"
@@ -37,7 +38,7 @@ func (r *Resolver) ResolveDependency(dep *Dependency) (map[string]string, error)
 
 	expandedPath := dep.ExpandedPath()
 
-	pathPrefix := strings.TrimSuffix(expandedPath, "/")
+	pathPrefix := path.Clean(expandedPath)
 	assets, err := client.ListAssets(dep.Repository, pathPrefix, dep.Recursive)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search assets for %s: %w", dep.Name, err)
