@@ -52,16 +52,36 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 		Dependencies: make(map[string]map[string]string),
 	}
 
-	logger.Printf("Resolving dependencies...\n")
+	logger.Printf("=== Resolving Dependencies ===\n")
+	totalFiles := 0
 	for name, dep := range manifest.Dependencies {
-		logger.Printf("  Resolving %s...\n", name)
+		depURL := url
+		if dep.URL != "" {
+			depURL = dep.URL
+		}
+		repo := dep.Repository
+		if repo == "" {
+			repo = manifest.Defaults.Repository
+		}
+		checksumAlg := dep.Checksum
+		if checksumAlg == "" {
+			checksumAlg = manifest.Defaults.Checksum
+		}
+
+		logger.Printf("\n[%s]\n", name)
+		logger.Printf("  Repository: %s\n", repo)
+		logger.Printf("  Path:       %s\n", dep.ExpandedPath())
+		logger.Printf("  Checksum:   %s\n", checksumAlg)
+		logger.Printf("  Server:     %s\n", depURL)
+
 		files, err := resolver.ResolveDependency(dep)
 		if err != nil {
-			fmt.Printf("Error resolving %s: %v\n", name, err)
+			fmt.Printf("\nError resolving %s: %v\n", name, err)
 			os.Exit(1)
 		}
 		lockFile.Dependencies[name] = files
-		logger.Printf("    Found %d file(s)\n", len(files))
+		totalFiles += len(files)
+		logger.Printf("  ✓ Resolved %d file(s)\n", len(files))
 	}
 
 	if err := deps.WriteLockFile("deps-lock.ini", lockFile); err != nil {
@@ -69,7 +89,10 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 		os.Exit(1)
 	}
 
-	logger.Printf("Wrote deps-lock.ini\n")
+	logger.Printf("\n=== Summary ===\n")
+	logger.Printf("Dependencies resolved: %d\n", len(manifest.Dependencies))
+	logger.Printf("Total files: %d\n", totalFiles)
+	logger.Printf("Lock file: deps-lock.ini\n")
 }
 
 func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool) {
@@ -87,15 +110,37 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 
 	trackedFilesByOutputDir := make(map[string]map[string]bool)
 
-	logger.Printf("Syncing dependencies...\n")
+	logger.Printf("=== Syncing Dependencies ===\n")
+	totalFilesVerified := 0
 	for name, dep := range manifest.Dependencies {
-		logger.Printf("  Syncing %s...\n", name)
-
 		lockedFiles, ok := lockFile.Dependencies[name]
 		if !ok {
-			fmt.Printf("Error: dependency %s not found in deps-lock.ini\n", name)
+			fmt.Printf("\nError: dependency %s not found in deps-lock.ini\n", name)
 			os.Exit(1)
 		}
+
+		depURL := cfg.NexusURL
+		if dep.URL != "" {
+			depURL = dep.URL
+		} else if manifest.Defaults.URL != "" {
+			depURL = manifest.Defaults.URL
+		}
+
+		repo := dep.Repository
+		if repo == "" {
+			repo = manifest.Defaults.Repository
+		}
+		checksumAlg := dep.Checksum
+		if checksumAlg == "" {
+			checksumAlg = manifest.Defaults.Checksum
+		}
+
+		logger.Printf("\n[%s]\n", name)
+		logger.Printf("  Repository: %s\n", repo)
+		logger.Printf("  Path:       %s\n", dep.ExpandedPath())
+		logger.Printf("  Output:     %s\n", dep.OutputDir)
+		logger.Printf("  Files:      %d\n", len(lockedFiles))
+		logger.Printf("  Checksum:   %s\n", checksumAlg)
 
 		downloadOpts := &operations.DownloadOptions{
 			Logger:            logger,
@@ -104,7 +149,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 			Recursive:         dep.Recursive,
 		}
 		if err := downloadOpts.SetChecksumAlgorithm(dep.Checksum); err != nil {
-			fmt.Printf("Error setting checksum algorithm: %v\n", err)
+			fmt.Printf("\nError setting checksum algorithm: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -112,24 +157,20 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 		dest := dep.OutputDir
 
 		depCfg := &config.Config{
-			NexusURL: cfg.NexusURL,
+			NexusURL: depURL,
 			Username: cfg.Username,
 			Password: cfg.Password,
-		}
-		if dep.URL != "" {
-			depCfg.NexusURL = dep.URL
-		} else if manifest.Defaults.URL != "" {
-			depCfg.NexusURL = manifest.Defaults.URL
 		}
 
 		operations.DownloadMain(src, dest, depCfg, downloadOpts)
 
+		logger.Printf("  Verifying checksums...\n")
 		for filePath := range lockedFiles {
 			localPath := filepath.Join(dep.OutputDir, filePath)
 			expectedChecksum := lockedFiles[filePath]
 			parts := strings.SplitN(expectedChecksum, ":", 2)
 			if len(parts) != 2 {
-				fmt.Printf("Error: invalid checksum format in deps-lock.ini: %s\n", expectedChecksum)
+				fmt.Printf("\nError: invalid checksum format in deps-lock.ini: %s\n", expectedChecksum)
 				os.Exit(1)
 			}
 			algorithm := parts[0]
@@ -137,19 +178,20 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 
 			actualChecksum, err := checksum.ComputeChecksum(localPath, algorithm)
 			if err != nil {
-				fmt.Printf("Error computing checksum for %s: %v\n", localPath, err)
+				fmt.Printf("\nError computing checksum for %s: %v\n", localPath, err)
 				os.Exit(1)
 			}
 
 			if !strings.EqualFold(actualChecksum, expected) {
-				fmt.Printf("Error: checksum mismatch for %s\n", localPath)
+				fmt.Printf("\nError: checksum mismatch for %s\n", localPath)
 				fmt.Printf("  Expected: %s\n", expected)
 				fmt.Printf("  Got: %s\n", actualChecksum)
 				os.Exit(1)
 			}
 		}
 
-		logger.Printf("    Verified %d file(s)\n", len(lockedFiles))
+		totalFilesVerified += len(lockedFiles)
+		logger.Printf("  ✓ Verified %d file(s)\n", len(lockedFiles))
 
 		if cleanupUntracked {
 			if trackedFilesByOutputDir[dep.OutputDir] == nil {
@@ -171,11 +213,14 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 			}
 		}
 		if totalDeleted > 0 {
-			logger.Printf("Cleaned up %d untracked file(s)\n", totalDeleted)
+			logger.Printf("\nCleaned up %d untracked file(s)\n", totalDeleted)
 		}
 	}
 
-	logger.Printf("Sync complete\n")
+	logger.Printf("\n=== Summary ===\n")
+	logger.Printf("Dependencies synced: %d\n", len(manifest.Dependencies))
+	logger.Printf("Total files verified: %d\n", totalFilesVerified)
+	logger.Printf("Status: ✓ All checksums valid\n")
 }
 
 func cleanupUntrackedFiles(outputDir string, trackedFiles map[string]bool, logger util.Logger) int {
