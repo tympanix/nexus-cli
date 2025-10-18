@@ -177,7 +177,6 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum1",
 		},
-		DownloadURL: mockServer1.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, nil)
 
 	mockServer2.AddAsset("libs", "/external/lib-2.0.0.tar.gz", nexusapi.Asset{
@@ -185,7 +184,6 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum2",
 		},
-		DownloadURL: mockServer2.URL + "/repository/libs/external/lib-2.0.0.tar.gz",
 	}, nil)
 
 	client := nexusapi.NewClient(mockServer1.URL, "admin", "admin")

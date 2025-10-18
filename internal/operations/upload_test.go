@@ -273,10 +273,7 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 
 	// Add an existing asset (checksum doesn't matter when skip-checksum is enabled)
 	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
-		Path:       "/test.txt",
-		ID:         "test-id",
-		Repository: "test-repo",
-		FileSize:   int64(len(testContent)),
+		FileSize: int64(len(testContent)),
 		Checksum: nexusapi.Checksum{
 			SHA1: "anychecksum",
 		},
@@ -339,10 +336,7 @@ func TestUploadWithForce(t *testing.T) {
 
 	// Add an existing asset with matching checksum
 	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
-		Path:       "/test.txt",
-		ID:         "test-id",
-		Repository: "test-repo",
-		FileSize:   int64(len(testContent)),
+		FileSize: int64(len(testContent)),
 		Checksum: nexusapi.Checksum{
 			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
 		},
