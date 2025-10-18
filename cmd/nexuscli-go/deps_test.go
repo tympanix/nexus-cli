@@ -558,8 +558,9 @@ func TestDepsSyncCleanupUntracked(t *testing.T) {
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
+	// Add asset without explicitly setting Path to mimic real Nexus behavior
+	// which returns asset paths with leading slashes
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
@@ -591,11 +592,11 @@ version = 1.0.0
 		t.Fatal(err)
 	}
 
-	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + testChecksum + `
-`
-	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
-		t.Fatal(err)
+	// Run deps lock to create lock file with real asset paths (including leading slash)
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "lock", "--url", mockServer.URL})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps lock failed: %v", err)
 	}
 
 	if err := os.MkdirAll("local/docs", 0755); err != nil {
@@ -606,7 +607,7 @@ docs/example-1.0.0.txt = sha256:` + testChecksum + `
 		t.Fatal(err)
 	}
 
-	rootCmd := buildRootCommand()
+	rootCmd = buildRootCommand()
 	rootCmd.SetArgs([]string{"deps", "sync", "--url", mockServer.URL})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("deps sync failed: %v", err)
