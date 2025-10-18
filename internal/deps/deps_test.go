@@ -516,3 +516,127 @@ version = 1.2.3
 		t.Errorf("Expected default output_dir './local', got '%s'", libfooTar.OutputDir)
 	}
 }
+
+func TestParseDepsIniWithInvalidDefaultKey(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = ./local
+invalid_key = some_value
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with invalid key in [defaults]")
+	}
+	if !strings.Contains(err.Error(), "unknown key 'invalid_key' in [defaults] section") {
+		t.Errorf("Expected error about unknown key 'invalid_key' in [defaults], got: %v", err)
+	}
+}
+
+func TestParseDepsIniWithInvalidDependencyKey(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = ./local
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+unknown_field = invalid
+
+[libfoo_tar]
+path = thirdparty/libfoo.tar.gz
+version = 1.2.3
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with invalid key in dependency section")
+	}
+	if !strings.Contains(err.Error(), "unknown key 'unknown_field' in [example_txt] section") {
+		t.Errorf("Expected error about unknown key 'unknown_field' in [example_txt], got: %v", err)
+	}
+}
+
+func TestParseDepsIniWithMultipleInvalidKeys(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = ./local
+bad_key = value
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with invalid key")
+	}
+	if !strings.Contains(err.Error(), "unknown key") {
+		t.Errorf("Expected error about unknown key, got: %v", err)
+	}
+}
+
+func TestParseDepsIniWithTypo(t *testing.T) {
+	content := `[defaults]
+repository = libs
+output_dir = ./local
+
+[example_txt]
+path = docs/example.txt
+version = 1.0.0
+repositry = libs
+`
+	tmpfile, err := os.CreateTemp("", "deps-*.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	_, err = ParseDepsIni(tmpfile.Name())
+	if err == nil {
+		t.Fatal("ParseDepsIni should have failed with typo 'repositry' instead of 'repository'")
+	}
+	if !strings.Contains(err.Error(), "unknown key 'repositry'") {
+		t.Errorf("Expected error about unknown key 'repositry', got: %v", err)
+	}
+}
