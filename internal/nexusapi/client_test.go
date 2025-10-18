@@ -362,17 +362,14 @@ func TestGetAssetByPath(t *testing.T) {
 	server := NewMockNexusServer()
 	defer server.Close()
 
-	testAsset := Asset{
-		ID:       "asset1",
-		Path:     "test3/file1.out",
-		FileSize: 100,
+	// Test with path without leading slash - should be prefixed with /
+	server.AddAsset("builds", "/test3/file1.out", Asset{
+		ID:   "asset1",
+		Path: "test3/file1.out",
 		Checksum: Checksum{
 			SHA256: "abc123",
 		},
-	}
-
-	// Test with path without leading slash - should be prefixed with /
-	server.AddAsset("builds", "/test3/file1.out", testAsset, nil)
+	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
 	asset, err := client.GetAssetByPath("builds", "test3/file1.out")
@@ -395,14 +392,10 @@ func TestGetAssetByPathWithLeadingSlash(t *testing.T) {
 	server := NewMockNexusServer()
 	defer server.Close()
 
-	testAsset := Asset{
-		ID:       "asset2",
-		Path:     "/docs/readme.txt",
-		FileSize: 200,
-	}
-
 	// Mock server should expect the path with leading slash
-	server.AddAsset("repo", "/docs/readme.txt", testAsset, nil)
+	server.AddAsset("repo", "/docs/readme.txt", Asset{
+		ID: "asset2",
+	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
 	// Pass path with leading slash - should not create double slashes
@@ -424,9 +417,7 @@ func TestListAssetsWithLeadingSlash(t *testing.T) {
 
 	// Setup mock data with leading slash in query
 	server.AddAsset("test-repo", "/docs/file1.txt", Asset{
-		ID:       "asset1",
-		Path:     "/docs/file1.txt",
-		FileSize: 100,
+		ID: "asset1",
 	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
@@ -453,9 +444,7 @@ func TestSearchAssetsWithLeadingSlash(t *testing.T) {
 
 	// Setup mock data with leading slash in query
 	server.AddAsset("test-repo", "/libs/example.jar", Asset{
-		ID:       "asset1",
-		Path:     "/libs/example.jar",
-		FileSize: 150,
+		ID: "asset1",
 	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
@@ -482,9 +471,7 @@ func TestSearchAssetsWithoutLeadingSlash(t *testing.T) {
 
 	// Setup mock data - expect path to be prefixed with /
 	server.AddAsset("test-repo", "/libs/example2.jar", Asset{
-		ID:       "asset2",
-		Path:     "/libs/example2.jar",
-		FileSize: 250,
+		ID: "asset2",
 	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
@@ -511,8 +498,7 @@ func TestSearchAssetsForCompletionWithLeadingSlash(t *testing.T) {
 
 	// Setup mock data with leading slash in query
 	server.AddAsset("test-repo", "/build/output.bin", Asset{
-		ID:   "asset1",
-		Path: "build/output.bin",
+		ID: "asset1",
 	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
@@ -533,8 +519,7 @@ func TestSearchAssetsForCompletionWithoutLeadingSlash(t *testing.T) {
 
 	// Setup mock data - expect path to be prefixed with /
 	server.AddAsset("test-repo", "/build/output.bin", Asset{
-		ID:   "asset1",
-		Path: "build/output.bin",
+		ID: "asset1",
 	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")

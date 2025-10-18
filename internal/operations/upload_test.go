@@ -139,12 +139,7 @@ func TestUploadWithChecksumValidation(t *testing.T) {
 
 	// Add an existing asset with matching checksum (SHA1 of testContent)
 	// Query pattern is "//*" when basePath is empty
-	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
-		FileSize: int64(len(testContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
-		},
-	}, nil)
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -208,7 +203,6 @@ func TestUploadWithChecksumMismatch(t *testing.T) {
 
 	// Add an existing asset with different checksum
 	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
-		FileSize: int64(len(testContent)),
 		Checksum: nexusapi.Checksum{
 			SHA1: "wrongchecksum",
 		},
@@ -272,12 +266,7 @@ func TestUploadWithSkipChecksum(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset (checksum doesn't matter when skip-checksum is enabled)
-	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
-		FileSize: int64(len(testContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "anychecksum",
-		},
-	}, nil)
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{}, nil)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -335,12 +324,7 @@ func TestUploadWithForce(t *testing.T) {
 	defer server.Close()
 
 	// Add an existing asset with matching checksum
-	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{
-		FileSize: int64(len(testContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "d38a2973b20670764496e490a7f638302eb96602",
-		},
-	}, nil)
+	server.AddAsset("test-repo", "/test.txt", nexusapi.Asset{}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
