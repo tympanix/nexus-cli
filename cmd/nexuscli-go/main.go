@@ -187,8 +187,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool,
 				trackedFilesByOutputDir[dep.OutputDir] = make(map[string]bool)
 			}
 			for filePath := range lockedFiles {
-				normalizedPath := strings.TrimLeft(filePath, "/")
-				trackedFilesByOutputDir[dep.OutputDir][normalizedPath] = true
+				trackedFilesByOutputDir[dep.OutputDir][filePath] = true
 			}
 		}
 	}

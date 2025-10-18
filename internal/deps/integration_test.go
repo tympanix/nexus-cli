@@ -56,7 +56,7 @@ func TestResolverWithMockServer(t *testing.T) {
 		}
 
 		expectedChecksum := "sha256:f6a4e3c9b12"
-		if files["/docs/example-1.0.0.txt"] != expectedChecksum {
+		if files["docs/example-1.0.0.txt"] != expectedChecksum {
 			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["docs/example-1.0.0.txt"])
 		}
 	})
@@ -80,10 +80,10 @@ func TestResolverWithMockServer(t *testing.T) {
 			t.Errorf("Expected 2 files, got %d", len(files))
 		}
 
-		if files["/docs/2025-10-15/readme.md"] != "sha256:abcd1234" {
+		if files["docs/2025-10-15/readme.md"] != "sha256:abcd1234" {
 			t.Error("readme.md checksum mismatch")
 		}
-		if files["/docs/2025-10-15/guide.pdf"] != "sha256:ef125678" {
+		if files["docs/2025-10-15/guide.pdf"] != "sha256:ef125678" {
 			t.Error("guide.pdf checksum mismatch")
 		}
 	})
@@ -203,7 +203,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		}
 
 		expectedChecksum := "sha256:checksum1"
-		if files["/docs/example-1.0.0.txt"] != expectedChecksum {
+		if files["docs/example-1.0.0.txt"] != expectedChecksum {
 			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["docs/example-1.0.0.txt"])
 		}
 	})
@@ -228,7 +228,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		}
 
 		expectedChecksum := "sha256:checksum2"
-		if files["/external/lib-2.0.0.tar.gz"] != expectedChecksum {
+		if files["external/lib-2.0.0.tar.gz"] != expectedChecksum {
 			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["external/lib-2.0.0.tar.gz"])
 		}
 	})
