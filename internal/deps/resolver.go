@@ -57,7 +57,8 @@ func (r *Resolver) ResolveDependency(dep *Dependency) (map[string]string, error)
 		if checksum == "" {
 			return nil, fmt.Errorf("no %s checksum available for asset %s", dep.Checksum, asset.Path)
 		}
-		files[asset.Path] = fmt.Sprintf("%s:%s", dep.Checksum, checksum)
+		normalizedPath := strings.TrimPrefix(asset.Path, "/")
+		files[normalizedPath] = fmt.Sprintf("%s:%s", dep.Checksum, checksum)
 	}
 	return files, nil
 }
