@@ -1,12 +1,30 @@
 package deps
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/go-ini/ini"
 )
+
+func hexToBase64(hexStr string) (string, error) {
+	bytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid hex string: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(bytes), nil
+}
+
+func base64ToHex(b64Str string) (string, error) {
+	bytes, err := base64.StdEncoding.DecodeString(b64Str)
+	if err != nil {
+		return "", fmt.Errorf("invalid base64 string: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
+}
 
 func ParseLockFile(filename string) (*LockFile, error) {
 	cfg, err := ini.Load(filename)
@@ -53,8 +71,20 @@ func WriteLockFile(filename string, lockFile *LockFile) error {
 		sort.Strings(filePaths)
 
 		for _, filePath := range filePaths {
-			checksum := files[filePath]
-			section.NewKey(filePath, checksum)
+			checksumStr := files[filePath]
+			parts := strings.SplitN(checksumStr, ":", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("invalid checksum format: %s", checksumStr)
+			}
+			algorithm := parts[0]
+			hexChecksum := parts[1]
+
+			base64Checksum, err := hexToBase64(hexChecksum)
+			if err != nil {
+				return fmt.Errorf("failed to convert checksum to base64 for %s: %w", filePath, err)
+			}
+
+			section.NewKey(filePath, fmt.Sprintf("%s:%s", algorithm, base64Checksum))
 		}
 	}
 
@@ -81,7 +111,12 @@ func VerifyLockFile(lockFile *LockFile, depName string, filePath string, algorit
 	}
 
 	expectedAlgorithm := parts[0]
-	expectedChecksum := parts[1]
+	base64Checksum := parts[1]
+
+	expectedChecksum, err := base64ToHex(base64Checksum)
+	if err != nil {
+		return fmt.Errorf("invalid base64 checksum in lock file: %w", err)
+	}
 
 	if !strings.EqualFold(expectedAlgorithm, algorithm) {
 		return fmt.Errorf("checksum algorithm mismatch: expected %s, got %s", expectedAlgorithm, algorithm)
