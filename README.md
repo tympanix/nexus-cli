@@ -424,7 +424,7 @@ recursive = <true|false>              # optional, download folder recursively
 - `path` - Path to file or folder in Nexus, supports `${version}` variable substitution
 - `version` - Version string, substituted into `${version}` in path
 - `checksum` - Checksum algorithm: `sha1`, `sha256` (default), `sha512`, or `md5`
-- `output_dir` - Local directory where dependencies are downloaded (default: `./local`)
+- `output_dir` - Local directory where dependencies are downloaded (default: `./local`). Must be a non-empty subdirectory path. Cannot be `.` (current directory) or `/` (root directory) for safety reasons.
 - `dest` - Custom local path (overrides the computed path based on output_dir)
 - `recursive` - If `true`, downloads entire folder recursively (for path ending in `/`)
 
