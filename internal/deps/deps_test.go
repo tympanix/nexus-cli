@@ -243,10 +243,10 @@ func TestLockFileRoundTrip(t *testing.T) {
 	lockFile := &LockFile{
 		Dependencies: map[string]map[string]string{
 			"example_txt": {
-				"docs/example-1.0.0.txt": "sha256:f6a4e3c9b12",
+				"docs/example-1.0.0.txt": "sha256:f6a4e3c9b120",
 			},
 			"libfoo_tar": {
-				"thirdparty/libfoo-1.2.3.tar.gz": "sha512:a4c9d2e8abf",
+				"thirdparty/libfoo-1.2.3.tar.gz": "sha512:a4c9d2e8abf0",
 			},
 		},
 	}
@@ -271,7 +271,7 @@ func TestLockFileRoundTrip(t *testing.T) {
 		t.Errorf("Expected 2 dependencies, got %d", len(parsed.Dependencies))
 	}
 
-	if parsed.Dependencies["example_txt"]["docs/example-1.0.0.txt"] != "sha256:f6a4e3c9b12" {
+	if parsed.Dependencies["example_txt"]["docs/example-1.0.0.txt"] != "sha256:9qTjybEg" {
 		t.Error("Checksum mismatch for example_txt")
 	}
 }
@@ -280,15 +280,15 @@ func TestLockFileDeterministicOutput(t *testing.T) {
 	lockFile := &LockFile{
 		Dependencies: map[string]map[string]string{
 			"zeta": {
-				"path/z.txt": "sha256:checksum_z",
+				"path/z.txt": "sha256:abcdef0123456789",
 			},
 			"alpha": {
-				"path/a.txt": "sha256:checksum_a",
+				"path/a.txt": "sha256:1234567890abcdef",
 			},
 			"beta": {
-				"path/c.txt": "sha256:checksum_c",
-				"path/b.txt": "sha256:checksum_b",
-				"path/a.txt": "sha256:checksum_a2",
+				"path/c.txt": "sha256:abcd1234ef567890",
+				"path/b.txt": "sha256:0987654321fedcba",
+				"path/a.txt": "sha256:fedcba9876543210",
 			},
 		},
 	}
