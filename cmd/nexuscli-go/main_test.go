@@ -500,21 +500,8 @@ func TestCompletionBehavior(t *testing.T) {
 	server.AddRepository(nexusapi.Repository{Name: "myrepo-test", Format: "raw", Type: "hosted"})
 	server.AddRepository(nexusapi.Repository{Name: "other-repo", Format: "raw", Type: "hosted"})
 
-	asset1 := nexusapi.Asset{
-		DownloadURL: server.URL + "/repository/myrepo/artifacts/file1.txt",
-		Path:        "/artifacts/file1.txt",
-		ID:          "asset-1",
-		Repository:  "myrepo",
-	}
-	asset2 := nexusapi.Asset{
-		DownloadURL: server.URL + "/repository/myrepo/archives/file2.txt",
-		Path:        "/archives/file2.txt",
-		ID:          "asset-2",
-		Repository:  "myrepo",
-	}
-
-	server.AddAsset("myrepo", "/artifacts/file1.txt", asset1, nil)
-	server.AddAsset("myrepo", "/archives/file2.txt", asset2, nil)
+	server.AddAsset("myrepo", "/artifacts/file1.txt", nexusapi.Asset{}, nil)
+	server.AddAsset("myrepo", "/archives/file2.txt", nexusapi.Asset{}, nil)
 
 	cfg := &config.Config{
 		NexusURL: server.URL,
@@ -621,13 +608,7 @@ func TestShellCompletionIntegration(t *testing.T) {
 	server.AddRepository(nexusapi.Repository{Name: "my-repo", Format: "raw", Type: "hosted"})
 	server.AddRepository(nexusapi.Repository{Name: "my-other-repo", Format: "raw", Type: "hosted"})
 
-	asset1 := nexusapi.Asset{
-		DownloadURL: server.URL + "/repository/my-repo/files/test.txt",
-		Path:        "/files/test.txt",
-		ID:          "asset-1",
-		Repository:  "my-repo",
-	}
-	server.AddAsset("my-repo", "/files/test.txt", asset1, nil)
+	server.AddAsset("my-repo", "/files/test.txt", nexusapi.Asset{}, nil)
 
 	cfg := &config.Config{
 		NexusURL: server.URL,

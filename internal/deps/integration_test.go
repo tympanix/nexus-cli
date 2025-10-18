@@ -16,7 +16,6 @@ func TestResolverWithMockServer(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: "f6a4e3c9b12",
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, nil)
 
 	mockServer.AddAsset("libs", "/thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
@@ -24,7 +23,6 @@ func TestResolverWithMockServer(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA512: "a4c9d2e8abf",
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/thirdparty/libfoo-1.2.3.tar.gz",
 	}, nil)
 
 	mockServer.AddAsset("libs", "/docs/2025-10-15/readme.md", nexusapi.Asset{
@@ -32,14 +30,12 @@ func TestResolverWithMockServer(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: "abcd1234",
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/readme.md",
 	}, nil)
 	mockServer.AddAsset("libs", "/docs/2025-10-15/guide.pdf", nexusapi.Asset{
 		Path: "docs/2025-10-15/guide.pdf",
 		Checksum: nexusapi.Checksum{
 			SHA256: "ef125678",
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/guide.pdf",
 	}, nil)
 
 	client := nexusapi.NewClient(mockServer.URL, "admin", "admin")
@@ -181,7 +177,6 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum1",
 		},
-		DownloadURL: mockServer1.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, nil)
 
 	mockServer2.AddAsset("libs", "/external/lib-2.0.0.tar.gz", nexusapi.Asset{
@@ -189,7 +184,6 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum2",
 		},
-		DownloadURL: mockServer2.URL + "/repository/libs/external/lib-2.0.0.tar.gz",
 	}, nil)
 
 	client := nexusapi.NewClient(mockServer1.URL, "admin", "admin")
