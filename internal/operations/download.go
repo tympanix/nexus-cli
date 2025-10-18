@@ -25,35 +25,16 @@ func listAssets(repository, src string, config *config.Config, recursive bool) (
 
 func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern string) ([]nexusapi.Asset, error) {
 	return util.FilterWithGlob(assets, globPattern, func(asset nexusapi.Asset) string {
-		assetPath := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-		resultPath := strings.TrimLeft(assetPath, "/")
-
-		if basePath != "" {
-			cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-			baseWithSlash := cleanBase + "/"
-			if strings.HasPrefix(assetPath, baseWithSlash) {
-				resultPath = assetPath[len(baseWithSlash):]
-			}
-		}
-
-		return resultPath
+		return getRelativePath(asset.Path, basePath)
 	})
 }
 
 func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sync.WaitGroup, errCh chan error, bar *progress.ProgressBarWithCount, tracker *output.TransferTracker, config *config.Config, opts *DownloadOptions) {
 	defer wg.Done()
-	assetPath := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-	resultPath := strings.TrimLeft(assetPath, "/")
-
-	// If flatten is enabled, strip the base path from the asset path
+	// Use helper to get relative path, applying flatten logic if enabled
+	resultPath := getRelativePath(asset.Path, "")
 	if opts.Flatten && basePath != "" {
-		cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-		baseWithSlash := cleanBase + "/"
-
-		// If the asset path starts with the base path, remove it
-		if strings.HasPrefix(assetPath, baseWithSlash) {
-			resultPath = assetPath[len(baseWithSlash):]
-		}
+		resultPath = getRelativePath(asset.Path, basePath)
 	}
 
 	localPath := filepath.Join(destDir, resultPath)
@@ -81,17 +62,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	}
 
 	if shouldSkip {
-		relPath := resultPath
-		if basePath != "" {
-			cleanAsset := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-			cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-			baseWithSlash := cleanBase + "/"
-			if strings.HasPrefix(cleanAsset, baseWithSlash) {
-				relPath = cleanAsset[len(baseWithSlash):]
-			} else {
-				relPath = strings.TrimLeft(cleanAsset, "/")
-			}
-		}
+		relPath := getRelativePath(asset.Path, basePath)
 		opts.Logger.VerbosePrintf("Skipped: %s\n", relPath)
 		tracker.RecordFile(output.FileTransfer{
 			Path:      relPath,
@@ -109,17 +80,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 
 	// If dry-run is enabled, just log what would be downloaded (without creating directories)
 	if opts.DryRun {
-		relPath := resultPath
-		if basePath != "" {
-			cleanAsset := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-			cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-			baseWithSlash := cleanBase + "/"
-			if strings.HasPrefix(cleanAsset, baseWithSlash) {
-				relPath = cleanAsset[len(baseWithSlash):]
-			} else {
-				relPath = strings.TrimLeft(cleanAsset, "/")
-			}
-		}
+		relPath := getRelativePath(asset.Path, basePath)
 		opts.Logger.VerbosePrintf("Would download: %s\n", relPath)
 		tracker.RecordFile(output.FileTransfer{
 			Path:      relPath,
@@ -141,17 +102,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
 	f, err := os.Create(localPath)
 	if err != nil {
-		relPath := resultPath
-		if basePath != "" {
-			cleanAsset := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-			cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-			baseWithSlash := cleanBase + "/"
-			if strings.HasPrefix(cleanAsset, baseWithSlash) {
-				relPath = cleanAsset[len(baseWithSlash):]
-			} else {
-				relPath = strings.TrimLeft(cleanAsset, "/")
-			}
-		}
+		relPath := getRelativePath(asset.Path, basePath)
 		tracker.RecordFile(output.FileTransfer{
 			Path:      relPath,
 			Size:      asset.FileSize,
@@ -170,17 +121,7 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 	err = client.DownloadAsset(asset.DownloadURL, writer)
 	endTime := time.Now()
 
-	relPath := resultPath
-	if basePath != "" {
-		cleanAsset := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-		cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-		baseWithSlash := cleanBase + "/"
-		if strings.HasPrefix(cleanAsset, baseWithSlash) {
-			relPath = cleanAsset[len(baseWithSlash):]
-		} else {
-			relPath = strings.TrimLeft(cleanAsset, "/")
-		}
-	}
+	relPath := getRelativePath(asset.Path, basePath)
 
 	if err != nil {
 		tracker.RecordFile(output.FileTransfer{
@@ -256,19 +197,10 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 	// Build a map of remote asset paths for delete-extra functionality
 	remoteAssetPaths := make(map[string]bool)
 	for _, asset := range assets {
-		assetPath := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-		resultPath := strings.TrimLeft(assetPath, "/")
-
-		// If flatten is enabled, strip the base path from the asset path
+		resultPath := getRelativePath(asset.Path, "")
 		if opts.Flatten && src != "" {
-			cleanBase := path.Clean("/" + strings.TrimLeft(src, "/"))
-			baseWithSlash := cleanBase + "/"
-
-			if strings.HasPrefix(assetPath, baseWithSlash) {
-				resultPath = assetPath[len(baseWithSlash):]
-			}
+			resultPath = getRelativePath(asset.Path, src)
 		}
-
 		remoteAssetPaths[filepath.Join(destDir, resultPath)] = true
 	}
 

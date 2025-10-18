@@ -135,15 +135,7 @@ func uploadFiles(src, repository, subdir string, config *config.Config, opts *Up
 		} else {
 			remoteAssets = make(map[string]nexusapi.Asset)
 			for _, asset := range assets {
-				assetPath := path.Clean("/" + strings.TrimLeft(asset.Path, "/"))
-				resultPath := strings.TrimLeft(assetPath, "/")
-				if basePath != "" {
-					cleanBase := path.Clean("/" + strings.TrimLeft(basePath, "/"))
-					baseWithSlash := cleanBase + "/"
-					if strings.HasPrefix(assetPath, baseWithSlash) {
-						resultPath = assetPath[len(baseWithSlash):]
-					}
-				}
+				resultPath := getRelativePath(asset.Path, basePath)
 				remoteAssets[resultPath] = asset
 			}
 		}
