@@ -41,8 +41,22 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 		Dependencies: make(map[string]*Dependency),
 	}
 
+	validDefaultKeys := map[string]bool{
+		"repository": true,
+		"checksum":   true,
+		"output_dir": true,
+		"url":        true,
+	}
+
 	if cfg.HasSection("defaults") {
 		defaultsSection := cfg.Section("defaults")
+
+		for _, key := range defaultsSection.KeyStrings() {
+			if !validDefaultKeys[key] {
+				return nil, fmt.Errorf("unknown key '%s' in [defaults] section", key)
+			}
+		}
+
 		if defaultsSection.HasKey("repository") {
 			manifest.Defaults.Repository = defaultsSection.Key("repository").String()
 		}
@@ -57,10 +71,27 @@ func ParseDepsIni(filename string) (*DepsManifest, error) {
 		}
 	}
 
+	validDependencyKeys := map[string]bool{
+		"repository": true,
+		"path":       true,
+		"version":    true,
+		"checksum":   true,
+		"output_dir": true,
+		"dest":       true,
+		"recursive":  true,
+		"url":        true,
+	}
+
 	for _, section := range cfg.Sections() {
 		sectionName := section.Name()
 		if sectionName == "DEFAULT" || sectionName == "defaults" {
 			continue
+		}
+
+		for _, key := range section.KeyStrings() {
+			if !validDependencyKeys[key] {
+				return nil, fmt.Errorf("unknown key '%s' in [%s] section", key, sectionName)
+			}
 		}
 
 		dep := &Dependency{
