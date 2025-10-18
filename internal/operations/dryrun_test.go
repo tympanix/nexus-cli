@@ -82,29 +82,8 @@ func TestDownloadDryRun(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	downloadURL1 := server.URL + "/repository/test-repo" + testPath1
-	downloadURL2 := server.URL + "/repository/test-repo" + testPath2
-
-	server.AddAsset("test-repo", testPath1, nexusapi.Asset{
-		DownloadURL: downloadURL1,
-		Path:        testPath1,
-		ID:          "test-id-1",
-		Repository:  "test-repo",
-		FileSize:    int64(len(testContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "abc123",
-		},
-	}, []byte(testContent))
-	server.AddAsset("test-repo", testPath2, nexusapi.Asset{
-		DownloadURL: downloadURL2,
-		Path:        testPath2,
-		ID:          "test-id-2",
-		Repository:  "test-repo",
-		FileSize:    int64(len(testContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "def456",
-		},
-	}, []byte(testContent))
+	server.AddAsset("test-repo", testPath1, nexusapi.Asset{}, []byte(testContent))
+	server.AddAsset("test-repo", testPath2, nexusapi.Asset{}, []byte(testContent))
 
 	config := &config.Config{
 		NexusURL: server.URL,
