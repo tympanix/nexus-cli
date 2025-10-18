@@ -12,27 +12,23 @@ func TestResolverWithMockServer(t *testing.T) {
 	defer mockServer.Close()
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: "f6a4e3c9b12",
 		},
 	}, nil)
 
 	mockServer.AddAsset("libs", "/thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
-		Path: "thirdparty/libfoo-1.2.3.tar.gz",
 		Checksum: nexusapi.Checksum{
 			SHA512: "a4c9d2e8abf",
 		},
 	}, nil)
 
 	mockServer.AddAsset("libs", "/docs/2025-10-15/readme.md", nexusapi.Asset{
-		Path: "docs/2025-10-15/readme.md",
 		Checksum: nexusapi.Checksum{
 			SHA256: "abcd1234",
 		},
 	}, nil)
 	mockServer.AddAsset("libs", "/docs/2025-10-15/guide.pdf", nexusapi.Asset{
-		Path: "docs/2025-10-15/guide.pdf",
 		Checksum: nexusapi.Checksum{
 			SHA256: "ef125678",
 		},
@@ -45,7 +41,7 @@ func TestResolverWithMockServer(t *testing.T) {
 		dep := &Dependency{
 			Name:       "example_txt",
 			Repository: "libs",
-			Path:       "docs/example-${version}.txt",
+			Path:       "/docs/example-${version}.txt",
 			Version:    "1.0.0",
 			Checksum:   "sha256",
 		}
@@ -60,7 +56,7 @@ func TestResolverWithMockServer(t *testing.T) {
 		}
 
 		expectedChecksum := "sha256:f6a4e3c9b12"
-		if files["docs/example-1.0.0.txt"] != expectedChecksum {
+		if files["/docs/example-1.0.0.txt"] != expectedChecksum {
 			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["docs/example-1.0.0.txt"])
 		}
 	})
@@ -69,7 +65,7 @@ func TestResolverWithMockServer(t *testing.T) {
 		dep := &Dependency{
 			Name:       "docs_folder",
 			Repository: "libs",
-			Path:       "docs/${version}/",
+			Path:       "/docs/${version}/",
 			Version:    "2025-10-15",
 			Checksum:   "sha256",
 			Recursive:  true,
@@ -84,10 +80,10 @@ func TestResolverWithMockServer(t *testing.T) {
 			t.Errorf("Expected 2 files, got %d", len(files))
 		}
 
-		if files["docs/2025-10-15/readme.md"] != "sha256:abcd1234" {
+		if files["/docs/2025-10-15/readme.md"] != "sha256:abcd1234" {
 			t.Error("readme.md checksum mismatch")
 		}
-		if files["docs/2025-10-15/guide.pdf"] != "sha256:ef125678" {
+		if files["/docs/2025-10-15/guide.pdf"] != "sha256:ef125678" {
 			t.Error("guide.pdf checksum mismatch")
 		}
 	})
@@ -135,7 +131,7 @@ func TestGenerateEnvFile(t *testing.T) {
 		Dependencies: map[string]*Dependency{
 			"example_txt": {
 				Name:       "example_txt",
-				Path:       "docs/example-${version}.txt",
+				Path:       "/docs/example-${version}.txt",
 				Version:    "1.0.0",
 				Repository: "libs",
 				OutputDir:  "./local",
@@ -173,14 +169,12 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 	defer mockServer2.Close()
 
 	mockServer1.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum1",
 		},
 	}, nil)
 
 	mockServer2.AddAsset("libs", "/external/lib-2.0.0.tar.gz", nexusapi.Asset{
-		Path: "external/lib-2.0.0.tar.gz",
 		Checksum: nexusapi.Checksum{
 			SHA256: "checksum2",
 		},
@@ -193,7 +187,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		dep := &Dependency{
 			Name:       "example_txt",
 			Repository: "libs",
-			Path:       "docs/example-${version}.txt",
+			Path:       "/docs/example-${version}.txt",
 			Version:    "1.0.0",
 			Checksum:   "sha256",
 			URL:        "",
@@ -209,7 +203,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		}
 
 		expectedChecksum := "sha256:checksum1"
-		if files["docs/example-1.0.0.txt"] != expectedChecksum {
+		if files["/docs/example-1.0.0.txt"] != expectedChecksum {
 			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["docs/example-1.0.0.txt"])
 		}
 	})
@@ -234,7 +228,7 @@ func TestResolverWithPerDependencyURL(t *testing.T) {
 		}
 
 		expectedChecksum := "sha256:checksum2"
-		if files["external/lib-2.0.0.tar.gz"] != expectedChecksum {
+		if files["/external/lib-2.0.0.tar.gz"] != expectedChecksum {
 			t.Errorf("Expected checksum '%s', got '%s'", expectedChecksum, files["external/lib-2.0.0.tar.gz"])
 		}
 	})

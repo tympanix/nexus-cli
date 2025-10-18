@@ -220,13 +220,11 @@ func TestDepsSyncRecursiveDependency(t *testing.T) {
 	file2Checksum := "1c85d03c0b78b2e85838278e5b7b9240be75ddd284ebc4031c043b7f66ad49db"
 
 	mockServer.AddAsset("libs", "/docs/2025-10-15/readme.md", nexusapi.Asset{
-		FileSize: int64(len(file1Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file1Checksum,
 		},
 	}, file1Content)
 	mockServer.AddAsset("libs", "/docs/2025-10-15/guide.pdf", nexusapi.Asset{
-		FileSize: int64(len(file2Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file2Checksum,
 		},
@@ -388,7 +386,6 @@ func TestDepsSyncChecksumMismatch(t *testing.T) {
 	wrongChecksum := "0000000000000000000000000000000000000000000000000000000000000000"
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: actualChecksum,
 		},
@@ -482,7 +479,6 @@ func TestDepsLockCommandWithSingleFile(t *testing.T) {
 	testChecksum := "abc123def456"
 
 	mockServer.AddAsset("builds", "/test3/file1.out", nexusapi.Asset{
-		Path: "test3/file1.out",
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
@@ -543,15 +539,10 @@ func TestDepsSyncCleanupUntracked(t *testing.T) {
 	defer mockServer.Close()
 
 	testFileContent := []byte("test file content for sync")
-	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
 	// Add asset without explicitly setting Path to mimic real Nexus behavior
 	// which returns asset paths with leading slashes
-	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Checksum: nexusapi.Checksum{
-			SHA256: testChecksum,
-		},
-	}, testFileContent)
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{}, testFileContent)
 
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()

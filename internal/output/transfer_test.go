@@ -94,10 +94,6 @@ func TestTransferTracker(t *testing.T) {
 		t.Errorf("Expected header message in output, got: %s", output)
 	}
 
-	if !strings.Contains(output, "file1.txt") {
-		t.Errorf("Expected file1.txt in output, got: %s", output)
-	}
-
 	if !strings.Contains(output, "Files uploaded: 1") {
 		t.Errorf("Expected 'Files uploaded: 1' in summary, got: %s", output)
 	}

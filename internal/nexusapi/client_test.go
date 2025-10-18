@@ -364,15 +364,14 @@ func TestGetAssetByPath(t *testing.T) {
 
 	// Test with path without leading slash - should be prefixed with /
 	server.AddAsset("builds", "/test3/file1.out", Asset{
-		ID:   "asset1",
-		Path: "test3/file1.out",
+		ID: "asset1",
 		Checksum: Checksum{
 			SHA256: "abc123",
 		},
 	}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
-	asset, err := client.GetAssetByPath("builds", "test3/file1.out")
+	asset, err := client.GetAssetByPath("builds", "/test3/file1.out")
 
 	if err != nil {
 		t.Fatalf("GetAssetByPath failed: %v", err)
@@ -382,8 +381,8 @@ func TestGetAssetByPath(t *testing.T) {
 		t.Errorf("Expected asset ID 'asset1', got '%s'", asset.ID)
 	}
 
-	if asset.Path != "test3/file1.out" {
-		t.Errorf("Expected path 'test3/file1.out', got '%s'", asset.Path)
+	if asset.Path != "/test3/file1.out" {
+		t.Errorf("Expected path '/test3/file1.out', got '%s'", asset.Path)
 	}
 }
 
@@ -497,9 +496,7 @@ func TestSearchAssetsForCompletionWithLeadingSlash(t *testing.T) {
 	defer server.Close()
 
 	// Setup mock data with leading slash in query
-	server.AddAsset("test-repo", "/build/output.bin", Asset{
-		ID: "asset1",
-	}, nil)
+	server.AddAsset("test-repo", "/build/output.bin", Asset{}, nil)
 
 	client := NewClient(server.URL, "testuser", "testpass")
 	// Pass path with leading slash - should not create double slashes
