@@ -164,7 +164,6 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 
 		operations.DownloadMain(src, dest, depCfg, downloadOpts)
 
-		logger.Printf("  Verifying checksums...\n")
 		for filePath := range lockedFiles {
 			localPath := filepath.Join(dep.OutputDir, filePath)
 			expectedChecksum := lockedFiles[filePath]
@@ -191,7 +190,6 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 		}
 
 		totalFilesVerified += len(lockedFiles)
-		logger.Printf("  ✓ Verified %d file(s)\n", len(lockedFiles))
 
 		if cleanupUntracked {
 			if trackedFilesByOutputDir[dep.OutputDir] == nil {
