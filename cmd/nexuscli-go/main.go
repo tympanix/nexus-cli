@@ -287,19 +287,19 @@ func cleanupEmptyDirectories(outputDir string, logger util.Logger) {
 	})
 }
 
-func depsEnvMain(logger util.Logger) {
+func depsEnvMain(logger util.Logger, outputFile string) {
 	manifest, err := deps.ParseDepsIni("deps.ini")
 	if err != nil {
 		fmt.Printf("Error parsing deps.ini: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := deps.GenerateEnvFile("deps.env", manifest); err != nil {
-		fmt.Printf("Error generating deps.env: %v\n", err)
+	if err := deps.GenerateEnvFile(outputFile, manifest); err != nil {
+		fmt.Printf("Error generating %s: %v\n", outputFile, err)
 		os.Exit(1)
 	}
 
-	logger.Printf("Generated deps.env\n")
+	logger.Printf("Generated %s\n", outputFile)
 }
 
 func getRepositoryCompletions(cfg *config.Config, toComplete string) []string {
@@ -564,14 +564,16 @@ func buildRootCommand() *cobra.Command {
 	}
 	depsSyncCmd.Flags().BoolVar(&depsSyncNoCleanup, "no-cleanup", false, "Skip cleanup of untracked files from output directory")
 
+	var depsEnvOutput string
 	var depsEnvCmd = &cobra.Command{
 		Use:   "env",
 		Short: "Generate deps.env for shell/Makefile integration",
 		Long:  "Generate deps.env file with DEPS_ prefixed variables for shell and Makefile integration",
 		Run: func(cmd *cobra.Command, args []string) {
-			depsEnvMain(logger)
+			depsEnvMain(logger, depsEnvOutput)
 		},
 	}
+	depsEnvCmd.Flags().StringVarP(&depsEnvOutput, "output", "o", "deps.env", "Output file path for environment variables")
 
 	depsCmd.AddCommand(depsInitCmd)
 	depsCmd.AddCommand(depsLockCmd)
