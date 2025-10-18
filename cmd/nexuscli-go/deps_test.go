@@ -151,12 +151,10 @@ func TestDepsSyncCommand(t *testing.T) {
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path:     "docs/example-1.0.0.txt",
 		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, testFileContent)
 
 	tmpDir := t.TempDir()
@@ -222,20 +220,16 @@ func TestDepsSyncRecursiveDependency(t *testing.T) {
 	file2Checksum := "1c85d03c0b78b2e85838278e5b7b9240be75ddd284ebc4031c043b7f66ad49db"
 
 	mockServer.AddAsset("libs", "/docs/2025-10-15/readme.md", nexusapi.Asset{
-		Path:     "docs/2025-10-15/readme.md",
 		FileSize: int64(len(file1Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file1Checksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/readme.md",
 	}, file1Content)
 	mockServer.AddAsset("libs", "/docs/2025-10-15/guide.pdf", nexusapi.Asset{
-		Path:     "docs/2025-10-15/guide.pdf",
 		FileSize: int64(len(file2Content)),
 		Checksum: nexusapi.Checksum{
 			SHA256: file2Checksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/2025-10-15/guide.pdf",
 	}, file2Content)
 
 	tmpDir := t.TempDir()
@@ -298,21 +292,17 @@ func TestDepsSyncWithMultipleDependencies(t *testing.T) {
 	file2Checksum := "25621521f082bc0924529d5188367af1eb2b51c7a8d86d4b2c00096de0fe6ef5308c5b1e3cbbe5d8a3c52343aa03b08d9b77af65cfc5b27041795c6b7474ebcc"
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path:     "docs/example-1.0.0.txt",
-		FileSize: int64(len(file1Content)),
+		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: file1Checksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, file1Content)
 
 	mockServer.AddAsset("libs", "/thirdparty/libfoo-1.2.3.tar.gz", nexusapi.Asset{
-		Path:     "thirdparty/libfoo-1.2.3.tar.gz",
-		FileSize: int64(len(file2Content)),
+		Path: "thirdparty/libfoo-1.2.3.tar.gz",
 		Checksum: nexusapi.Checksum{
 			SHA512: file2Checksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/thirdparty/libfoo-1.2.3.tar.gz",
 	}, file2Content)
 
 	tmpDir := t.TempDir()
@@ -398,12 +388,10 @@ func TestDepsSyncChecksumMismatch(t *testing.T) {
 	wrongChecksum := "0000000000000000000000000000000000000000000000000000000000000000"
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path:     "docs/example-1.0.0.txt",
-		FileSize: int64(len(testFileContent)),
+		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: actualChecksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, testFileContent)
 
 	tmpDir := t.TempDir()
@@ -498,7 +486,6 @@ func TestDepsLockCommandWithSingleFile(t *testing.T) {
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/builds/test3/file1.out",
 	}, nil)
 
 	tmpDir := t.TempDir()
@@ -561,11 +548,9 @@ func TestDepsSyncCleanupUntracked(t *testing.T) {
 	// Add asset without explicitly setting Path to mimic real Nexus behavior
 	// which returns asset paths with leading slashes
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		FileSize: int64(len(testFileContent)),
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, testFileContent)
 
 	tmpDir := t.TempDir()
@@ -631,12 +616,10 @@ func TestDepsSyncNoCleanupWhenDisabled(t *testing.T) {
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
-		Path:     "docs/example-1.0.0.txt",
-		FileSize: int64(len(testFileContent)),
+		Path: "docs/example-1.0.0.txt",
 		Checksum: nexusapi.Checksum{
 			SHA256: testChecksum,
 		},
-		DownloadURL: mockServer.URL + "/repository/libs/docs/example-1.0.0.txt",
 	}, testFileContent)
 
 	tmpDir := t.TempDir()

@@ -226,17 +226,7 @@ func TestCompressedDownload(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{
-		DownloadURL: downloadURL,
-		Path:        "/test-folder/" + archiveName,
-		ID:          "test-id",
-		Repository:  "test-repo",
-		FileSize:    int64(len(archiveContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "abc123",
-		},
-	}, archiveContent)
+	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{}, archiveContent)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -327,17 +317,7 @@ func TestCompressedDownloadWithExplicitName(t *testing.T) {
 	server := nexusapi.NewMockNexusServer()
 	defer server.Close()
 
-	downloadURL := server.URL + "/repository/test-repo/test-folder/" + customArchiveName
-	server.AddAsset("test-repo", "/test-folder/"+customArchiveName, nexusapi.Asset{
-		DownloadURL: downloadURL,
-		Path:        "/test-folder/" + customArchiveName,
-		ID:          "test-id",
-		Repository:  "test-repo",
-		FileSize:    int64(len(archiveContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "abc123",
-		},
-	}, archiveContent)
+	server.AddAsset("test-repo", "/test-folder/"+customArchiveName, nexusapi.Asset{}, archiveContent)
 
 	config := &config.Config{
 		NexusURL: server.URL,
@@ -539,17 +519,7 @@ func TestCompressedRoundTrip(t *testing.T) {
 	uploadedArchiveContent := uploadedFiles[0].Content
 
 	// Setup mock server to serve the uploaded archive for download
-	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{
-		DownloadURL: downloadURL,
-		Path:        "/test-folder/" + archiveName,
-		ID:          "test-id",
-		Repository:  "test-repo",
-		FileSize:    int64(len(uploadedArchiveContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "abc123",
-		},
-	}, uploadedArchiveContent)
+	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{}, uploadedArchiveContent)
 
 	// Download and extract
 	destDir, err := os.MkdirTemp("", "test-roundtrip-dest-*")
@@ -655,15 +625,7 @@ func TestCompressedRoundTripZstd(t *testing.T) {
 	}
 
 	// Setup mock server to serve the uploaded archive for download
-	downloadURL := server.URL + "/repository/test-repo/test-folder/" + archiveName
-	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{
-		DownloadURL: downloadURL,
-		Path:        "/test-folder/" + archiveName,
-		FileSize:    int64(len(uploadedArchiveContent)),
-		Checksum: nexusapi.Checksum{
-			SHA1: "dummy",
-		},
-	}, uploadedArchiveContent)
+	server.AddAsset("test-repo", "/test-folder/"+archiveName, nexusapi.Asset{}, uploadedArchiveContent)
 
 	// Download and extract
 	destDir, err := os.MkdirTemp("", "test-zstd-roundtrip-dest-*")
