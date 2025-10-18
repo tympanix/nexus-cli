@@ -402,7 +402,13 @@ func BuildYumUploadForm(writer *multipart.Writer, rpmFile string, progressWriter
 	}
 	defer f.Close()
 
-	part, err := writer.CreateFormFile("yum.asset", filepath.Base(rpmFile))
+	filename := filepath.Base(rpmFile)
+
+	if err := writer.WriteField("yum.asset.filename", filename); err != nil {
+		return err
+	}
+
+	part, err := writer.CreateFormFile("yum.asset", filename)
 	if err != nil {
 		return err
 	}

@@ -11,7 +11,7 @@ test:
 
 # Run end-to-end tests only
 test-e2e:
-	go test -v -run TestEndToEnd -timeout 15m ./internal/nexus
+	go test -v -run TestEndToEnd -timeout 15m ./internal/operations
 
 # Run complete test suite including unit and integration tests
 test-all:
