@@ -5,7 +5,7 @@ A command-line tool for uploading and downloading files to/from a Nexus RAW repo
 ## Features
 - Upload all files from a directory to a Nexus RAW repository (with optional subdirectory)
 - Filter files using advanced glob patterns with support for multiple patterns and negation (e.g., `**/*.txt,!**/*_backup.txt`)
-- Download all files from a Nexus RAW folder recursively with optional glob pattern filtering
+- Download files from a Nexus RAW folder (single file or recursively) with optional glob pattern filtering
 - Compression support: upload/download files as tar.gz, tar.zst, or zip archives
 - Parallel downloads for speed
 - Clear Unix-style console output with transfer statistics (files transferred, size, time, speed)
@@ -346,8 +346,21 @@ See [Common Options](#common-options) for available flags: `--checksum`, `--skip
 
 #### Download-specific options
 
+- `--recursive` or `-r` - Download folder recursively (default: false for single file download)
 - `--flatten` or `-f` - Download files without preserving the base path specified in the source argument
 - `--delete` - Remove local files from the destination folder that are not present in Nexus
+
+#### About the `--recursive` flag
+
+By default, the download command downloads a single file specified by the exact path. To download all files in a folder recursively, use the `--recursive` or `-r` flag.
+
+**Without `--recursive` (default - single file mode):**
+- Downloads only the exact file specified by the path
+- Example: `nexuscli-go download my-repo/path/to/file.txt ./local` downloads only `file.txt`
+
+**With `--recursive` flag:**
+- Downloads all files within the specified folder and its subdirectories
+- Example: `nexuscli-go download --recursive my-repo/path/to/folder ./local` downloads all files under `folder/`
 
 #### About the `--flatten` flag
 
@@ -361,8 +374,11 @@ With the `--flatten` flag enabled, the base path specified in the source argumen
 #### Examples
 
 ```bash
-# Basic download
-nexuscli-go download my-repo/path ./local-folder
+# Basic download (single file)
+nexuscli-go download my-repo/path/file.txt ./local-folder
+
+# Download folder recursively
+nexuscli-go download --recursive my-repo/path ./local-folder
 
 # Download with flatten (remove base path)
 nexuscli-go download --flatten my-repo/path ./local-folder
