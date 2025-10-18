@@ -2,6 +2,7 @@ package deps
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/go-ini/ini"
 )
