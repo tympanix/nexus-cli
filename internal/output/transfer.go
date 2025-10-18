@@ -99,7 +99,7 @@ func (t *TransferTracker) RecordFile(file FileTransfer) {
 		case TransferStatusFailed:
 			status = fmt.Sprintf("✗ %s (failed: %v)", file.Path, file.Error)
 		}
-		t.logger.Println(status)
+		t.logger.VerbosePrintln(status)
 	} else if file.Status == TransferStatusFailed && t.verboseMode {
 		t.logger.Printf("Error: %s: %v\n", file.Path, file.Error)
 	}

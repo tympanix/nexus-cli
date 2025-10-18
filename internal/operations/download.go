@@ -63,7 +63,6 @@ func downloadAsset(asset nexusapi.Asset, destDir string, basePath string, wg *sy
 
 	if shouldSkip {
 		relPath := getRelativePath(asset.Path, basePath)
-		opts.Logger.VerbosePrintf("Skipped: %s\n", relPath)
 		tracker.RecordFile(output.FileTransfer{
 			Path:      relPath,
 			Size:      asset.FileSize,
