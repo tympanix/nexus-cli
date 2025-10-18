@@ -6,6 +6,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb
 	github.com/bmatcuk/doublestar/v4 v4.9.1
+	github.com/go-ini/ini v1.67.0
 	github.com/google/rpmpack v0.7.1
 	github.com/k0kubun/go-ansi v0.0.0-20180517002512-3bf9e2903213
 	github.com/klauspost/compress v1.18.0
