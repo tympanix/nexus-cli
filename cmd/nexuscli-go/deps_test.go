@@ -675,3 +675,146 @@ docs/example-1.0.0.txt = sha256:` + testChecksum + `
 		t.Errorf("untracked file content mismatch: expected 'untracked', got '%s'", string(content))
 	}
 }
+
+func TestDepsLockQuietMode(t *testing.T) {
+	mockServer := nexusapi.NewMockNexusServer()
+	defer mockServer.Close()
+
+	testChecksum := "abc123def456"
+
+	mockServer.AddAsset("builds", "/test3/file1.out", nexusapi.Asset{
+		Checksum: nexusapi.Checksum{
+			SHA256: testChecksum,
+		},
+	}, nil)
+
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	depsIniContent := `[defaults]
+repository = builds
+checksum = sha256
+output_dir = ./local
+
+[example]
+path = test3/file1.out
+`
+	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "lock", "--url", mockServer.URL, "--quiet"})
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps lock failed: %v", err)
+	}
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	output := make([]byte, 1024)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	if outputStr != "" {
+		t.Errorf("Expected no output in quiet mode, but got: %s", outputStr)
+	}
+
+	if _, err := os.Stat("deps-lock.ini"); os.IsNotExist(err) {
+		t.Error("deps-lock.ini was not created")
+	}
+}
+
+func TestDepsSyncQuietMode(t *testing.T) {
+	mockServer := nexusapi.NewMockNexusServer()
+	defer mockServer.Close()
+
+	testFileContent := []byte("test file content for sync")
+	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+
+	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
+		FileSize: int64(len(testFileContent)),
+		Checksum: nexusapi.Checksum{
+			SHA256: testChecksum,
+		},
+	}, testFileContent)
+
+	tmpDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	depsIniContent := `[defaults]
+repository = libs
+checksum = sha256
+output_dir = ./local
+
+[example_txt]
+path = docs/example-${version}.txt
+version = 1.0.0
+`
+	if err := os.WriteFile("deps.ini", []byte(depsIniContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	lockFileContent := `[example_txt]
+docs/example-1.0.0.txt = sha256:` + testChecksum + `
+`
+	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rootCmd := buildRootCommand()
+	rootCmd.SetArgs([]string{"deps", "sync", "--url", mockServer.URL, "--quiet"})
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("deps sync failed: %v", err)
+	}
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	output := make([]byte, 1024)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	if outputStr != "" {
+		t.Errorf("Expected no output in quiet mode, but got: %s", outputStr)
+	}
+
+	downloadedFile := filepath.Join("local", "docs", "example-1.0.0.txt")
+	if _, err := os.Stat(downloadedFile); os.IsNotExist(err) {
+		t.Error("downloaded file does not exist")
+	}
+
+	content, err := os.ReadFile(downloadedFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != string(testFileContent) {
+		t.Errorf("file content mismatch: expected %s, got %s", testFileContent, content)
+	}
+}

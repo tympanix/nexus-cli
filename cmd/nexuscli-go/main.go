@@ -95,7 +95,7 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 	logger.Printf("Lock file: deps-lock.ini\n")
 }
 
-func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool) {
+func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool, quietMode bool) {
 	manifest, err := deps.ParseDepsIni("deps.ini")
 	if err != nil {
 		fmt.Printf("Error parsing deps.ini: %v\n", err)
@@ -144,7 +144,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 
 		downloadOpts := &operations.DownloadOptions{
 			Logger:            logger,
-			QuietMode:         false,
+			QuietMode:         quietMode,
 			ChecksumAlgorithm: dep.Checksum,
 			Recursive:         dep.Recursive,
 		}
@@ -559,7 +559,7 @@ func buildRootCommand() *cobra.Command {
 		Short: "Download dependencies and verify against deps-lock.ini",
 		Long:  "Download dependencies from Nexus and verify checksums atomically (fails if out of sync)",
 		Run: func(cmd *cobra.Command, args []string) {
-			depsSyncMain(cfg, logger, !depsSyncNoCleanup)
+			depsSyncMain(cfg, logger, !depsSyncNoCleanup, quietMode)
 		},
 	}
 	depsSyncCmd.Flags().BoolVar(&depsSyncNoCleanup, "no-cleanup", false, "Skip cleanup of untracked files from output directory")
