@@ -376,8 +376,6 @@ thirdparty/libfoo-1.2.3.tar.gz = sha512:` + file2Checksum + `
 }
 
 func TestDepsSyncChecksumMismatch(t *testing.T) {
-	t.Skip("Skipping because the command calls os.Exit(1) on checksum mismatch, which cannot be easily tested")
-
 	mockServer := nexusapi.NewMockNexusServer()
 	defer mockServer.Close()
 
@@ -431,8 +429,6 @@ docs/example-1.0.0.txt = sha256:` + wrongChecksum + `
 }
 
 func TestDepsSyncMissingLockEntry(t *testing.T) {
-	t.Skip("Skipping because the command calls os.Exit(1) on missing lock entry, which cannot be easily tested")
-
 	tmpDir := t.TempDir()
 	oldDir, err := os.Getwd()
 	if err != nil {

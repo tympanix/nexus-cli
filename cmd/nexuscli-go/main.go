@@ -95,17 +95,15 @@ func depsLockMain(cfg *config.Config, logger util.Logger) {
 	logger.Printf("Lock file: deps-lock.ini\n")
 }
 
-func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool, quietMode bool) {
+func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool, quietMode bool) error {
 	manifest, err := deps.ParseDepsIni("deps.ini")
 	if err != nil {
-		fmt.Printf("Error parsing deps.ini: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error parsing deps.ini: %w", err)
 	}
 
 	lockFile, err := deps.ParseLockFile("deps-lock.ini")
 	if err != nil {
-		fmt.Printf("Error parsing deps-lock.ini: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error parsing deps-lock.ini: %w", err)
 	}
 
 	trackedFilesByOutputDir := make(map[string]map[string]bool)
@@ -115,8 +113,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool,
 	for name, dep := range manifest.Dependencies {
 		lockedFiles, ok := lockFile.Dependencies[name]
 		if !ok {
-			fmt.Printf("\nError: dependency %s not found in deps-lock.ini\n", name)
-			os.Exit(1)
+			return fmt.Errorf("dependency %s not found in deps-lock.ini", name)
 		}
 
 		depURL := cfg.NexusURL
@@ -149,8 +146,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool,
 			Recursive:         dep.Recursive,
 		}
 		if err := downloadOpts.SetChecksumAlgorithm(dep.Checksum); err != nil {
-			fmt.Printf("\nError setting checksum algorithm: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error setting checksum algorithm: %w", err)
 		}
 
 		src := path.Clean(path.Join(dep.Repository, dep.ExpandedPath()))
@@ -169,23 +165,18 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool,
 			expectedChecksum := lockedFiles[filePath]
 			parts := strings.SplitN(expectedChecksum, ":", 2)
 			if len(parts) != 2 {
-				fmt.Printf("\nError: invalid checksum format in deps-lock.ini: %s\n", expectedChecksum)
-				os.Exit(1)
+				return fmt.Errorf("invalid checksum format in deps-lock.ini: %s", expectedChecksum)
 			}
 			algorithm := parts[0]
 			expected := parts[1]
 
 			actualChecksum, err := checksum.ComputeChecksum(localPath, algorithm)
 			if err != nil {
-				fmt.Printf("\nError computing checksum for %s: %v\n", localPath, err)
-				os.Exit(1)
+				return fmt.Errorf("error computing checksum for %s: %w", localPath, err)
 			}
 
 			if !strings.EqualFold(actualChecksum, expected) {
-				fmt.Printf("\nError: checksum mismatch for %s\n", localPath)
-				fmt.Printf("  Expected: %s\n", expected)
-				fmt.Printf("  Got: %s\n", actualChecksum)
-				os.Exit(1)
+				return fmt.Errorf("checksum mismatch for %s\n  Expected: %s\n  Got: %s", localPath, expected, actualChecksum)
 			}
 		}
 
@@ -219,6 +210,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool,
 	logger.Printf("Dependencies synced: %d\n", len(manifest.Dependencies))
 	logger.Printf("Total files verified: %d\n", totalFilesVerified)
 	logger.Printf("Status: ✓ All checksums valid\n")
+	return nil
 }
 
 func cleanupUntrackedFiles(outputDir string, trackedFiles map[string]bool, logger util.Logger) int {
@@ -558,8 +550,8 @@ func buildRootCommand() *cobra.Command {
 		Use:   "sync",
 		Short: "Download dependencies and verify against deps-lock.ini",
 		Long:  "Download dependencies from Nexus and verify checksums atomically (fails if out of sync)",
-		Run: func(cmd *cobra.Command, args []string) {
-			depsSyncMain(cfg, logger, !depsSyncNoCleanup, quietMode)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return depsSyncMain(cfg, logger, !depsSyncNoCleanup, quietMode)
 		},
 	}
 	depsSyncCmd.Flags().BoolVar(&depsSyncNoCleanup, "no-cleanup", false, "Skip cleanup of untracked files from output directory")
