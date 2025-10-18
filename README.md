@@ -726,7 +726,7 @@ fi
 Run unit tests:
 
 ```bash
-make test-short
+make test
 ```
 
 ### End-to-End Tests
@@ -738,3 +738,11 @@ make test-e2e
 ```
 
 The e2e test starts a Nexus Docker container, uploads test files, downloads them to verify functionality, and cleans up.
+
+### Complete Test Suite
+
+Run all tests (unit, integration, and end-to-end):
+
+```bash
+make test-all
+```
