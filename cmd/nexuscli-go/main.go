@@ -108,7 +108,7 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool)
 			os.Exit(1)
 		}
 
-		src := path.Join(dep.Repository, strings.TrimSuffix(dep.ExpandedPath(), "/"))
+		src := path.Clean(path.Join(dep.Repository, dep.ExpandedPath()))
 		dest := dep.OutputDir
 
 		depCfg := &config.Config{
