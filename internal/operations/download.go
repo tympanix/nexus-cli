@@ -23,6 +23,43 @@ func listAssets(repository, src string, config *config.Config, recursive bool) (
 	return client.ListAssets(repository, src, recursive)
 }
 
+// downloadWithFolder searches for the first matching asset and downloads all files in its folder recursively
+func downloadWithFolder(repository, src, destDir string, config *config.Config, opts *DownloadOptions) DownloadStatus {
+	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
+
+	// Search for assets matching the src using the name parameter
+	assets, err := client.SearchAssetsByName(repository, src)
+	if err != nil {
+		opts.Logger.Printf("Error searching for assets: %v\n", err)
+		return DownloadError
+	}
+
+	if len(assets) == 0 {
+		opts.Logger.Printf("No assets found matching '%s' in repository '%s'\n", src, repository)
+		return DownloadNoAssetsFound
+	}
+
+	// Take the first asset returned by Nexus
+	firstAsset := assets[0]
+	opts.Logger.VerbosePrintf("Found matching asset: %s\n", firstAsset.Path)
+
+	// Derive the containing folder using path.Dir
+	folderPath := path.Dir(firstAsset.Path)
+	// Clean the path to remove leading slash for consistency
+	folderPath = strings.TrimPrefix(folderPath, "/")
+
+	opts.Logger.VerbosePrintf("Downloading folder: %s\n", folderPath)
+
+	// Download all assets in the folder recursively
+	// Create a new options with Recursive forced to true
+	folderOpts := *opts
+	folderOpts.Recursive = true
+	folderOpts.WithFolder = false // Prevent infinite recursion
+
+	// Download the folder
+	return downloadFolder(path.Join(repository, folderPath), destDir, config, &folderOpts)
+}
+
 func filterAssetsByGlob(assets []nexusapi.Asset, basePath string, globPattern string) ([]nexusapi.Asset, error) {
 	return util.FilterWithGlob(assets, globPattern, func(asset nexusapi.Asset) string {
 		return getRelativePath(asset.Path, basePath)
@@ -150,6 +187,11 @@ func downloadFolder(srcArg, destDir string, config *config.Config, opts *Downloa
 	if !ok {
 		opts.Logger.Println("Error: The src argument must be in the form 'repository/folder' or 'repository/folder/subfolder'.")
 		return DownloadError
+	}
+
+	// If --with-folder is enabled, search for the first matching asset and download its folder
+	if opts.WithFolder {
+		return downloadWithFolder(repository, src, destDir, config, opts)
 	}
 
 	// Check if src ends with .tar.gz, .tar.zst, or .zip for explicit archive name

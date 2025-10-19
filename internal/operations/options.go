@@ -48,6 +48,7 @@ type DownloadOptions struct {
 	GlobPattern       string         // Optional glob pattern(s) to filter files (comma-separated, supports negation with !)
 	KeyFromFile       string         // Path to file to compute hash from for {key} template
 	Recursive         bool           // Download folder recursively (default: false for single file)
+	WithFolder        bool           // Download the folder containing the first matched file
 	checksumValidator checksum.Validator
 }
 
