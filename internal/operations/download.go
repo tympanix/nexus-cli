@@ -25,10 +25,9 @@ func listAssets(repository, src string, config *config.Config, recursive bool) (
 
 // downloadWithFolder searches for the first matching asset and downloads all files in its folder recursively
 func downloadWithFolder(repository, src, destDir string, config *config.Config, opts *DownloadOptions) DownloadStatus {
-	client := nexusapi.NewClient(config.NexusURL, config.Username, config.Password)
-
 	// Search for assets matching the src using the name parameter
-	assets, err := client.SearchAssetsByName(repository, src)
+	// Use ListAssets with recursive=false to search by name parameter
+	assets, err := listAssets(repository, src, config, false)
 	if err != nil {
 		opts.Logger.Printf("Error searching for assets: %v\n", err)
 		return DownloadError
