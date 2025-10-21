@@ -1291,3 +1291,203 @@ func TestDownloadRecursiveFolder(t *testing.T) {
 		t.Errorf("Expected file2 content '%s', got '%s'", testContent, string(content2))
 	}
 }
+
+// TestDownloadWithFolder tests downloading a folder containing the first matched file
+func TestDownloadWithFolder(t *testing.T) {
+	testContent := "test content"
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Add multiple files in a folder structure
+	server.AddAsset("test-repo", "/path/to/folder/manifest.csv", nexusapi.Asset{}, []byte(testContent))
+	server.AddAsset("test-repo", "/path/to/folder/data.txt", nexusapi.Asset{}, []byte(testContent))
+	server.AddAsset("test-repo", "/path/to/folder/subdir/file.txt", nexusapi.Asset{}, []byte(testContent))
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-with-folder-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		WithFolder:        true,
+	}
+
+	// Search for manifest.csv and download its containing folder
+	status := downloadFolder("test-repo/path/to/folder/manifest.csv", destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatalf("Download failed with status %d", status)
+	}
+
+	// Verify all files in the folder were downloaded
+	expectedFiles := []string{
+		"path/to/folder/manifest.csv",
+		"path/to/folder/data.txt",
+		"path/to/folder/subdir/file.txt",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		filePath := filepath.Join(destDir, expectedFile)
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			t.Errorf("Expected file %s was not downloaded", expectedFile)
+		}
+	}
+}
+
+// TestDownloadWithFolderNoMatch tests that download with --with-folder fails when no match is found
+func TestDownloadWithFolderNoMatch(t *testing.T) {
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-with-folder-nomatch-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		WithFolder:        true,
+	}
+
+	// Search for a file that doesn't exist
+	status := downloadFolder("test-repo/nonexistent.csv", destDir, config, opts)
+	if status != DownloadNoAssetsFound {
+		t.Errorf("Expected DownloadNoAssetsFound status (66), got %d", status)
+	}
+}
+
+// TestDownloadWithFolderAndGlob tests that glob filters apply to folder download
+func TestDownloadWithFolderAndGlob(t *testing.T) {
+	testContent := "test content"
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Add multiple files with different extensions in a folder
+	server.AddAsset("test-repo", "/path/to/folder/manifest.csv", nexusapi.Asset{}, []byte(testContent))
+	server.AddAsset("test-repo", "/path/to/folder/data.txt", nexusapi.Asset{}, []byte(testContent))
+	server.AddAsset("test-repo", "/path/to/folder/config.json", nexusapi.Asset{}, []byte(testContent))
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-with-folder-glob-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		WithFolder:        true,
+		GlobPattern:       "**/*.csv,**/*.json", // Only download .csv and .json files
+	}
+
+	// Search for manifest.csv and download its containing folder with glob filter
+	status := downloadFolder("test-repo/path/to/folder/manifest.csv", destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatalf("Download failed with status %d", status)
+	}
+
+	// Verify only .csv and .json files were downloaded (not .txt)
+	expectedFiles := []string{
+		"path/to/folder/manifest.csv",
+		"path/to/folder/config.json",
+	}
+	unexpectedFiles := []string{
+		"path/to/folder/data.txt",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		filePath := filepath.Join(destDir, expectedFile)
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			t.Errorf("Expected file %s was not downloaded", expectedFile)
+		}
+	}
+
+	for _, unexpectedFile := range unexpectedFiles {
+		filePath := filepath.Join(destDir, unexpectedFile)
+		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+			t.Errorf("File %s should not have been downloaded (filtered by glob)", unexpectedFile)
+		}
+	}
+}
+
+// TestDownloadWithFolderAndFlatten tests --with-folder with --flatten
+func TestDownloadWithFolderAndFlatten(t *testing.T) {
+	testContent := "test content"
+
+	server := nexusapi.NewMockNexusServer()
+	defer server.Close()
+
+	// Add files in nested structure
+	server.AddAsset("test-repo", "/path/to/folder/manifest.csv", nexusapi.Asset{}, []byte(testContent))
+	server.AddAsset("test-repo", "/path/to/folder/data.txt", nexusapi.Asset{}, []byte(testContent))
+
+	config := &config.Config{
+		NexusURL: server.URL,
+		Username: "test",
+		Password: "test",
+	}
+
+	destDir, err := os.MkdirTemp("", "test-download-with-folder-flatten-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(destDir)
+
+	opts := &DownloadOptions{
+		ChecksumAlgorithm: "sha1",
+		SkipChecksum:      false,
+		Logger:            util.NewLogger(io.Discard),
+		QuietMode:         true,
+		WithFolder:        true,
+		Flatten:           true,
+	}
+
+	// Search for manifest.csv and download its containing folder with flatten
+	status := downloadFolder("test-repo/path/to/folder/manifest.csv", destDir, config, opts)
+	if status != DownloadSuccess {
+		t.Fatalf("Download failed with status %d", status)
+	}
+
+	// With flatten, files should be at the root of destDir without the full path
+	expectedFiles := []string{
+		"manifest.csv",
+		"data.txt",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		filePath := filepath.Join(destDir, expectedFile)
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			t.Errorf("Expected file %s was not downloaded", expectedFile)
+		}
+	}
+}

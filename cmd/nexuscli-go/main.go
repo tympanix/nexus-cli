@@ -510,6 +510,7 @@ func buildRootCommand() *cobra.Command {
 	downloadCmd.Flags().BoolVar(&downloadOpts.Force, "force", false, "Force download all files regardless of existence or checksum match")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.DryRun, "dry-run", "n", false, "Perform a dry-run without actually downloading files")
 	downloadCmd.Flags().BoolVarP(&downloadOpts.Recursive, "recursive", "r", false, "Download folder recursively (default: false for single file download)")
+	downloadCmd.Flags().BoolVar(&downloadOpts.WithFolder, "with-folder", false, "Download the folder containing the first matched file")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
