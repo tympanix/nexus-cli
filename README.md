@@ -510,14 +510,14 @@ The `deps-lock.ini` file contains resolved file paths and their checksums. It is
 **Example:**
 ```ini
 [example_txt]
-docs/example-1.0.0.txt = sha256:f6a4e3c9b12a8d7e4f1c2b3a4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e
+docs/example-1.0.0.txt = sha256:9qTjybEqjX5PHCs6TV5veoucDR4vOktcbX6PmgscLT4=
 
 [libfoo_tar]
-thirdparty/libfoo-1.2.3.tar.gz = sha512:a4c9d2e8abf7c6b5d4a3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0
+thirdparty/libfoo-1.2.3.tar.gz = sha512:pMnS6Kv3xrXUo+LxoLnI1+b1pLPC0eD5qLfG1eTzorHA
 
 [docs_folder]
-docs/2025-10-15/readme.md = sha256:abcd1234ef567890abcd1234ef567890abcd1234ef567890abcd1234ef567890
-docs/2025-10-15/guide.pdf = sha256:ef125678abcd9012ef125678abcd9012ef125678abcd9012ef125678abcd9012
+docs/2025-10-15/readme.md = sha256:q80SNO9WeJCrzRI071Z4kKvNEjTvVniQq80SNO9WeJA=
+docs/2025-10-15/guide.pdf = sha256:7xJWeKvNkBLvElZ4q82QEu8SVnirzZAS7xJWeKvNkBI=
 ```
 
 This file ensures that every team member and CI/CD system downloads identical files with verified checksums.

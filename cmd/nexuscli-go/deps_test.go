@@ -239,6 +239,7 @@ func TestDepsSyncCommand(t *testing.T) {
 
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+	testChecksumBase64 := "BQUAfMJe9zP7dUwm233Yw4xc+PdfVx9gpmVIISwlsvo="
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		FileSize: int64(len(testFileContent)),
@@ -272,7 +273,7 @@ version = 1.0.0
 	}
 
 	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + testChecksum + `
+docs/example-1.0.0.txt = sha256:` + testChecksumBase64 + `
 `
 	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
@@ -306,8 +307,10 @@ func TestDepsSyncRecursiveDependency(t *testing.T) {
 
 	file1Content := []byte("readme content")
 	file1Checksum := "0de0ad4481b8d95b9b9b9cc2beaafaad42a8d04dcbcb91495c8cd207cdafe59a"
+	file1ChecksumBase64 := "DeCtRIG42Vubm5zCvqr6rUKo0E3Ly5FJXIzSB82v5Zo="
 	file2Content := []byte("guide content")
 	file2Checksum := "1c85d03c0b78b2e85838278e5b7b9240be75ddd284ebc4031c043b7f66ad49db"
+	file2ChecksumBase64 := "HIXQPAt4suhYOCeOW3uSQL513dKE68QDHAQ7f2atSds="
 
 	mockServer.AddAsset("libs", "/docs/2025-10-15/readme.md", nexusapi.Asset{
 		Checksum: nexusapi.Checksum{
@@ -346,8 +349,8 @@ recursive = true
 	}
 
 	lockFileContent := `[docs_folder]
-docs/2025-10-15/readme.md = sha256:` + file1Checksum + `
-docs/2025-10-15/guide.pdf = sha256:` + file2Checksum + `
+docs/2025-10-15/readme.md = sha256:` + file1ChecksumBase64 + `
+docs/2025-10-15/guide.pdf = sha256:` + file2ChecksumBase64 + `
 `
 	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
@@ -376,8 +379,10 @@ func TestDepsSyncWithMultipleDependencies(t *testing.T) {
 
 	file1Content := []byte("test file content for sync")
 	file1Checksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+	file1ChecksumBase64 := "BQUAfMJe9zP7dUwm233Yw4xc+PdfVx9gpmVIISwlsvo="
 	file2Content := []byte("another file content")
 	file2Checksum := "25621521f082bc0924529d5188367af1eb2b51c7a8d86d4b2c00096de0fe6ef5308c5b1e3cbbe5d8a3c52343aa03b08d9b77af65cfc5b27041795c6b7474ebcc"
+	file2ChecksumBase64 := "JWIVIfCCvAkkUp1RiDZ68esrUceo2G1LLAAJbeD+bvUwjFsePLvl2KPFI0OqA7CNm3evZc/FsnBBeVxrdHTrzA=="
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path: "docs/example-1.0.0.txt",
@@ -423,10 +428,10 @@ checksum = sha512
 	}
 
 	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + file1Checksum + `
+docs/example-1.0.0.txt = sha256:` + file1ChecksumBase64 + `
 
 [libfoo_tar]
-thirdparty/libfoo-1.2.3.tar.gz = sha512:` + file2Checksum + `
+thirdparty/libfoo-1.2.3.tar.gz = sha512:` + file2ChecksumBase64 + `
 `
 	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
@@ -471,7 +476,7 @@ func TestDepsSyncChecksumMismatch(t *testing.T) {
 
 	testFileContent := []byte("test file content")
 	actualChecksum := "60f5237ed4049f0382661ef009d2bc42e48c3ceb3edb6600f7024e7ab3b838f3"
-	wrongChecksum := "0000000000000000000000000000000000000000000000000000000000000000"
+	wrongChecksumBase64 := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Checksum: nexusapi.Checksum{
@@ -504,7 +509,7 @@ version = 1.0.0
 	}
 
 	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + wrongChecksum + `
+docs/example-1.0.0.txt = sha256:` + wrongChecksumBase64 + `
 `
 	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
@@ -615,8 +620,9 @@ path = test3/file1.out
 	if !strings.Contains(contentStr, "test3/file1.out") {
 		t.Error("deps-lock.ini missing test3/file1.out entry")
 	}
-	if !strings.Contains(contentStr, testChecksum) {
-		t.Errorf("deps-lock.ini missing expected checksum %s", testChecksum)
+	expectedBase64Checksum := "q8Ej3vRW"
+	if !strings.Contains(contentStr, expectedBase64Checksum) {
+		t.Errorf("deps-lock.ini missing expected base64 checksum %s", expectedBase64Checksum)
 	}
 }
 
@@ -691,6 +697,7 @@ func TestDepsSyncNoCleanupWhenDisabled(t *testing.T) {
 
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+	testChecksumBase64 := "BQUAfMJe9zP7dUwm233Yw4xc+PdfVx9gpmVIISwlsvo="
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		Path: "docs/example-1.0.0.txt",
@@ -724,7 +731,7 @@ version = 1.0.0
 	}
 
 	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + testChecksum + `
+docs/example-1.0.0.txt = sha256:` + testChecksumBase64 + `
 `
 	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)
@@ -830,6 +837,7 @@ func TestDepsSyncQuietMode(t *testing.T) {
 
 	testFileContent := []byte("test file content for sync")
 	testChecksum := "0505007cc25ef733fb754c26db7dd8c38c5cf8f75f571f60a66548212c25b2fa"
+	testChecksumBase64 := "BQUAfMJe9zP7dUwm233Yw4xc+PdfVx9gpmVIISwlsvo="
 
 	mockServer.AddAsset("libs", "/docs/example-1.0.0.txt", nexusapi.Asset{
 		FileSize: int64(len(testFileContent)),
@@ -863,7 +871,7 @@ version = 1.0.0
 	}
 
 	lockFileContent := `[example_txt]
-docs/example-1.0.0.txt = sha256:` + testChecksum + `
+docs/example-1.0.0.txt = sha256:` + testChecksumBase64 + `
 `
 	if err := os.WriteFile("deps-lock.ini", []byte(lockFileContent), 0644); err != nil {
 		t.Fatal(err)

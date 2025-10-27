@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +21,14 @@ import (
 )
 
 var version = "dev"
+
+func base64ToHex(b64Str string) (string, error) {
+	bytes, err := base64.StdEncoding.DecodeString(b64Str)
+	if err != nil {
+		return "", fmt.Errorf("invalid base64 string: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
+}
 
 func depsInitMain() {
 	filename := "deps.ini"
@@ -168,15 +178,20 @@ func depsSyncMain(cfg *config.Config, logger util.Logger, cleanupUntracked bool,
 				return fmt.Errorf("invalid checksum format in deps-lock.ini: %s", expectedChecksum)
 			}
 			algorithm := parts[0]
-			expected := parts[1]
+			base64Checksum := parts[1]
+
+			expectedHex, err := base64ToHex(base64Checksum)
+			if err != nil {
+				return fmt.Errorf("invalid base64 checksum in deps-lock.ini for %s: %w", filePath, err)
+			}
 
 			actualChecksum, err := checksum.ComputeChecksum(localPath, algorithm)
 			if err != nil {
 				return fmt.Errorf("error computing checksum for %s: %w", localPath, err)
 			}
 
-			if !strings.EqualFold(actualChecksum, expected) {
-				return fmt.Errorf("checksum mismatch for %s\n  Expected: %s\n  Got: %s", localPath, expected, actualChecksum)
+			if !strings.EqualFold(actualChecksum, expectedHex) {
+				return fmt.Errorf("checksum mismatch for %s\n  Expected: %s\n  Got: %s", localPath, expectedHex, actualChecksum)
 			}
 		}
 
